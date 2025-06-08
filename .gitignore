@@ -1,0 +1,10 @@
+#node arquives
+node_modules/
+
+#dev
+.prettierrc
+
+# arquives used in tests
+main.js
+images/
+index.html

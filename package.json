@@ -1,0 +1,32 @@
+{
+	"name": "game-library",
+	"version": "0.0.1",
+	"description": "A simple JS/TS Game Library for making 2d games using HTML Canvas",
+	"main": "main.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"build": "cls & tsc & ts-add-js-extension --dir=dist"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/GustavoLGregorio/game-library.git"
+	},
+	"keywords": [
+		"JavaScript",
+		"TypeScript",
+		"Game-Library",
+		"Canvas-Manipulation",
+		"Object-Oriented"
+	],
+	"author": "Gustavo L. Gregorio",
+	"license": "ISC",
+	"bugs": {
+		"url": "https://github.com/GustavoLGregorio/game-library/issues"
+	},
+	"homepage": "https://github.com/GustavoLGregorio/game-library#readme",
+	"devDependencies": {
+		"prettier": "^3.5.3",
+		"ts-add-js-extension": "^1.6.6",
+		"typescript": "^5.8.3"
+	}
+}
