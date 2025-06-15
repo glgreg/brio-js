@@ -12,6 +12,7 @@ export class Sprite {
 	#initialHeight: number;
 	#width: number;
 	#height: number;
+	#size: { w: number; h: number };
 
 	/**
 	 * @param {string} name A name for the sprite object
@@ -37,6 +38,7 @@ export class Sprite {
 		this.#posX = px;
 		this.#posY = py;
 		this.#pos = { x: px, y: py };
+		this.#size = { w: sw, h: sh };
 		this.#width = sw;
 		this.#initialWidth = sw;
 		this.#initialHeight = sh;
@@ -94,6 +96,42 @@ export class Sprite {
 	}
 	public set posY(value: number) {
 		this.#posY = value;
+	}
+
+	public get size(): { w: number; h: number } {
+		const self = this;
+		return {
+			get w() {
+				return self.#size.w;
+			},
+			set w(value: number) {
+				self.#size.w = value;
+			},
+			get h() {
+				return self.#size.h;
+			},
+			set h(value: number) {
+				self.#size.h = value;
+			},
+		};
+	}
+
+	public get pos(): { x: number; y: number } {
+		const self = this;
+		return {
+			get x() {
+				return self.#pos.x;
+			},
+			set x(value: number) {
+				self.#pos.x = value;
+			},
+			get y() {
+				return self.#pos.y;
+			},
+			set y(value: number) {
+				self.#pos.y = value;
+			},
+		};
 	}
 
 	public get width(): number {

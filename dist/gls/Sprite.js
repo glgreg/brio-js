@@ -12,6 +12,7 @@ export class Sprite {
     #initialHeight;
     #width;
     #height;
+    #size;
     /**
      * @param {string} name A name for the sprite object
      * @param {string} src The source URI for the target image
@@ -28,6 +29,7 @@ export class Sprite {
         this.#posX = px;
         this.#posY = py;
         this.#pos = { x: px, y: py };
+        this.#size = { w: sw, h: sh };
         this.#width = sw;
         this.#initialWidth = sw;
         this.#initialHeight = sh;
@@ -81,6 +83,40 @@ export class Sprite {
     }
     set posY(value) {
         this.#posY = value;
+    }
+    get size() {
+        const self = this;
+        return {
+            get w() {
+                return self.#size.w;
+            },
+            set w(value) {
+                self.#size.w = value;
+            },
+            get h() {
+                return self.#size.h;
+            },
+            set h(value) {
+                self.#size.h = value;
+            },
+        };
+    }
+    get pos() {
+        const self = this;
+        return {
+            get x() {
+                return self.#pos.x;
+            },
+            set x(value) {
+                self.#pos.x = value;
+            },
+            get y() {
+                return self.#pos.y;
+            },
+            set y(value) {
+                self.#pos.y = value;
+            },
+        };
     }
     get width() {
         return this.#width;

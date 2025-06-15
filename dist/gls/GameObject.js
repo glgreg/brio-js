@@ -9,9 +9,19 @@ export class GameObject {
     /** @type {boolean} Checks if game actions were initialized */
     #actionsInitialized = false;
     /** @type {boolean} Used to check if the object is the original object or a instance of itself  */
-    static #instanceOfObject = false;
+    static instanceOfObject = false;
     /** @type {string} An instance ID used when a game object is a instance of the same game object, defaults to 0 if it's the original object */
-    #instanceId;
+    instanceId;
+    /** @type {number} The layer level the object is located */
+    #layer;
+    #collisionEnabled = false;
+    #collisionType;
+    #collisionForm;
+    #collisionPosX;
+    #collisionPosY;
+    #collisionWidth;
+    #collisionHeight;
+    #collisionArea;
     /**
      * @param {string} name The name of the game object
      * @param {Sprite} sprite The Sprite that will be attached to the game object
@@ -22,26 +32,82 @@ export class GameObject {
      * return [player]; // now the "player" GameObject can be used in the 'update' step
      * });
      */
-    constructor(name, sprite) {
-        // Checks if the given name have -[0-9] at the end (so it doesn't conflict with instances of the game object)
-        if (/-[0-9]+$/.test(name) && !GameObject.#instanceOfObject) {
+    constructor(name, sprite, layer) {
+        // Checks if the given name have -[0-9] at the end (so it doesn't conflict with instances of the same game object)
+        if (/-[0-9]+$/.test(name) && !GameObject.instanceOfObject) {
             throw new Error("Game objects can't end with '-number', try using underline instead (bot-5 -> bot_5)");
         }
         this.#name = name;
         // Clones the Sprite so that more than one game object can have the same one
         this.#sprite = Sprite.clone(sprite);
-        this.#instanceId = 0;
+        this.#layer = Math.round(Math.abs(layer));
+        this.instanceId = 0;
     }
     /**
      * GETTER AND SETTERS ---------------------------------------------------------------
      */
+    set layer(layerLevel) {
+        layerLevel = Math.round(Math.abs(layerLevel));
+        this.#layer = layerLevel;
+    }
+    get layer() {
+        return this.#layer;
+    }
+    get collision() {
+        const self = this;
+        return {
+            get enabled() {
+                return self.#collisionEnabled;
+            },
+            get form() {
+                return self.#collisionForm;
+            },
+            get type() {
+                return self.#collisionType;
+            },
+            get x() {
+                return self.#collisionPosX;
+            },
+            get y() {
+                return self.#collisionPosY;
+            },
+            get w() {
+                return self.#collisionWidth;
+            },
+            get h() {
+                return self.#collisionHeight;
+            },
+            get area() {
+                return self.#collisionArea;
+            },
+        };
+    }
     /** Returns the attached Sprite used in the game object */
     get sprite() {
         return this.#sprite;
     }
-    /** Returns the attached Sprite used in the game object */
+    /** Sets and returns the size of the game object Width and Height
+     * @example const player = new GameObject("player", spr_player);
+     * player.size.w = 128;
+     * player.size.h = 128;
+     * console.log(player.size.w, player.size.h); // 128, 128 (attention: it will be multiplied by the game "scale" property)
+     */
     get size() {
-        return { w: this.#sprite.width, h: this.#sprite.height };
+        const self = this;
+        return {
+            get w() {
+                return self.#sprite.size.w;
+            },
+            set w(value) {
+                self.#sprite.size.w = value;
+            },
+            get h() {
+                return self.#sprite.size.h;
+            },
+            set h(value) {
+                self.#sprite.size.h = value;
+            },
+        };
     }
     /** Returns the name of the game object */
     get name() {
@@ -121,16 +187,53 @@ export class GameObject {
      * console.log(enemies); // [{name: "enemy-1"}, {name: "enemy-2"}]
      */
     instantiate(quantity = 1) {
+        if (!this) {
+            console.warn("object destroyed");
+            return [];
+        }
         const instances = [];
-        GameObject.#instanceOfObject = true;
+        GameObject.instanceOfObject = true;
         for (let i = 0; i < quantity; i++) {
-            const newObject = new GameObject(`${this.name}-${i + 1}`, this.#sprite);
-            newObject.#instanceId++;
+            const newObject = new GameObject(`${this.#name}-${i + 1}`, this.#sprite, this.#layer);
+            newObject.instanceId++;
             newObject.pos.x = 0;
             newObject.pos.y = 0;
             instances.push(newObject);
         }
-        GameObject.#instanceOfObject = false;
+        GameObject.instanceOfObject = false;
+        if (instances.length > 1) {
+            return instances;
+        }
         return instances;
+    }
+    instantiateMany(quantity) {
+        const self = this.#clone(this);
+        const instances = [];
+        GameObject.instanceOfObject = true;
+        for (let i = 0; i < quantity; i++) {
+            const gameObject = new GameObject(`${self.#name}-${i + 1}`, self.#sprite, self.#layer);
+            gameObject.instanceId++;
+            gameObject.pos.x = 0;
+            gameObject.pos.y = 0;
+            instances.push(gameObject);
+        }
+        GameObject.instanceOfObject = false;
+        return instances;
+    }
+    addCollisionMask(maskForm = "square", collisionType, px, py, sw, sh) {
+        if (this.#collisionEnabled) {
+            return;
+        }
+        this.#collisionForm = maskForm;
+        this.#collisionType = collisionType;
+        this.#collisionPosX = px;
+        this.#collisionPosY = py;
+        this.#collisionWidth = sw;
+        this.#collisionHeight = sh;
+        this.#collisionArea = sw * sh;
+        this.#collisionEnabled = true;
+    }
+    #clone(object) {
+        return new GameObject(`clone-${this.#name}`, this.#sprite, this.#layer);
     }
 }

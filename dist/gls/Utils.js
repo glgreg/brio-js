@@ -31,12 +31,23 @@ export class GameUtils {
      * @param {K} propertyValue The initial value (obligatory adding is needed for type cohersion)
      */
     static addProperty(object, propertyKey, propertyValue) {
-        if (typeof object !== "object")
+        if (typeof object !== "object") {
             throw new Error("Something other than a object was passed");
-        Object.defineProperty(object, propertyKey, {
-            configurable: false,
-            value: propertyValue,
-            writable: true,
-        });
+        }
+        if (object) {
+            if (Object.hasOwn(object, propertyKey)) {
+                throw new Error(`Trying to create a property that alread exists. ${object.name}.${propertyKey}`);
+            }
+            Object.defineProperty(object, propertyKey, {
+                configurable: false,
+                value: propertyValue,
+                writable: true,
+            });
+        }
+    }
+    static wait(callbackFn, timInMiliseconds) {
+        setTimeout(() => {
+            callbackFn();
+        }, timInMiliseconds);
     }
 }

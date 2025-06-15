@@ -1,3 +1,6 @@
+import { GameObject } from "./GameObject";
+import { Sprite } from "./Sprite";
+
 export class GameUtils {
 	/** A function that loops throught a given callback until it stops at given time
 	 * @param {() => void} callbackFn The callback that will be looped
@@ -33,12 +36,31 @@ export class GameUtils {
 	 * @param {string} propertyKey The property key
 	 * @param {K} propertyValue The initial value (obligatory adding is needed for type cohersion)
 	 */
-	public static addProperty<T, K>(object: T, propertyKey: string, propertyValue: K) {
-		if (typeof object !== "object") throw new Error("Something other than a object was passed");
-		Object.defineProperty(object, propertyKey, {
-			configurable: false,
-			value: propertyValue,
-			writable: true,
-		});
+	public static addProperty<T extends Sprite | GameObject, K>(
+		object: T,
+		propertyKey: string,
+		propertyValue: K,
+	) {
+		if (typeof object !== "object") {
+			throw new Error("Something other than a object was passed");
+		}
+		if (object) {
+			if (Object.hasOwn(object, propertyKey)) {
+				throw new Error(
+					`Trying to create a property that alread exists. ${object.name}.${propertyKey}`,
+				);
+			}
+			Object.defineProperty(object, propertyKey, {
+				configurable: false,
+				value: propertyValue,
+				writable: true,
+			});
+		}
+	}
+
+	public static wait(callbackFn: () => void, timInMiliseconds: number) {
+		setTimeout(() => {
+			callbackFn();
+		}, timInMiliseconds);
 	}
 }
