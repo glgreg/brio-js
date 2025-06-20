@@ -4,8 +4,6 @@ export class GameObject {
     #name;
     /** @type {Sprite} The sprite attached to the game object */
     #sprite;
-    /** @type {"check latter"} An object that receives actions events for the game object, such as keyboard clicking events */
-    #registeredActions = {};
     /** @type {boolean} Checks if game actions were initialized */
     #actionsInitialized = false;
     /** @type {boolean} Used to check if the object is the original object or a instance of itself  */
@@ -95,17 +93,17 @@ export class GameObject {
     get size() {
         const self = this;
         return {
-            get w() {
-                return self.#sprite.size.w;
+            get x() {
+                return self.#sprite.size.x;
             },
-            set w(value) {
-                self.#sprite.size.w = value;
+            set x(value) {
+                self.#sprite.size.x = value;
             },
-            get h() {
-                return self.#sprite.size.h;
+            get y() {
+                return self.#sprite.size.y;
             },
-            set h(value) {
-                self.#sprite.size.h = value;
+            set y(value) {
+                self.#sprite.size.y = value;
             },
         };
     }
@@ -123,103 +121,22 @@ export class GameObject {
         const self = this;
         return {
             get x() {
-                return self.#sprite.posX;
+                return self.#sprite.pos.x;
             },
             set x(value) {
-                self.#sprite.posX = value;
+                self.#sprite.pos.x = value;
             },
             get y() {
-                return self.#sprite.posY;
+                return self.#sprite.pos.y;
             },
             set y(value) {
-                self.#sprite.posY = value;
+                self.#sprite.pos.y = value;
             },
         };
     }
     /**
      * METHODS --------------------------------------------------------------------------
      */
-    /** Sets actions events for the game object, such as keyboard clicking events
-     * @example const player = new GameObject("player", spr_player);
-     *
-     * player.setActions({
-     * onKeyDown: {
-     * ArrowLeft: () => { player.pos.x -= 5 },
-     * ArrowRight: () => { player.pos.y += 5 },
-     * }})
-     */
-    setActions(keyBindingsObject) {
-        this.#registeredActions = Object.assign({}, this.#registeredActions, keyBindingsObject);
-        if (!this.#actionsInitialized) {
-            this.#actionsInitialized = true;
-            window.addEventListener("keydown", (e) => {
-                if (this.#registeredActions.onKeyDown) {
-                    const action = this.#registeredActions.onKeyDown[e.key];
-                    if (typeof action === "function") {
-                        action();
-                    }
-                }
-            });
-            window.addEventListener("keyup", (e) => {
-                if (this.#registeredActions.onKeyUp) {
-                    const action = this.#registeredActions.onKeyUp[e.key];
-                    if (typeof action === "function") {
-                        action();
-                    }
-                }
-            });
-            window.addEventListener("keypress", (e) => {
-                if (this.#registeredActions.onKeyPress) {
-                    const action = this.#registeredActions.onKeyPress[e.key];
-                    if (typeof action === "function") {
-                        action();
-                    }
-                }
-            });
-        }
-    }
-    /** A factory-type method that creates clones of the game object and returns an array of them
-     * @param {number} [quantity=1] The quantity of clones to create
-     * @returns {GameObject[]} Returns an array of cloned game objects
-     * @example const enemy = new GameObject("enemy", spr_enemy);
-     * const enemies = enemy.instantiate(2);
-     *
-     * console.log(enemies); // [{name: "enemy-1"}, {name: "enemy-2"}]
-     */
-    instantiate(quantity = 1) {
-        if (!this) {
-            console.warn("object destroyed");
-            return [];
-        }
-        const instances = [];
-        GameObject.instanceOfObject = true;
-        for (let i = 0; i < quantity; i++) {
-            const newObject = new GameObject(`${this.#name}-${i + 1}`, this.#sprite, this.#layer);
-            newObject.instanceId++;
-            newObject.pos.x = 0;
-            newObject.pos.y = 0;
-            instances.push(newObject);
-        }
-        GameObject.instanceOfObject = false;
-        if (instances.length > 1) {
-            return instances;
-        }
-        return instances;
-    }
-    instantiateMany(quantity) {
-        const self = this.#clone(this);
-        const instances = [];
-        GameObject.instanceOfObject = true;
-        for (let i = 0; i < quantity; i++) {
-            const gameObject = new GameObject(`${self.#name}-${i + 1}`, self.#sprite, self.#layer);
-            gameObject.instanceId++;
-            gameObject.pos.x = 0;
-            gameObject.pos.y = 0;
-            instances.push(gameObject);
-        }
-        GameObject.instanceOfObject = false;
-        return instances;
-    }
     addCollisionMask(maskForm = "square", collisionType, px, py, sw, sh) {
         if (this.#collisionEnabled) {
             return;
@@ -232,8 +149,5 @@ export class GameObject {
         this.#collisionHeight = sh;
         this.#collisionArea = sw * sh;
         this.#collisionEnabled = true;
-    }
-    #clone(object) {
-        return new GameObject(`clone-${this.#name}`, this.#sprite, this.#layer);
     }
 }

@@ -1,3 +1,13 @@
+import { Vector2 } from "./GameTypes";
+
+export interface SpriteProps {
+	name: string;
+	src: string;
+	pos: Vector2;
+	size: Vector2;
+	type: string;
+}
+
 export class Sprite {
 	/** @type {HTMLImageElement} Element created to receive an image */
 	#element: HTMLImageElement;
@@ -5,14 +15,10 @@ export class Sprite {
 	#name: string;
 	/** @type {string} The source URL used in the sprite */
 	#src: string;
-	#pos: { x: number; y: number };
-	#posX: number;
-	#posY: number;
-	#initialWidth: number;
-	#initialHeight: number;
-	#width: number;
-	#height: number;
-	#size: { w: number; h: number };
+	#pos: Vector2;
+	#initialSize: Vector2;
+	#size: Vector2;
+	#type: string;
 
 	/**
 	 * @param {string} name A name for the sprite object
@@ -24,30 +30,18 @@ export class Sprite {
 	 * return [spr_player]; // now the "spr_player" Sprite can be used in the 'load' step
 	 * });
 	 */
-	constructor(
-		name: string,
-		src: string,
-		px: number = 0,
-		py: number = 0,
-		sw: number = 128,
-		sh: number = 128,
-		type: string = "img",
-	) {
-		this.#name = name;
-		this.#src = src;
-		this.#posX = px;
-		this.#posY = py;
-		this.#pos = { x: px, y: py };
-		this.#size = { w: sw, h: sh };
-		this.#width = sw;
-		this.#initialWidth = sw;
-		this.#initialHeight = sh;
-		this.#height = sh;
+	constructor(props: SpriteProps) {
+		this.#name = props.name;
+		this.#src = props.src;
+		this.#pos = props.pos;
+		this.#size = props.size;
+		this.#initialSize = props.size;
+		this.#type = props.type;
 
-		if (type === "img") {
+		if (this.#type === "img") {
 			this.#element = new Image();
 			this.#element.src = this.#src;
-		} else if (type === "svg") {
+		} else if (this.#type === "svg") {
 			this.#element = new Image();
 			this.#element.src = this.#src;
 		} else throw new Error("Invalid sprite type: use 'img' or 'svg'");
@@ -84,34 +78,20 @@ export class Sprite {
 		return this.#src;
 	}
 
-	public get posX(): number {
-		return this.#posX;
-	}
-	public set posX(value: number) {
-		this.#posX = value;
-	}
-
-	public get posY(): number {
-		return this.#posY;
-	}
-	public set posY(value: number) {
-		this.#posY = value;
-	}
-
-	public get size(): { w: number; h: number } {
+	public get size(): Vector2 {
 		const self = this;
 		return {
-			get w() {
-				return self.#size.w;
+			get x() {
+				return self.#size.x;
 			},
-			set w(value: number) {
-				self.#size.w = value;
+			set x(value: number) {
+				self.#size.x = value;
 			},
-			get h() {
-				return self.#size.h;
+			get y() {
+				return self.#size.y;
 			},
-			set h(value: number) {
-				self.#size.h = value;
+			set y(value: number) {
+				self.#size.y = value;
 			},
 		};
 	}
@@ -135,28 +115,32 @@ export class Sprite {
 	}
 
 	public get width(): number {
-		return this.#width;
+		return this.#size.x;
 	}
 	public set width(value: number) {
-		this.#width = value;
+		this.#size.x = value;
 	}
 
 	public get height(): number {
-		return this.#height;
+		return this.#size.y;
 	}
 	public set height(value: number) {
-		this.#height = value;
+		this.#size.y = value;
 	}
 
 	public get scale() {
-		const initialSize = this.#initialWidth * this.#initialHeight;
-		const currentSize = this.#width * this.#height;
+		const initialSize = this.#initialSize.x * this.#initialSize.y;
+		const currentSize = this.#size.x * this.#size.y;
 
 		return Math.sqrt(currentSize / initialSize);
 	}
 	public set scale(value: number) {
-		this.#width *= value;
-		this.#height *= value;
+		this.#size.x *= value;
+		this.#size.y *= value;
+	}
+
+	public get type() {
+		return this.#type;
 	}
 
 	/**
@@ -169,13 +153,13 @@ export class Sprite {
 	}
 
 	public static clone(targetSprite: Sprite) {
-		return new Sprite(
-			targetSprite.name,
-			targetSprite.src,
-			targetSprite.posX,
-			targetSprite.posY,
-			targetSprite.width,
-			targetSprite.height,
-		);
+		const props: SpriteProps = {
+			name: targetSprite.#name,
+			src: targetSprite.#src,
+			pos: { x: targetSprite.#pos.x, y: targetSprite.#pos.y },
+			size: { x: targetSprite.#size.x, y: targetSprite.#size.y },
+			type: "img",
+		};
+		return new Sprite(props);
 	}
 }

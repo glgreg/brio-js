@@ -397,8 +397,8 @@ export class Game {
 			gameObject.sprite.element,
 			gameObject.pos.x,
 			gameObject.pos.y,
-			gameObject.size.w * this.#scale,
-			gameObject.size.h * this.#scale,
+			gameObject.size.x * this.#scale,
+			gameObject.size.y * this.#scale,
 		);
 	}
 
@@ -410,8 +410,8 @@ export class Game {
 		this.#context.clearRect(
 			gameObject.pos.x,
 			gameObject.pos.y,
-			gameObject.size.w * this.#scale,
-			gameObject.size.h * this.#scale,
+			gameObject.size.x * this.#scale,
+			gameObject.size.y * this.#scale,
 		);
 	}
 
@@ -451,8 +451,8 @@ export class Game {
 			this.#context.clearRect(
 				targetObject.pos.x,
 				targetObject.pos.y,
-				targetObject.size.w * this.#scale,
-				targetObject.size.h * this.#scale,
+				targetObject.size.x * this.#scale,
+				targetObject.size.y * this.#scale,
 			);
 		}
 
@@ -470,9 +470,9 @@ export class Game {
 		let auxHeight = screenThreshold !== 1 ? this.#width : 0;
 		if (
 			targetObject.pos.x > this.#width * screenThreshold ||
-			targetObject.pos.x + targetObject.size.w * this.#scale < 0 * auxWidth * screenThreshold ||
+			targetObject.pos.x + targetObject.size.x * this.#scale < 0 * auxWidth * screenThreshold ||
 			targetObject.pos.y > this.#height * screenThreshold ||
-			targetObject.pos.y + targetObject.size.h * this.#scale < 0 * auxHeight * screenThreshold
+			targetObject.pos.y + targetObject.size.y * this.#scale < 0 * auxHeight * screenThreshold
 		) {
 			// this.stopGame();
 			// this.removeObject(targetObject);
@@ -516,8 +516,8 @@ export class Game {
 			this.#context.clearRect(
 				targetObject.pos.x,
 				targetObject.pos.y,
-				targetObject.size.w * this.scale,
-				targetObject.size.h * this.scale,
+				targetObject.size.x * this.scale,
+				targetObject.size.y * this.scale,
 			);
 		}
 	}
@@ -613,8 +613,8 @@ export class Game {
 				this.#context.rect(
 					gameObject.pos.x,
 					gameObject.pos.y,
-					gameObject.size.w * this.#scale,
-					gameObject.size.h * this.#scale,
+					gameObject.size.x * this.#scale,
+					gameObject.size.y * this.#scale,
 				);
 				this.#context.lineWidth = 2;
 				this.#context.strokeStyle = "#0F0";

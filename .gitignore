@@ -2,10 +2,13 @@
 node_modules/
 
 #dev
-.prettierrc
 
 # arquives used in tests
 main.js
 images/
 index.html
 todo.md
+index.html
+global.css
+lib.js
+lib.tests

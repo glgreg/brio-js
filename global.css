@@ -15,3 +15,10 @@ body {
 	image-rendering: -moz-crisp-edges;
 	image-rendering: pixelated;
 }
+
+#test_container {
+	position: absolute;
+	top: 2rem;
+	right: 2rem;
+	font-size: 2rem;
+}

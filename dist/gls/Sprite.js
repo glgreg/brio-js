@@ -6,13 +6,9 @@ export class Sprite {
     /** @type {string} The source URL used in the sprite */
     #src;
     #pos;
-    #posX;
-    #posY;
-    #initialWidth;
-    #initialHeight;
-    #width;
-    #height;
+    #initialSize;
     #size;
+    #type;
     /**
      * @param {string} name A name for the sprite object
      * @param {string} src The source URI for the target image
@@ -23,22 +19,18 @@ export class Sprite {
      * return [spr_player]; // now the "spr_player" Sprite can be used in the 'load' step
      * });
      */
-    constructor(name, src, px = 0, py = 0, sw = 128, sh = 128, type = "img") {
-        this.#name = name;
-        this.#src = src;
-        this.#posX = px;
-        this.#posY = py;
-        this.#pos = { x: px, y: py };
-        this.#size = { w: sw, h: sh };
-        this.#width = sw;
-        this.#initialWidth = sw;
-        this.#initialHeight = sh;
-        this.#height = sh;
-        if (type === "img") {
+    constructor(props) {
+        this.#name = props.name;
+        this.#src = props.src;
+        this.#pos = props.pos;
+        this.#size = props.size;
+        this.#initialSize = props.size;
+        this.#type = props.type;
+        if (this.#type === "img") {
             this.#element = new Image();
             this.#element.src = this.#src;
         }
-        else if (type === "svg") {
+        else if (this.#type === "svg") {
             this.#element = new Image();
             this.#element.src = this.#src;
         }
@@ -72,32 +64,20 @@ export class Sprite {
     get src() {
         return this.#src;
     }
-    get posX() {
-        return this.#posX;
-    }
-    set posX(value) {
-        this.#posX = value;
-    }
-    get posY() {
-        return this.#posY;
-    }
-    set posY(value) {
-        this.#posY = value;
-    }
     get size() {
         const self = this;
         return {
-            get w() {
-                return self.#size.w;
+            get x() {
+                return self.#size.x;
             },
-            set w(value) {
-                self.#size.w = value;
+            set x(value) {
+                self.#size.x = value;
             },
-            get h() {
-                return self.#size.h;
+            get y() {
+                return self.#size.y;
             },
-            set h(value) {
-                self.#size.h = value;
+            set y(value) {
+                self.#size.y = value;
             },
         };
     }
@@ -119,25 +99,28 @@ export class Sprite {
         };
     }
     get width() {
-        return this.#width;
+        return this.#size.x;
     }
     set width(value) {
-        this.#width = value;
+        this.#size.x = value;
     }
     get height() {
-        return this.#height;
+        return this.#size.y;
     }
     set height(value) {
-        this.#height = value;
+        this.#size.y = value;
     }
     get scale() {
-        const initialSize = this.#initialWidth * this.#initialHeight;
-        const currentSize = this.#width * this.#height;
+        const initialSize = this.#initialSize.x * this.#initialSize.y;
+        const currentSize = this.#size.x * this.#size.y;
         return Math.sqrt(currentSize / initialSize);
     }
     set scale(value) {
-        this.#width *= value;
-        this.#height *= value;
+        this.#size.x *= value;
+        this.#size.y *= value;
+    }
+    get type() {
+        return this.#type;
     }
     /**
      * Set the source URL of the Sprite object
@@ -148,6 +131,13 @@ export class Sprite {
         this.#src = value;
     }
     static clone(targetSprite) {
-        return new Sprite(targetSprite.name, targetSprite.src, targetSprite.posX, targetSprite.posY, targetSprite.width, targetSprite.height);
+        const props = {
+            name: targetSprite.#name,
+            src: targetSprite.#src,
+            pos: { x: targetSprite.#pos.x, y: targetSprite.#pos.y },
+            size: { x: targetSprite.#size.x, y: targetSprite.#size.y },
+            type: "img",
+        };
+        return new Sprite(props);
     }
 }

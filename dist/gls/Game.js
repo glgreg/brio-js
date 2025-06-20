@@ -310,13 +310,13 @@ export class Game {
         else if (this.#renderingType === "pixelated") {
             this.#context.imageSmoothingEnabled = false;
         }
-        this.#context.drawImage(gameObject.sprite.element, gameObject.pos.x, gameObject.pos.y, gameObject.size.w * this.#scale, gameObject.size.h * this.#scale);
+        this.#context.drawImage(gameObject.sprite.element, gameObject.pos.x, gameObject.pos.y, gameObject.size.x * this.#scale, gameObject.size.y * this.#scale);
     }
     #clearSprite(gameObject) {
         if (!this.#context || !gameObject) {
             return;
         }
-        this.#context.clearRect(gameObject.pos.x, gameObject.pos.y, gameObject.size.w * this.#scale, gameObject.size.h * this.#scale);
+        this.#context.clearRect(gameObject.pos.x, gameObject.pos.y, gameObject.size.x * this.#scale, gameObject.size.y * this.#scale);
     }
     /**
      * EXTERNAL METHODS -----------------------------------------------------------------
@@ -349,7 +349,7 @@ export class Game {
             this.#loadedGameObjects.delete(targetObject.name);
         }
         if (this.#context && objectExists) {
-            this.#context.clearRect(targetObject.pos.x, targetObject.pos.y, targetObject.size.w * this.#scale, targetObject.size.h * this.#scale);
+            this.#context.clearRect(targetObject.pos.x, targetObject.pos.y, targetObject.size.x * this.#scale, targetObject.size.y * this.#scale);
         }
         if (objectExists && this.#logsEnabled) {
             console.warn(`${targetObject.name} was removed from the scene!`);
@@ -362,9 +362,9 @@ export class Game {
         let auxWidth = screenThreshold !== 1 ? this.#width : 0;
         let auxHeight = screenThreshold !== 1 ? this.#width : 0;
         if (targetObject.pos.x > this.#width * screenThreshold ||
-            targetObject.pos.x + targetObject.size.w * this.#scale < 0 * auxWidth * screenThreshold ||
+            targetObject.pos.x + targetObject.size.x * this.#scale < 0 * auxWidth * screenThreshold ||
             targetObject.pos.y > this.#height * screenThreshold ||
-            targetObject.pos.y + targetObject.size.h * this.#scale < 0 * auxHeight * screenThreshold) {
+            targetObject.pos.y + targetObject.size.y * this.#scale < 0 * auxHeight * screenThreshold) {
             // this.stopGame();
             // this.removeObject(targetObject);
             if (callbackFn) {
@@ -394,7 +394,7 @@ export class Game {
     }
     destroy(targetObject) {
         if (this.#context && this.#loadedSprites.has(targetObject.sprite.name)) {
-            this.#context.clearRect(targetObject.pos.x, targetObject.pos.y, targetObject.size.w * this.scale, targetObject.size.h * this.scale);
+            this.#context.clearRect(targetObject.pos.x, targetObject.pos.y, targetObject.size.x * this.scale, targetObject.size.y * this.scale);
         }
     }
     colliding(object1, object2) {
@@ -466,7 +466,7 @@ export class Game {
         this.#loadedGameObjects.forEach((gameObject, key) => {
             if (this.#context) {
                 this.#context.beginPath();
-                this.#context.rect(gameObject.pos.x, gameObject.pos.y, gameObject.size.w * this.#scale, gameObject.size.h * this.#scale);
+                this.#context.rect(gameObject.pos.x, gameObject.pos.y, gameObject.size.x * this.#scale, gameObject.size.y * this.#scale);
                 this.#context.lineWidth = 2;
                 this.#context.strokeStyle = "#0F0";
                 this.#context.stroke();
