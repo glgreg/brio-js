@@ -1,34 +1,37 @@
 import { Game } from "./Game";
 import { GameScene } from "./GameScene";
 import { GameMap } from "./GameMap";
-import { Sprite } from "./Sprite";
+import { GameSprite } from "./asset/GameSprite";
 import { SpriteSheet } from "./SpriteSheet";
 import { GameObject } from "./GameObject";
-import { GameKeyboard } from "./GameKeyboard";
-import { GameGamepad } from "./GameGamepad";
+import { GameKeyboard } from "./input/GameKeyboard";
 import { GameUtils } from "./GameUtils";
-
-const GLS = {
-	Game,
-	GameMap,
-	GameScene,
-	Sprite,
-	SpriteSheet,
-	GameObject,
-	GameUtils,
-	GameKeyboard,
-	GameGamepad,
-};
+import { GameCamera } from "./GameCamera";
+import { GameAudio } from "./asset/GameAudio";
 
 export {
 	Game,
 	GameMap,
 	GameScene,
-	Sprite,
+	GameSprite,
 	SpriteSheet,
 	GameObject,
 	GameUtils,
 	GameKeyboard,
-	GameGamepad,
+	GameCamera,
+	GameAudio,
+};
+
+const GLS = {
+	Game,
+	GameMap,
+	GameScene,
+	GameSprite,
+	SpriteSheet,
+	GameObject,
+	GameUtils,
+	GameKeyboard,
+	GameCamera,
+	GameAudio,
 };
 export default GLS;

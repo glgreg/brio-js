@@ -4,7 +4,6 @@
 	"description": "A simple JS/TS Game Library for making 2d games using HTML Canvas",
 	"main": "main.js",
 	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1",
 		"build": "cls & tsc & ts-add-js-extension --dir=dist"
 	},
 	"repository": {

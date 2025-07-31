@@ -1,17 +1,17 @@
 export class Sprite {
+    /** @type {string} The name of the sprite asset */
+    #name;
     /** @type {HTMLImageElement} Element created to receive an image */
     #element;
-    /** @type {string} The name of the sprite */
-    #name;
     /** @type {string} The source URL used in the sprite */
-    #src;
     #pos;
+    #src;
     #initialSize;
     #size;
     #type;
     /**
      * @param {string} name A name for the sprite object
-     * @param {string} src The source URI for the target image
+     * @param {string} src The source URI for the targeted image
      * @param {string} [type="img"] The type of the image (img | svg)
      * @example game.preload(() => {
      *

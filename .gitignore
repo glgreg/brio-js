@@ -6,9 +6,11 @@ node_modules/
 # arquives used in tests
 main.js
 images/
+audios/
 index.html
 todo.md
 index.html
 global.css
 lib.js
 lib.tests
+/nbproject/private/

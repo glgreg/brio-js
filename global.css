@@ -8,12 +8,16 @@ body {
 	color: #eee;
 	background: hsl(325, 90%, 20%);
 	display: flex;
+	flex-direction: column;
 	justify-content: center;
 	align-items: center;
 
 	image-rendering: crisp-edges;
 	image-rendering: -moz-crisp-edges;
 	image-rendering: pixelated;
+}
+canvas {
+	background: gray;
 }
 
 #test_container {

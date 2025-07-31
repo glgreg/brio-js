@@ -1,5 +1,7 @@
 import { GameObject } from "./GameObject";
-import { Sprite } from "./Sprite";
+import { GameSprite } from "./asset/GameSprite";
+import { Game } from "./Game";
+import { Vector2 } from "./GameTypes";
 
 export class GameUtils {
 	/** A function that loops throught a given callback until it stops at given time
@@ -36,7 +38,7 @@ export class GameUtils {
 	 * @param {string} propertyKey The property key
 	 * @param {K} propertyValue The initial value (obligatory adding is needed for type cohersion)
 	 */
-	public static addProperty<T extends Sprite | GameObject, K>(
+	public static addProperty<T extends GameSprite | GameObject, K>(
 		object: T,
 		propertyKey: string,
 		propertyValue: K,
@@ -62,5 +64,32 @@ export class GameUtils {
 		setTimeout(() => {
 			callbackFn();
 		}, timInMiliseconds);
+	}
+
+	public static mapRestrainOffbound(game: Game, target: GameObject) {
+		if (target.pos.x >= 0) {
+			target.pos.x = 0;
+		} else if (target.pos.x <= -(target.size.x * game.scale - game.width)) {
+			target.pos.x = -(target.size.x * game.scale - game.width);
+		}
+		if (target.pos.y >= 0) {
+			target.pos.y = 0;
+		} else if (target.pos.y <= -(target.size.y * game.scale - game.height)) {
+			target.pos.y = -(target.size.y * game.scale - game.height);
+		}
+	}
+
+	/**
+	 * A functions that receives a Vector2 and returns a normalized Vector2
+	 * @param {Vector2} vec2
+	 * @returns {Vector2}
+	 */
+	public static normalize(vec2: Vector2): Vector2 {
+		const magnitude = Math.sqrt(vec2.x * vec2.x + vec2.y * vec2.y);
+		if (magnitude === 0) {
+			return { x: 0, y: 0 };
+		}
+
+		return { x: vec2.x / magnitude, y: vec2.y / magnitude };
 	}
 }

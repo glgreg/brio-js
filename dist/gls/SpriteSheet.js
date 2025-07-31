@@ -1,4 +1,4 @@
-import { Sprite } from "./Sprite.js";
+import { GameSprite } from "./asset/GameSprite.js";
 export class SpriteSheet {
     #sprite;
     #slicing;
@@ -20,7 +20,7 @@ export class SpriteSheet {
             return;
         }
         if (!this.#animations.get(name)) {
-            this.#animations.set(name, new Sprite({
+            this.#animations.set(name, new GameSprite({
                 name: `${this.#sprite.name}_${name}`,
                 src: this.#sprite.src,
                 pos: this.#sprite.pos,

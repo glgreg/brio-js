@@ -1,7 +1,7 @@
 import { Vector2 } from "./GameTypes";
-import { Sprite, SpriteProps } from "./Sprite";
+import { GameSprite, GameSpriteProps } from "./asset/GameSprite";
 
-interface SpriteSheetProps extends SpriteProps {
+interface SpriteSheetProps extends GameSpriteProps {
 	slicing: Vector2;
 }
 interface KeyframeAnimation {
@@ -10,12 +10,12 @@ interface KeyframeAnimation {
 }
 
 export class SpriteSheet {
-	#sprite: Sprite;
+	#sprite: GameSprite;
 	#slicing: Vector2;
 	#grid: Vector2;
-	#animations: Map<string, Sprite> = new Map();
+	#animations: Map<string, GameSprite> = new Map();
 
-	constructor(sprite: Sprite, sliceX: number, sliceY: number) {
+	constructor(sprite: GameSprite, sliceX: number, sliceY: number) {
 		this.#sprite = sprite;
 		this.#slicing = { x: sliceX, y: sliceY };
 		this.#grid = {
@@ -36,7 +36,7 @@ export class SpriteSheet {
 		if (!this.#animations.get(name)) {
 			this.#animations.set(
 				name,
-				new Sprite({
+				new GameSprite({
 					name: `${this.#sprite.name}_${name}`,
 					src: this.#sprite.src,
 					pos: this.#sprite.pos,

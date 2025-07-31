@@ -1,17 +1,17 @@
-import { Sprite } from "./Sprite.js";
+import { GameSprite } from "./asset/GameSprite.js";
 export class GameObject {
     /** @type {string} The name of the game object */
     #name;
     /** @type {Sprite} The sprite attached to the game object */
     #sprite;
-    /** @type {boolean} Checks if game actions were initialized */
-    #actionsInitialized = false;
     /** @type {boolean} Used to check if the object is the original object or a instance of itself  */
     static instanceOfObject = false;
     /** @type {string} An instance ID used when a game object is a instance of the same game object, defaults to 0 if it's the original object */
     instanceId;
     /** @type {number} The layer level the object is located */
     #layer;
+    #p = { x: 0, y: 0 };
+    static #emptyInstance;
     #collisionEnabled = false;
     #collisionType;
     #collisionForm;
@@ -37,13 +37,59 @@ export class GameObject {
         }
         this.#name = name;
         // Clones the Sprite so that more than one game object can have the same one
-        this.#sprite = Sprite.clone(sprite);
+        this.#sprite = GameSprite.clone(sprite);
         this.#layer = Math.round(Math.abs(layer));
         this.instanceId = 0;
     }
     /**
      * GETTER AND SETTERS ---------------------------------------------------------------
      */
+    get flip() {
+        const self = this;
+        return {
+            set x(value) {
+                self.#sprite.flip.x = value;
+            },
+            get x() {
+                return self.#sprite.flip.x;
+            },
+            set y(value) {
+                self.#sprite.flip.y = value;
+            },
+            get y() {
+                return self.#sprite.flip.y;
+            },
+        };
+    }
+    get skew() {
+        const self = this;
+        return {
+            set x(value) {
+                self.#sprite.skew.x = value;
+            },
+            get x() {
+                return self.#sprite.skew.x;
+            },
+            set y(value) {
+                self.#sprite.skew.y = value;
+            },
+            get y() {
+                return self.#sprite.skew.y;
+            },
+        };
+    }
+    set scale(value) {
+        this.#sprite.scale = value;
+    }
+    get scale() {
+        return this.#sprite.scale;
+    }
+    set rotate(value) {
+        this.#sprite.rotate = value;
+    }
+    get rotate() {
+        return this.#sprite.rotate;
+    }
     set layer(layerLevel) {
         layerLevel = Math.round(Math.abs(layerLevel));
         this.#layer = layerLevel;
@@ -80,7 +126,9 @@ export class GameObject {
             },
         };
     }
-    /** Returns the attached Sprite used in the game object */
+    /** Returns the attached Sprite used in the game object
+     * @returns {GameSprite}
+     */
     get sprite() {
         return this.#sprite;
     }
@@ -149,5 +197,15 @@ export class GameObject {
         this.#collisionHeight = sh;
         this.#collisionArea = sw * sh;
         this.#collisionEnabled = true;
+    }
+    static getEmptyInstance() {
+        if (this.#emptyInstance === undefined) {
+            const instance = new GameObject("", GameSprite.getEmptyInstance(), 1);
+            this.#emptyInstance = instance;
+            return this.#emptyInstance;
+        }
+        else {
+            return this.#emptyInstance;
+        }
     }
 }

@@ -1,7 +1,12 @@
-import { Sprite } from "./Sprite";
+import { GameSprite } from "./asset/GameSprite";
 import { GameObject, KeyActions } from "./GameObject";
-import { GameKeyboard, KeyboardKeys } from "./GameKeyboard";
+import { GameKeyboard } from "./input/GameKeyboard";
+import { GameMap } from "./GameMap";
+import { GameCamera } from "./GameCamera";
+import { GameAudio } from "./asset/GameAudio";
+import { GameLogger } from "./logging/GameLogger";
 
+// Used for managing the game-state step process
 enum GameState {
 	unset = 0,
 	preload = 1,
@@ -10,96 +15,143 @@ enum GameState {
 	error = 4,
 }
 
+type CanvasBackgroundParam = {
+	color?: string;
+	image?: string;
+	repeat?: string;
+	position?: string | { x: string | number; y: string | number };
+	attachment?: string;
+};
+
 // Used in the "load" step method, in the param of the callbackFn
-type AssetsParamType = {
-	logSprites: () => void;
-	preloaded: (assetName: string) => Sprite | undefined;
+type AssetLoaderParam = {
+	logAssets: () => void;
+	getSprite: (spriteName: string) => GameSprite;
+	getAudio: (audioName: string) => GameAudio;
 };
 
 // Used in the "update" step method, in the param of the callbackFn
-type UpdaterParamType = {
-	loaded: (gameObjectName: string) => GameObject | undefined;
-	logGameObjects: () => void;
+type UpdaterObjectParam = {
+	logObjects: () => void;
+	getSprite: (spriteName: string) => GameSprite;
+	getAudio: (audioName: string) => GameAudio;
+	getObject: (gameObjectName: string) => GameObject;
+	getMap: (mapName: string) => GameMap;
+
 	animateFromName: (gameObjectName: string) => void;
-	animate: (gameObject: GameObject) => void;
+	animate: <T>(object: T) => void;
 	animateMany: (gameObjects: GameObject[]) => void;
+
 	runOnce: (identifier: string, callbackFn: () => void) => void;
+	pause: () => void;
+	resume: () => void;
+	endgame: () => void;
 };
 
 // Literal types for image rendering in the canvas context
-type ImageRendering = "smooth" | "pixelated";
-type ImageSmoothingQuality = "low" | "medium" | "high";
+type CanvasImageRenderingOptions = "smooth" | "pixelated";
+type CanvasImageSmoothingOptions = "low" | "medium" | "high";
 
 export class Game {
+	// CANVAS
 	/** @type {HTMLCanvasElement} Canvas element that serves as the game sandbox */
 	#canvas: HTMLCanvasElement;
 	/** @type {CanvasRenderingContext2D} Context of the Canvas element */
-	#context: CanvasRenderingContext2D | null = null;
+	#ctx: CanvasRenderingContext2D | null = null;
 	/** @type {CanvasRenderingContext2DSettings} Settings of the Context from the Canvas element */
-	#contextSettings: CanvasRenderingContext2DSettings = {};
+	#ctxSettings: CanvasRenderingContext2DSettings = {};
 	/** @type {number} Width of the Canvas element */
 	#width: number;
 	/** @type {number} Height of the Canvas element */
 	#height: number;
-	/** @type {Map<string, Sprite>} A map that contains loaded sprites (returned in the preload state) */
-	#loadedSprites: Map<string, Sprite> = new Map<string, Sprite>();
-	/** @type {Map<string, GameObject>} A map that contains loaded gameobjects (returned in the load state) */
-	#loadedGameObjects: Map<string, GameObject> = new Map<string, GameObject>();
+	/** @type {"smooth" | "pixelated"} The type of rendering that the canvas will use */
+	#renderingType: CanvasImageRenderingOptions = "smooth";
+	/** @type {"low" | "medium" | "high"} The quality of smoothing that will be used if using the "smooth" type */
+	#smoothRenderingValue: CanvasImageSmoothingOptions = "low";
 	/** @type {number} Global scale multiplier for all sprites in-game */
 	#scale: number = 1;
-	/** @type {0 | 1 | 2 | 3 | 4} States in which the game will run throught the development process (unset->preload->load->update->error) */
-	#currentState: GameState = GameState.unset;
+
+	// STORED OBJECTS
+	/** @type {Map<string, GameSprite>} A map that stores loaded sprites (returned in the preload state) */
+	#loadedSprites: Map<string, GameSprite> = new Map<string, GameSprite>();
+	/** @type {Map<string, GameObject>} A map that stores loaded gameobjects (returned in the load state) */
+	#loadedGameObjects: Map<string, GameObject> = new Map<string, GameObject>();
+	/** @type {Map<string, GameAudio>} A map that stores loaded game audios (returned in the preload state) */
+	#loadedAudios: Map<string, GameAudio> = new Map();
+	/** @type {Map<string, GameMap>} A map that stores loaded game maps (returned in the preload state) */
+	#loadedGameMaps: Map<string, GameMap> = new Map<string, GameMap>();
+	/** @type {Map<string, GameCamera>} A map that stores loaded game maps (returned in the preload state) */
+	#loadedGameCameras: Map<string, GameCamera> = new Map<string, GameCamera>();
+
+	// LOGS
 	/** @type {boolean} A boolean for knowing when to use utility logs */
 	#logsEnabled: boolean = false;
-	/** @type {"smooth" | "pixelated"} The type of rendering that the canvas will use */
-	#renderingType: ImageRendering = "smooth";
-	/** @type {"low" | "medium" | "high"} The quality of smoothing that will be used if using the "smooth" type */
-	#smoothRenderingValue: ImageSmoothingQuality = "low";
-	/** @type {number} Id created in the update step, used for stoping the update loop */
-	#updateFrameId: number = 0;
 	/** @type {Set<string>} A set that holds the logged erros so they don't appear multiple times in the console when using the update loop */
 	#loggedErros: Set<string> = new Set<string>();
+
+	#loggedErrors: Set<number> = new Set<number>();
+	#loggedExceptions: Set<number> = new Set<number>();
+
+	// GAME STATE LOGIC
+	/** @type {0 | 1 | 2 | 3 | 4} States in which the game will run throught the development process (unset->preload->load->update->error) */
+	#currentState: GameState = GameState.unset;
 	/** @type {Promise<void>} A promise that resolves the lyfecicle of the game, going to preload -> load -> update */
 	#lifecyclePromise: Promise<void> = Promise.resolve();
+
+	// UPDATE LOGIC
+	/** @type {number} Id created in the update step, used for stoping the update loop */
+	#updateFrameId: number = 0;
 	/** @type {Set<string>} A set that holds keys for events that run only once in the update step */
 	#updaterRunOnceKeys: Set<string> = new Set<string>();
 	/** @type {number} A variable that holds the previous time of a animation frame, used to get the deltaTime in the update step */
 	#deltaTimePreviousTime: number = 0;
+	#updateIsRunning: boolean = false;
+	#updateLoopLogic?: (currentTime: number) => void;
 
-	// keyboard
+	// KEYBOARD
 	#keyboardEnabled: boolean = false;
 	#keyboardState: Map<string, boolean> = new Map<string, boolean>();
-	#keyboardInstance: GameKeyboard | null = null;
+	#keyboardInstance?: GameKeyboard;
 
-	ctx = this.#context;
-
+	/**
+	 * CONSTRUCTOR ----------------------------------------------------------------------
+	 */
 	/**
 	 * @param {number} width The game screen width size
 	 * @param {number} height The game screen height size
-	 * @param {HTMLElement} appendTo The elements whom the game will be appended
+	 * @param {HTMLElement} appendToElement The elements whom the game will be appended
 	 * @param {CanvasRenderingContext2DSettings} [canvasContextSettings={}] An object for canvas context configurations
 	 */
 	constructor(
 		width: number,
 		height: number,
-		appendTo: HTMLElement,
+		appendToElement: HTMLElement,
 		canvasContextSettings: CanvasRenderingContext2DSettings = {},
 	) {
-		this.#width = width;
-		this.#height = height;
-		this.#contextSettings = canvasContextSettings;
+		if (width < 0 || height < 0) {
+			GameLogger.out("warn", "Game constructor: Negative values converted into positive.");
+		}
+		if (!(appendToElement instanceof HTMLElement)) {
+			GameLogger.fatalError(
+				"Game constructor: A Game should be appended to a working HTMLElement.",
+			);
+		}
+
+		this.#width = Math.abs(width);
+		this.#height = Math.abs(height);
+		this.#ctxSettings = canvasContextSettings;
 
 		this.#canvas = document.createElement("canvas");
-		this.#context = this.#canvas.getContext("2d", this.#contextSettings);
+		this.#ctx = this.#canvas.getContext("2d", this.#ctxSettings);
 
 		this.#canvas.width = this.#width;
 		this.#canvas.height = this.#height;
 
-		appendTo.appendChild(this.#canvas);
+		appendToElement.appendChild(this.#canvas);
 
 		this.#lifecyclePromise.catch((err) => {
 			this.#currentState = GameState.error;
-			console.error("An error occurred during the game lifecycle: ", err);
+			console.error("An error occurred during the game object creation: ", err);
 		});
 	}
 
@@ -109,11 +161,11 @@ export class Game {
 
 	/** Returns the loaded sprites that were returned in the preload step
 	 * @example game.load(() => {
-	 * return new Sprite("spr_player", "./spr_player.png", "img");
+	 * return new GameSprite("spr_player", "./spr_player.png", "img");
 	 * })
-	 * console.log(game.loadedSprites); // Map(spr_player -> {})
+	 * console.log(game.loadedGameSprites); // Map(spr_player -> {})
 	 */
-	public get loadedSprites() {
+	public get loadedGameSprites() {
 		return this.#loadedSprites;
 	}
 
@@ -128,8 +180,10 @@ export class Game {
 	}
 
 	/** Sets the background of the game screen using common CSS logic */
-	public set background(backgroundValue: string) {
-		this.#canvas.style.background = backgroundValue;
+	public set background(x: CanvasBackgroundParam) {
+		const result = `${x.position} ${x.repeat} ${x.image} ${x.color}`;
+
+		this.#canvas.style.background = result;
 	}
 
 	/** The global scale of the canvas object. All objects are scaled according to this property
@@ -153,7 +207,7 @@ export class Game {
 		return this.#renderingType;
 	}
 	/** @param {"smooth" | "pixelated"} renderingType */
-	public set renderingType(renderingType: ImageRendering) {
+	public set renderingType(renderingType: CanvasImageRenderingOptions) {
 		this.#renderingType = renderingType;
 	}
 
@@ -167,7 +221,7 @@ export class Game {
 		return this.#smoothRenderingValue;
 	}
 	/** @param {"low" | "medium" | "high"} smoothingQuality */
-	public set smoothingQuality(smoothingQuality: ImageSmoothingQuality) {
+	public set smoothingQuality(smoothingQuality: CanvasImageSmoothingOptions) {
 		if (this.#renderingType !== "smooth") {
 			throw new Error(
 				`The current rendering type is set to '${this.renderingType}', set it to 'smooth' to use the 'smoothingQuality' attribute`,
@@ -180,45 +234,74 @@ export class Game {
 		return this.#loadedGameObjects;
 	}
 
+	public get isRunning(): boolean {
+		return this.#updateIsRunning;
+	}
+
 	/**
-	 * GAME STEPS -----------------------------------------------------------------------
+	 * GAME STATES -----------------------------------------------------------------------
 	 */
 
 	/**
 	 * The first step into the game logic responsible for preloading assets
-	 * such as Sprites, Audios and Videos. Those assets loads in an
+	 * such as GameSprites, Audios and Videos. Those assets are loaded in an
 	 * assyncronous manner, that's why this step in needed
-	 * @param {() => Array<any> | any} callbackFn
+	 * @param {() => Array<GameSprite | GameAudio>} callbackFn
 	 */
-	public preload(callbackFn: () => Array<any> | any): this {
+	public preload(callbackFn: () => Array<GameSprite | GameAudio>): this {
 		this.#lifecyclePromise = this.#lifecyclePromise.then(async () => {
 			this.#currentState = GameState.preload;
 
-			const assets: any[] = [].concat(callbackFn() || []);
+			const assets = callbackFn();
 
 			if (assets.length === 0) {
 				throw new Error("Zero assets returned. You must return at least one asset.");
 			}
 
-			const sprites = assets.filter((asset) => asset instanceof Sprite);
+			const sprites = assets.filter((asset) => asset instanceof GameSprite);
+			const audios = assets.filter((asset) => asset instanceof GameAudio);
 
 			const spriteLoadPromises = sprites.map((sprite) => {
 				return new Promise<void>((resolve, reject) => {
 					sprite.element.onload = () => {
 						this.#loadedSprites.set(sprite.name, sprite);
 						if (this.#logsEnabled) {
-							console.log(`${sprite.name} was sucessfully preloaded`);
+							console.log(`GameSprite: ${sprite.name} was sucessfully preloaded`);
 						}
 						resolve();
 					};
 					sprite.element.onerror = (event, source, lineno, colno, err) => {
-						reject(err);
+						reject(`Error loading the sprite '${sprite.name}': ${err?.message}`);
 					};
 				});
 			});
 
+			const audioLoadPromises = audios.map((audio) => {
+				return new Promise<void>((resolve, reject) => {
+					const onCanPlayThrough = () => {
+						this.#loadedAudios.set(audio.name, audio);
+						if (this.#logsEnabled) {
+							console.log(`Audio: ${audio.name} was sucessfully preloaded`);
+						}
+						resolve();
+						audio.element.removeEventListener("canplaythrough", onCanPlayThrough);
+					};
+					const onErrorPlay = (e: ErrorEvent) => {
+						reject(`Error loading the audio '${audio.name}': ${e.message}`);
+						audio.element.removeEventListener("error", onErrorPlay);
+					};
+
+					audio.element.addEventListener("canplaythrough", onCanPlayThrough);
+					audio.element.addEventListener("error", onErrorPlay);
+				});
+			});
+
 			await Promise.all(spriteLoadPromises);
-			if (this.#logsEnabled) console.info("Preload step complete!");
+			await Promise.all(audioLoadPromises);
+
+			if (this.#logsEnabled) {
+				console.info("Preload step complete!");
+			}
 		});
 
 		return this;
@@ -226,35 +309,71 @@ export class Game {
 
 	/**
 	 * @typedef {object} AssetsObject The object passed as a param into the callbackFn
-	 * @property {() => void} logSprites Logs the available sprites that were preloaded
-	 * @property {(assetName: string) => Sprite} preloaded Returns the Sprite object of the given name
+	 * @property {() => void} logAssets Logs the available sprites that were preloaded
+	 * @property {(spriteName: string) => GameSprite} getSprite Returns the GameSprite object with the given name
+	 * @property {(audioName: string) => GameAudio} getAudio Returns the GameAudio object with the given name
 	 **/
-	/** @param {(assets: AssetsObject) => Array<GameObject>} callbackFn A callback function that passes, by param, an object for assets manipulation */
-	public load(callbackFn: (assets: AssetsParamType) => Array<GameObject>): this {
+	/** @param {(assets: AssetsObject) => Array<GameObject | GameMap>} callbackFn A callback function that passes, by param, an object for assets manipulation */
+	public load(callbackFn: (assets: AssetLoaderParam) => Array<GameObject | GameMap>): this {
 		this.#lifecyclePromise = this.#lifecyclePromise.then(() => {
 			this.#currentState = GameState.load;
 
-			const assets: AssetsParamType = {
-				logSprites: () => {
-					console.log("currently loaded sprites: ", this.loadedSprites);
+			const assetsManipulationObject: AssetLoaderParam = {
+				logAssets: () => {
+					if (this.#logsEnabled) {
+						console.log("Currently loaded sprites: ", this.#loadedSprites);
+						console.log("Currently loaded audios: ", this.#loadedAudios);
+					}
 				},
-				preloaded: (assetName: string) => {
-					if (this.#logsEnabled && !this.#loadedSprites.has(assetName)) {
+				getSprite: (spriteName: string) => {
+					if (this.#logsEnabled && !this.#loadedSprites.has(spriteName)) {
 						console.error(
-							`Named asset '${assetName}' was not found in the preloaded resources, check if you preloaded it correctly and gave it the right name`,
+							`Named sprite asset '${spriteName}' was not found in the preloaded resources, check if you preloaded it correctly and gave it the right name`,
 						);
 					}
 
-					if (this.#loadedSprites.has(assetName)) {
-						return this.#loadedSprites.get(assetName);
+					if (this.#loadedSprites.has(spriteName)) {
+						const spr = this.#loadedSprites.get(spriteName);
+						if (spr !== undefined) {
+							return spr;
+						}
 					}
+
+					return GameSprite.getEmptyInstance();
+				},
+				getAudio: (audioName: string) => {
+					if (this.#logsEnabled && !this.#loadedAudios.has(audioName)) {
+						console.error(
+							`Named audio asset '${audioName}' was not found in the preloaded resources, check if you preloaded it correctly and gave it the right name`,
+						);
+					}
+
+					if (this.#loadedAudios.has(audioName)) {
+						const aud = this.#loadedAudios.get(audioName);
+						if (aud !== undefined) {
+							return aud;
+						}
+					}
+
+					return GameAudio.getEmptyInstance();
 				},
 			};
 
-			const gameObjects = callbackFn(assets);
+			const objects = callbackFn(assetsManipulationObject);
+			const gameObjects = objects.filter((object) => object instanceof GameObject);
+			const gameMaps = objects.filter((object) => object instanceof GameMap);
+			const gameCameras = objects.filter((object) => object instanceof GameCamera);
 
 			gameObjects.forEach((gameObject) => {
 				this.#loadedGameObjects.set(gameObject.name, gameObject);
+			});
+
+			gameMaps.forEach((gameMap) => {
+				this.#loadedGameMaps.set(gameMap.name, gameMap);
+			});
+
+			gameCameras.forEach((gameCamera) => {
+				this.#loadedGameCameras.set(gameCamera.name, gameCamera);
 			});
 
 			if (this.#logsEnabled) console.info("Load step complete!");
@@ -264,29 +383,92 @@ export class Game {
 	}
 
 	/**
+	 * Type for the updater object used inside callbackFn in the update step
 	 * @typedef {object} UpdaterObject The object passed as a param into the callbackFn
-	 * @property {() => void} logGameObjects Logs the available game objects that were loaded
-	 * @property {(gameObjectName: string) => GameObject} loaded Returns the game object with the given name
+	 * @property {() => void} logObjects Logs the available objects that were loaded
+	 * @property {(spriteName: string) => GameSprite} getSprite Returns the GameSprite object with the given name
+	 * @property {(audioName: string) => GameAudio} getAudio Returns the GameAudio object with the given name
+	 * @property {(gameObjectName: string) => GameObject} getObject Returns the GameObject with the given name
+	 * @property {(mapName: string) => GameObject} getMap Returns the GameMap with the given name
+	 * @property {(cameraName: string) => GameObject} getCamera Returns the GameCamera with the given name
 	 * @property {(gameObjectName: string) => void} animateFromName Animates a given named game object and its properties
 	 * @property {(gameObject: GameObject) => void} animate Animates the given game object
 	 * @property {(gameObjects: GameObject[]) => void} animateMany Animates instances of a given array of game objects
-	 * @property {() => void} stop Stops the update animation loop, essencialy freezing the game
+	 * @property {() => void} pause Pauses the update animation loop, essencialy freezing the game
+	 * @property {() => void} resume Resumes the update animation loop
+	 * @property {boolean} isRunning Returns true if the update loop is running and false if it is paused
 	 * @property {(identifier: string, callbackFn: () => any) => void} runOnce Runs only once time the logic inside the block code
 	 */
 	/**
+	 * A method that loops through given logic inside it many times per second, be it for
+	 * changing GameObject coordinates or checking if a key was pressed.
 	 * @param {(updater: UpdaterObject, deltaTime: number) => void } callbackFn A callback function that passes, by param, an object for game objects manipulation and the time elapsed since the last frame (delta time)
 	 * @param {UpdaterObject} callbackFn.updater An object providing methods to manipulate game objects and work around the update loop
 	 * @param {number} callbackFn.deltaTime The time elapsed since the last frame, in seconds, used for frame-rate independent updates
+	 *
+	 * @example game.update((updater, dt) => {
+	 * const obj_player = updater.loaded("obj_player"); // returns the GameObject for Player
+	 *
+	 * if(game.keyboard.isDown("ArrowUp")) {
+	 * obj_player.pos.y += -300 * dt; // makes the player go up (multiplying it by DeltaTime for FPS consistency)
+	 * }});
 	 */
-	public update(callbackFn: (updater: UpdaterParamType, deltaTime: number) => void): this {
+	public update(callbackFn: (updater: UpdaterObjectParam, deltaTime: number) => void): this {
 		this.#lifecyclePromise = this.#lifecyclePromise.then(() => {
 			this.#currentState = GameState.update;
+			this.#updateIsRunning = true;
 
-			const updater: UpdaterParamType = {
-				logGameObjects: () => {
-					console.log("Currently loaded game objects: ", this.#loadedGameObjects);
+			const updater: UpdaterObjectParam = {
+				logObjects: () => {
+					if (this.#logsEnabled) {
+						console.log("Currently loaded game objects: ", this.#loadedGameObjects);
+						console.log("Currently loaded game maps: ", this.#loadedGameMaps);
+						console.log("Currently loaded game maps: ", this.#loadedGameCameras);
+					}
 				},
-				loaded: (gameObjectName) => {
+				getSprite: (spriteName: string) => {
+					if (
+						this.#logsEnabled &&
+						!this.#loadedSprites.has(spriteName) &&
+						!this.#loggedErros.has(`loadError: ${spriteName}`)
+					) {
+						console.error(
+							`Named sprite asset '${spriteName}' was not found in the preloaded resources, check if you preloaded it correctly and gave it the right name`,
+						);
+						this.#loggedErros.add(`loadError: ${spriteName}`);
+					}
+
+					if (this.#loadedSprites.has(spriteName)) {
+						const spr = this.#loadedSprites.get(spriteName);
+						if (spr !== undefined) {
+							return spr;
+						}
+					}
+
+					return GameSprite.getEmptyInstance();
+				},
+				getAudio: (audioName: string) => {
+					if (
+						this.#logsEnabled &&
+						!this.#loadedAudios.has(audioName) &&
+						!this.#loggedErros.has(`loadError: ${audioName}`)
+					) {
+						console.error(
+							`Named audio asset '${audioName}' was not found in the preloaded resources, check if you preloaded it correctly and gave it the right name`,
+						);
+						this.#loggedErros.add(`loadError: ${audioName}`);
+					}
+
+					if (this.#loadedAudios.has(audioName)) {
+						const aud = this.#loadedAudios.get(audioName);
+						if (aud !== undefined) {
+							return aud;
+						}
+					}
+
+					return GameAudio.getEmptyInstance();
+				},
+				getObject: (gameObjectName) => {
 					if (
 						this.#logsEnabled &&
 						!this.#loadedGameObjects.has(gameObjectName) &&
@@ -296,12 +478,37 @@ export class Game {
 							`Named game object '${gameObjectName}' was not found in the loaded resources, check if you loaded it correctly and gave it the right name`,
 						);
 						this.#loggedErros.add(`loadError: ${gameObjectName}`);
-						return;
 					}
 
 					if (this.#loadedGameObjects.has(gameObjectName)) {
-						return this.#loadedGameObjects.get(gameObjectName);
+						const obj = this.#loadedGameObjects.get(gameObjectName);
+						if (obj !== undefined) {
+							return obj;
+						}
 					}
+
+					return GameObject.getEmptyInstance();
+				},
+				getMap: (gameMapName) => {
+					if (
+						this.#logsEnabled &&
+						!this.#loadedGameMaps.has(gameMapName) &&
+						!this.#loggedErros.has(`loadError: ${gameMapName}`)
+					) {
+						console.error(
+							`Named game map '${gameMapName}' was not found in the loaded resources, check if you loaded it correctly and gave it the right name`,
+						);
+						this.#loggedErros.add(`loadError: ${gameMapName}`);
+					}
+
+					if (this.#loadedGameMaps.has(gameMapName)) {
+						const map = this.#loadedGameMaps.get(gameMapName);
+						if (map !== undefined) {
+							return map;
+						}
+					}
+
+					return GameMap.getEmptyInstance();
 				},
 				animateFromName: (gameObjectName) => {
 					if (
@@ -318,15 +525,19 @@ export class Game {
 						const gameObject = this.#loadedGameObjects.get(gameObjectName);
 
 						if (gameObject) {
-							this.#drawSprite(gameObject);
+							this.#renderGameObject(gameObject);
 						}
 					}
 				},
-				animate: (gameObjec) => {
-					const gameObject = this.#loadedGameObjects.get(gameObjec.name);
+				animate: (targetObject) => {
+					let object = null;
 
-					if (gameObject) {
-						this.#drawSprite(gameObject);
+					if (targetObject instanceof GameObject) {
+						object = this.#loadedGameObjects.get(targetObject.name);
+					}
+
+					if (object) {
+						this.#renderGameObject(object);
 					}
 				},
 				animateMany: (gameObjects) => {
@@ -335,7 +546,7 @@ export class Game {
 							const gameObject = this.#loadedGameObjects.get(gameObjects[i].name);
 
 							if (gameObject) {
-								this.#drawSprite(gameObject);
+								this.#renderGameObject(gameObject);
 							}
 						}
 					}
@@ -350,26 +561,65 @@ export class Game {
 						this.#updaterRunOnceKeys.add(identifier);
 					}
 				},
+				pause: () => {
+					if (this.#updateIsRunning) {
+						this.#currentState = GameState.unset;
+						this.#updateIsRunning = false;
+						if (this.#logsEnabled) console.info("Game stopped!");
+						cancelAnimationFrame(this.#updateFrameId);
+					}
+				},
+				resume: () => {
+					if (!this.#updateIsRunning) {
+						this.#currentState = GameState.update;
+						this.#updateIsRunning = true;
+						if (this.#logsEnabled) console.info("Game resumed!");
+						if (this.#updateLoopLogic) {
+							requestAnimationFrame(this.#updateLoopLogic);
+						}
+					}
+				},
+				endgame: () => {},
 			};
 
 			if (this.#logsEnabled) console.info("Update step started!");
 
-			const loop = (currentTime: number) => {
-				if (this.#currentState === GameState.unset) {
+			// runs the update loop for the first time (so it can be paused and resumed after that)
+			this.#updateLoopLogic = (currentTime: number) => {
+				if (this.#currentState !== GameState.update) {
 					return;
 				}
 
-				this.#loadedGameObjects.forEach((gameObject, key) => {
-					this.#clearSprite(gameObject);
+				this.#loadedGameCameras.forEach((gameCamera) => {
+					if (!this.#ctx) {
+						return;
+					}
+					this.#ctx.drawImage(
+						gameCamera.map.sprite.element,
+						gameCamera.pos.x,
+						gameCamera.pos.y,
+						gameCamera.size.x,
+						gameCamera.size.y,
+						0,
+						0,
+						this.#width,
+						this.#height,
+					);
+				});
+
+				this.#loadedGameObjects.forEach((gameObject) => {
+					this.#clearGameObject(gameObject);
 				});
 
 				const deltaTime = (currentTime - this.#deltaTimePreviousTime) / 1000;
 				callbackFn(updater, deltaTime);
 
 				this.#deltaTimePreviousTime = currentTime;
-				this.#updateFrameId = requestAnimationFrame(loop);
+				if (this.#updateLoopLogic) {
+					this.#updateFrameId = requestAnimationFrame(this.#updateLoopLogic);
+				}
 			};
-			requestAnimationFrame(loop);
+			requestAnimationFrame(this.#updateLoopLogic);
 		});
 
 		return this;
@@ -379,65 +629,157 @@ export class Game {
 	 * INTERNAL METHODS -----------------------------------------------------------------
 	 */
 
-	/** A function that draws an object into the canvas element while considering scale and rendering type
-	 * @private */
-	#drawSprite(gameObject: GameObject) {
-		if (!this.#context || !gameObject) {
+	/** A function that draws an object into the canvas element while considering scale and rendering type */
+	#renderGameObject<T extends GameObject>(object: T) {
+		if (!this.#ctx || !object) {
 			return;
 		}
 
 		if (this.#renderingType === "smooth") {
-			this.#context.imageSmoothingEnabled = true;
-			this.#context.imageSmoothingQuality = this.#smoothRenderingValue;
+			this.#ctx.imageSmoothingEnabled = true;
+			this.#ctx.imageSmoothingQuality = this.#smoothRenderingValue;
 		} else if (this.#renderingType === "pixelated") {
-			this.#context.imageSmoothingEnabled = false;
+			this.#ctx.imageSmoothingEnabled = false;
 		}
 
-		this.#context.drawImage(
-			gameObject.sprite.element,
-			gameObject.pos.x,
-			gameObject.pos.y,
-			gameObject.size.x * this.#scale,
-			gameObject.size.y * this.#scale,
+		this.#ctx.save();
+
+		// scale or flipped scale for sprites
+		const scaleX = (object.sprite.flip.x ? -1 : 1) * this.#scale;
+		const scaleY = (object.sprite.flip.y ? -1 : 1) * this.#scale;
+		// offset for flipped sprites
+		const offsetX = object.sprite.flip.x ? object.size.x * this.#scale : 0;
+		const offsetY = object.sprite.flip.y ? object.size.y * this.#scale : 0;
+
+		this.#ctx.translate(object.pos.x * this.#scale + offsetX, object.pos.y * this.#scale + offsetY);
+		this.#ctx.scale(scaleX, scaleY);
+
+		let translated = false;
+
+		if (object.sprite.rotate !== 0) {
+			this.#ctx.translate(object.size.x / 2, object.size.y / 2);
+			this.#ctx.rotate((object.sprite.rotate * Math.PI) / 180);
+			translated = true;
+		}
+
+		if (object.sprite.skew.x !== 0 || object.sprite.skew.y !== 0) {
+			if (!translated) {
+				this.#ctx.translate(object.size.x / 2, object.size.y / 2);
+			}
+			this.#ctx.transform(
+				1, // scaleX
+				(object.sprite.skew.x * Math.PI) / 180, // rotateX
+				(object.sprite.skew.y * Math.PI) / 180, // rotateY
+				1, // scaleY
+				0, // translateX
+				0, // translateY
+			);
+			translated = true;
+		}
+
+		this.#ctx.drawImage(
+			object.sprite.element,
+			translated ? -object.size.x / 2 : 0,
+			translated ? -object.size.y / 2 : 0,
+			object.size.x,
+			object.size.y,
 		);
+
+		this.#ctx.restore();
 	}
 
-	#clearSprite(gameObject: GameObject) {
-		if (!this.#context || !gameObject) {
+	#clearGameObject<T extends GameSprite | GameObject>(gameObject: T) {
+		if (!this.#ctx || !gameObject) {
 			return;
 		}
 
-		this.#context.clearRect(
-			gameObject.pos.x,
-			gameObject.pos.y,
-			gameObject.size.x * this.#scale,
-			gameObject.size.y * this.#scale,
-		);
+		this.#ctx.save();
+
+		this.#ctx.scale(this.#scale, this.#scale);
+		this.#ctx.clearRect(gameObject.pos.x, gameObject.pos.y, gameObject.size.x, gameObject.size.y);
+
+		this.#ctx.restore();
 	}
 
 	/**
 	 * EXTERNAL METHODS -----------------------------------------------------------------
 	 */
-	public stopGame(waitingTime?: number) {
-		const stop = () => {
+	/**
+	 * Pauses the game.
+	 *
+	 * @example game.useKeyboard(); // enables the keyboard
+	 * game.keyboard.globalCustomEvents.set("Escape", () => {
+	 *
+	 * if(game.isRunning) game.pause(); // pausing the game
+	 * else game.resume(); // resuming the game
+	 * });
+	 */
+	public pause() {
+		if (this.#updateIsRunning) {
 			this.#currentState = GameState.unset;
+			this.#updateIsRunning = false;
 			cancelAnimationFrame(this.#updateFrameId);
 			if (this.#logsEnabled) console.info("Game stopped!");
-		};
-
-		if (waitingTime) {
-			setTimeout(() => {
-				stop();
-			}, waitingTime);
-		} else {
-			stop();
 		}
 	}
 
-	public removeObject<T extends Sprite | GameObject>(targetObject: T) {
+	/**
+	 * Resumes the game.
+	 *
+	 * @example game.useKeyboard(); // enables the keyboard
+	 * game.keyboard.globalCustomEvents.set("Escape", () => {
+	 *
+	 * if(game.isRunning) game.pause(); // pausing the game
+	 * else game.resume(); // resuming the game
+	 * });
+	 */
+	public resume() {
+		if (!this.#updateIsRunning) {
+			this.#currentState = GameState.update;
+			this.#updateIsRunning = true;
+			if (this.#updateLoopLogic) {
+				requestAnimationFrame(this.#updateLoopLogic);
+			}
+			if (this.#logsEnabled) console.info("Game resumed!");
+		}
+	}
+
+	/**
+	 * Ends the game, cleaning listeners and game data in the current run.
+	 * @example game.update((updater, dt) => {
+	 * // game logic
+	 *
+	 * if(gameReachedEndGoal) game.end();
+	 * });
+	 */
+	public end() {
+		// disabling logs to prevent error messages
+		this.#logsEnabled = false;
+
+		// pausing the game update loop
+		this.pause();
+
+		// removing listener
+		if (this.#keyboardInstance) {
+			this.#keyboardInstance?.removeListener();
+		}
+
+		// clearing data
+		this.#loadedAudios.clear();
+		this.#loadedGameCameras.clear();
+		this.#loadedGameMaps.clear();
+		this.#loadedGameObjects.clear();
+		this.#loadedSprites.clear();
+		this.#keyboardState.clear();
+		this.#loggedErros.clear();
+
+		console.info("Game ended!");
+	}
+
+	public removeObject<T extends GameSprite | GameObject>(targetObject: T) {
 		let objectExists: boolean = false;
 
-		if (targetObject instanceof Sprite && this.#loadedSprites.has(targetObject.name)) {
+		if (targetObject instanceof GameSprite && this.#loadedSprites.has(targetObject.name)) {
 			objectExists = true;
 			this.#loadedSprites.delete(targetObject.name);
 		} else if (
@@ -447,13 +789,8 @@ export class Game {
 			objectExists = true;
 			this.#loadedGameObjects.delete(targetObject.name);
 		}
-		if (this.#context && objectExists) {
-			this.#context.clearRect(
-				targetObject.pos.x,
-				targetObject.pos.y,
-				targetObject.size.x * this.#scale,
-				targetObject.size.y * this.#scale,
-			);
+		if (this.#ctx && objectExists && targetObject) {
+			this.#clearGameObject(targetObject);
 		}
 
 		if (objectExists && this.#logsEnabled) {
@@ -479,7 +816,7 @@ export class Game {
 			if (callbackFn) {
 				callbackFn();
 			} else {
-				this.stopGame();
+				this.pause();
 			}
 		}
 	}
@@ -491,7 +828,7 @@ export class Game {
 		for (let i = 0; i < quantity; i++) {
 			const newObject = new GameObject(
 				`${targetObject.name}-${i + 1}`,
-				Sprite.clone(targetObject.sprite),
+				GameSprite.clone(targetObject.sprite),
 				targetObject.layer,
 			);
 			newObject.instanceId++;
@@ -512,13 +849,8 @@ export class Game {
 	}
 
 	public destroy(targetObject: GameObject) {
-		if (this.#context && this.#loadedSprites.has(targetObject.sprite.name)) {
-			this.#context.clearRect(
-				targetObject.pos.x,
-				targetObject.pos.y,
-				targetObject.size.x * this.scale,
-				targetObject.size.y * this.scale,
-			);
+		if (this.#ctx && this.#loadedSprites.has(targetObject.sprite.name)) {
+			this.#clearGameObject(targetObject);
 		}
 	}
 
@@ -550,8 +882,8 @@ export class Game {
 	}
 
 	public translate(px: number, py: number) {
-		if (this.#context) {
-			this.#context.setTransform(1, 0, 0, 1, px, py);
+		if (this.#ctx) {
+			this.#ctx.setTransform(1, 0, 0, 1, px, py);
 		}
 	}
 
@@ -569,15 +901,18 @@ export class Game {
 
 	/** Clears the entire canvas context. Beware of things that you don't want to clear! */
 	public useClearScreen() {
-		if (this.#context) {
-			this.#context.reset();
+		if (this.#ctx) {
+			this.#ctx.reset();
 		}
 	}
 
 	/** Allows utility logs into the console, such as assets and objects being loaded */
-	public useUtilityLogs() {
+	public useLogs() {
 		if (!this.#logsEnabled) {
-			console.info("Utility logs are now enabled");
+			GameLogger.setErrorsStore(this.#loggedErrors);
+			GameLogger.setExceptionsStore(this.#loggedExceptions);
+
+			GameLogger.out("info", "Utility logs are now enabled.");
 			this.#logsEnabled = true;
 		}
 	}
@@ -585,65 +920,75 @@ export class Game {
 	public useShowCollisions() {
 		this.#loadedGameObjects.forEach((gameObject, key) => {
 			if (
-				this.#context &&
+				this.#ctx &&
 				typeof gameObject.collision.x === "number" &&
 				typeof gameObject.collision.y === "number" &&
 				typeof gameObject.collision.w === "number" &&
 				typeof gameObject.collision.h === "number"
 			) {
-				this.#context.beginPath();
-				this.#context.rect(
+				this.#ctx.save();
+
+				this.#ctx.scale(this.#scale, this.#scale);
+				this.#ctx.beginPath();
+				this.#ctx.rect(
 					gameObject.pos.x + gameObject.collision.x,
 					gameObject.pos.y + gameObject.collision.y,
 					gameObject.collision.w,
 					gameObject.collision.h,
 				);
-				this.#context.lineWidth = 2;
-				this.#context.strokeStyle = "#F00";
-				this.#context.stroke();
-				this.#context.closePath();
+				this.#ctx.lineWidth = 2 / this.#scale;
+				this.#ctx.strokeStyle = "#F00";
+				this.#ctx.stroke();
+				this.#ctx.closePath();
+
+				this.#ctx.restore();
 			}
 		});
 	}
 
 	public useShowBorders() {
 		this.#loadedGameObjects.forEach((gameObject, key) => {
-			if (this.#context) {
-				this.#context.beginPath();
-				this.#context.rect(
-					gameObject.pos.x,
-					gameObject.pos.y,
-					gameObject.size.x * this.#scale,
-					gameObject.size.y * this.#scale,
-				);
-				this.#context.lineWidth = 2;
-				this.#context.strokeStyle = "#0F0";
-				this.#context.stroke();
-				this.#context.closePath();
+			if (this.#ctx) {
+				this.#ctx.save();
+
+				this.#ctx.scale(this.#scale, this.#scale);
+				this.#ctx.beginPath();
+				this.#ctx.rect(gameObject.pos.x, gameObject.pos.y, gameObject.size.x, gameObject.size.y);
+				this.#ctx.lineWidth = 2 / this.#scale;
+				this.#ctx.strokeStyle = "#0F0";
+				this.#ctx.stroke();
+				this.#ctx.closePath();
+
+				this.#ctx.restore();
 			}
 		});
 	}
 
+	public useShowCenteredAxis() {
+		if (!this.#ctx) {
+			return;
+		}
+
+		// Draws the mid Y line
+		this.#ctx.beginPath();
+		this.#ctx.moveTo(0, this.#height / 2);
+		this.#ctx.lineTo(this.#width, this.#height / 2);
+		this.#ctx.strokeStyle = "#F00";
+		this.#ctx.stroke();
+		this.#ctx.closePath();
+
+		// Draws the mid X line
+		this.#ctx.beginPath();
+		this.#ctx.moveTo(this.#width / 2, 0);
+		this.#ctx.lineTo(this.#width / 2, this.#height);
+		this.#ctx.strokeStyle = "#F00";
+		this.#ctx.stroke();
+		this.#ctx.closePath();
+	}
+
 	public useKeyboard() {
-		window.addEventListener("keydown", (event) => {
-			event.preventDefault();
-
-			if (!this.#keyboardState.has(event.key)) {
-				this.#keyboardState.set(event.key, true);
-			}
-
-			if (this.#keyboardState.get(event.key) === false) {
-				this.#keyboardState.set(event.key, true);
-			}
-		});
-
-		window.addEventListener("keyup", (event) => {
-			event.preventDefault();
-
-			if (this.#keyboardState.get(event.key) === true) {
-				this.#keyboardState.set(event.key, false);
-			}
-		});
+		this.#keyboardInstance = new GameKeyboard(this.#keyboardState);
+		this.#keyboardEnabled = true;
 	}
 
 	public useGamepad() {
@@ -656,20 +1001,17 @@ export class Game {
 		});
 	}
 
-	// public intersection(gameObject1: GameObject, gameObject2: GameObject) {
-	// 	if(gameObject1.pos.x)
-	// }
+	/**
+	 * An object that contains logic related to keyboard input
+	 * @returns {GameKeyboard}
+	 */
+	public get keyboard(): GameKeyboard {
+		if (this.#keyboardInstance !== undefined) {
+			return this.#keyboardInstance;
+		}
 
-	public get keyboard() {
-		return {
-			isDown: (key: string) => {
-				if (this.#keyboardState.has(key)) {
-					if (this.#keyboardState.get(key) === true) {
-						return true;
-					}
-				}
-				return false;
-			},
-		};
+		throw new Error(
+			"Keyboard instance does not exist. Try using the useKeyboard() method in the game object",
+		);
 	}
 }
