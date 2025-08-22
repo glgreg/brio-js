@@ -2,15 +2,19 @@
 node_modules/
 
 #dev
+dist/
+images/
+audios/
+/nbproject/private/
+todo.md
 
 # arquives used in tests
 main.js
-images/
-audios/
-index.html
-todo.md
+src/test.ts
 index.html
 global.css
 lib.js
 lib.tests
-/nbproject/private/
+
+# trash
+trash

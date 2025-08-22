@@ -1,139 +1,221 @@
-import { Game, GameSprite, GameAudio, GameObject, GameUtils } from "./dist/gls/index.js";
-import { GameLogger } from "./dist/gls/logging/GameLogger.js";
+import B, {
+	BrioObject,
+	BrioAudio,
+	BrioGame,
+	BrioLogger,
+	BrioCollision,
+	BrioSprite,
+	BrioUtils,
+} from "./dist/index.js";
 
-/** @typedef {(import("./src/gls/GameTypes.js").Vector2)} Vector2 */
-/** @typedef {import("./src/gls/asset/GameSprite.js").GameSpriteProps} GameSpriteProps */
+/** @typedef {(import("./src/GameTypes.js").Vector2)} Vector2 */
+/** @typedef {import("./src/asset/GameSprite.js").GameSpriteProps} GameSpriteProps */
 
 // global constants
 const gameWidth = window.innerWidth;
 const gameHeight = window.innerHeight;
-const gs = GameUtils;
 
 // global game constants
 const PLAYER_SPD = 100;
 
-const game = new Game(200, 200, document.body);
+// game config
+const game = new BrioGame(gameWidth, gameHeight, document.body);
 
-game.useLogs();
+game.scale = 4;
+game.background = {
+	color: "hsl(220,100%,20%)",
+	image: "./images/forest_pixelart.png",
+	position: { x: "center", y: "center" },
+	repeat: "no-repeat",
+	size: "cover",
+	blendMode: "normal",
+};
+game.useLogs({ showStackCaller: true, showStackInGameClasses: false });
 
-// GameLogger.;
+// keyboard
+game.useKeyboard();
+game.keyboard.customActions.set("Escape", () => {
+	BrioLogger.out("log", game.keyboard.customActions);
+	if (game.isRunning) {
+		game.pause();
+	} else {
+		game.resume();
+	}
+});
 
-// // logs
-// game.useLogs();
+game.keyboard.customActions.set("m", () => {
+	if (game.background.blendMode === "normal") game.background = { blendMode: "difference" };
+	else game.background = { blendMode: "normal" };
+});
 
-// // configuration
-// game.scale = 4;
+// preloading asyncronous assets
+game.preload(() => {
+	const spr_gato = new BrioSprite(sprites.gato);
+	const spr_background = new BrioSprite(sprites.background);
+	const aud_ost = new BrioAudio("aud_ost", "./audios/song.wav");
+	const punch_1 = new BrioAudio("aud_punch_1", "./audios/punch.wav");
+	const punch_2 = new BrioAudio("aud_punch_2", "./audios/punch_2.wav");
 
-// // keyboard
-// game.useKeyboard();
-// game.keyboard.customActions.set("Escape", () => {
-// 	console.log(game.keyboard.customActions);
-// 	if (game.isRunning) {
-// 		game.pause();
-// 	} else {
-// 		game.resume();
-// 	}
-// });
+	return [spr_gato, aud_ost, punch_1, punch_2, spr_background];
+});
 
-// // preloading asyncronous assets
-// game.preload(() => {
-// 	const spr_gato = new GameSprite(sprites.gato);
-// 	const spr_background = new GameSprite(sprites.background);
-// 	const aud_ost = new GameAudio("aud_ost", "./audios/song.wav");
-// 	const punch_1 = new GameAudio("aud_punch_1", "./audios/punch.wav");
-// 	const punch_2 = new GameAudio("aud_punch_2", "./audios/punch_2.wav");
+// loading objects and object configurations
+game.load((assets) => {
+	const background = new BrioObject("obj_background", assets.getSprite("spr_background"), 1);
+	const obj_gato = new BrioObject("obj_gato", assets.getSprite("spr_gato"), 1);
+	const punch = assets.getAudio("aud_punch_1");
+	const punch2 = assets.getAudio("aud_punch_2");
 
-// 	return [spr_gato, spr_background, aud_ost, punch_1, punch_2];
-// });
+	BrioCollision.addSquare({
+		object: obj_gato,
+		colliderType: "solid",
+		pos: { x: 0, y: 0 },
+		size: 32,
+	});
+	BrioCollision.addRectangle({
+		object: obj_gato,
+		colliderType: "solid",
+		pos: { x: 0, y: 0 },
+		size: { x: 26, y: 32 },
+	});
 
-// // loading objects and object configurations
-// game.load((assets) => {
-// 	const obj_gato = new GameObject("obj_gato", assets.getSprite("spr_gato"), 1);
-// 	const gato2 = new GameObject("obj_gato_clone", assets.getSprite("spr_gato"), 1);
-// 	const obj_background = new GameObject("obj_background", assets.getSprite("spr_background"), 1);
-// 	const punch_1 = assets.getAudio("aud_punch_1");
-// 	const punch_2 = assets.getAudio("aud_punch_2");
+	game.instantiateMany(obj_gato, 1);
 
-// 	// GameAudio.playInSequence([punch_1, punch_2, punch_1, punch_2]);
+	obj_gato.pos.x = 30;
+	obj_gato.pos.y = 80;
 
-// 	obj_gato.pos.x = 30;
-// 	obj_gato.pos.y = 80;
+	return [obj_gato, background];
+});
 
-// 	obj_gato.addCollisionMask("img", "solid", 0, 0, 26, 32);
+/** @type {BrioObject[]} */
+const player_2 = [];
 
-// 	return [obj_gato, obj_background, gato2];
-// });
+// update loop
+game.update((updater, dt) => {
+	const player = updater.getObject("obj_gato");
+	const clone = updater.getObject("obj_gato-1");
 
-// // update loop
-// game.update((updater, dt) => {
-// 	const player = updater.getObject("obj_gato");
-// 	let player_pos = { x: 0, y: 0 };
+	let player_pos = { x: 0, y: 0 };
+	let clone_pos = { x: 0, y: 0 };
 
-// 	if (game.keyboard.isDown("ArrowUp")) {
-// 		player_pos.y += -1;
-// 	}
-// 	if (game.keyboard.isDown("ArrowDown")) {
-// 		player_pos.y += 1;
-// 	}
-// 	if (game.keyboard.isDown("ArrowLeft")) {
-// 		player_pos.x += -1;
-// 	}
-// 	if (game.keyboard.isDown("ArrowRight")) {
-// 		player_pos.x += 1;
-// 	}
+	if (game.keyboard.isDown("n")) {
+		updater.runOnce("creating_clones", () => {
+			player_2.push(game.instantiate(player));
+		});
+	}
 
-// 	if (game.keyboard.isDown(" ")) {
-// 		console.log(player.instanceId);
-// 	}
+	// player movement keys
+	if (game.keyboard.isDown("w")) {
+		clone_pos.y += -1;
+	}
+	if (game.keyboard.isDown("s")) {
+		clone_pos.y += 1;
+	}
+	if (game.keyboard.isDown("a")) {
+		clone_pos.x += -1;
+	}
+	if (game.keyboard.isDown("d")) {
+		clone_pos.x += 1;
+	}
 
-// 	player.pos.x += PLAYER_SPD * gs.normalize(player_pos).x * dt;
-// 	player.pos.y += PLAYER_SPD * gs.normalize(player_pos).y * dt;
+	if (game.keyboard.isDown("ArrowUp")) {
+		player_pos.y += -1;
+	}
+	if (game.keyboard.isDown("ArrowDown")) {
+		player_pos.y += 1;
+	}
+	if (game.keyboard.isDown("ArrowLeft")) {
+		player_pos.x += -1;
+	}
+	if (game.keyboard.isDown("ArrowRight")) {
+		player_pos.x += 1;
+	}
 
-// 	// animating
-// 	updater.animateFromName("obj_background");
-// 	updater.animate(player);
-// 	updater.animateFromName("obj_gato_clone");
-// 	game.useShowBorders();
-// 	game.useShowCollisions();
-// });
+	if (BrioCollision.isColliding(game, player, clone)) {
+		console.log("colliding");
+		const overlapX =
+			Math.min(
+				player.pos.x + player.collision.size.x / 2,
+				clone.pos.x + clone.collision.size.x / 2,
+			) -
+			Math.max(
+				player.pos.x - player.collision.size.x / 2,
+				clone.pos.x - clone.collision.size.x / 2,
+			);
 
-// /** @type { { [spriteName: string]: GameSpriteProps } } */
-// const sprites = {
-// 	gato: {
-// 		name: "spr_gato",
-// 		src: "./images/gato.png",
-// 		pos: { x: 0, y: 0 },
-// 		size: { x: 32, y: 32 },
-// 		type: "img",
-// 	},
-// 	background: {
-// 		name: "spr_background",
-// 		src: "./images/forest_pixelart.png",
-// 		pos: { x: -60, y: 0 },
-// 		size: { x: 2810 / 8, y: 1770 / 8 },
-// 		type: "img",
-// 	},
-// };
+		const overlapY =
+			Math.min(
+				player.pos.y + player.collision.size.y / 2,
+				clone.pos.y + clone.collision.size.y / 2,
+			) -
+			Math.max(
+				player.pos.y - player.collision.size.y / 2,
+				clone.pos.y - clone.collision.size.y / 2,
+			);
 
-// /**
-//  * @param {GameObject[]} objects
-//  * @param {Element} appendToElement
-//  */
-// function showInfo(objects, appendToElement) {
-// 	/** @param {number} number */
-// 	const handlePrecision = (number) => {
-// 		return number.toFixed(0);
-// 	};
-// 	const template = objects.map((object, index) => {
-// 		return `<span>Object name: ${object.name}</span><br>
-// 		<span>pos x: ${handlePrecision(object.pos.x)}</span><br>
-// 		<span>pos y: ${handlePrecision(object.pos.y)}</span><br>
-// 		<span>size x: ${handlePrecision(object.size.x)}</span><br>
-// 		<span>size y: ${handlePrecision(object.size.y)}</span><br>
-// 		<hr>`;
-// 	});
+		if (overlapX < overlapY) {
+			if (player.pos.x < clone.pos.x) player.pos.x += -overlapX;
+			else player.pos.x += overlapX;
+		} else {
+			if (player.pos.y < clone.pos.y) player.pos.y += -overlapY;
+			else player.pos.y += overlapY;
+		}
+	}
 
-// 	appendToElement.innerHTML = template.reduce((prev, current) => {
-// 		return (prev += current);
-// 	});
-// }
+	// player movement result (normalized)
+	clone.pos.x += PLAYER_SPD * BrioUtils.normalize(clone_pos).x * dt;
+	clone.pos.y += PLAYER_SPD * BrioUtils.normalize(clone_pos).y * dt;
+
+	player.pos.x += PLAYER_SPD * BrioUtils.normalize(player_pos).x * dt;
+	player.pos.y += PLAYER_SPD * BrioUtils.normalize(player_pos).y * dt;
+
+	// animating
+	updater.animateFromName("obj_background");
+	updater.animate(clone);
+	updater.animate(player);
+	updater.animateMany(player_2);
+	// sprite and object boundaries
+	game.useShowBorders();
+	game.useShowCollisions();
+});
+
+/** @type { { [spriteName: string]: GameSpriteProps } } */
+const sprites = {
+	gato: {
+		name: "spr_gato",
+		src: "./images/gato.png",
+		pos: { x: 0, y: 0 },
+		size: { x: 32, y: 32 },
+		type: "img",
+	},
+	background: {
+		name: "spr_background",
+		src: "./images/forest_pixelart.png",
+		pos: { x: -60, y: 0 },
+		size: { x: 2810 / 8, y: 1770 / 8 },
+		type: "img",
+	},
+};
+
+/**
+ * @param {BrioObject[]} objects
+ * @param {HTMLElement} appendToElement
+ */
+function showInfo(objects, appendToElement) {
+	/** @param {number} number */
+	const handlePrecision = (number) => {
+		return number.toFixed(0);
+	};
+	const template = objects.map((object, index) => {
+		return `<span>Object name: ${object.name}</span><br>
+		<span>pos x: ${handlePrecision(object.pos.x)}</span><br>
+		<span>pos y: ${handlePrecision(object.pos.y)}</span><br>
+		<span>size x: ${handlePrecision(object.size.x)}</span><br>
+		<span>size y: ${handlePrecision(object.size.y)}</span><br>
+		<hr>`;
+	});
+
+	appendToElement.innerHTML = template.reduce((prev, current) => {
+		return (prev += current);
+	});
+}

@@ -1,5 +1,5 @@
 {
-	"name": "game-library",
+	"name": "brio",
 	"version": "0.0.1",
 	"description": "A simple JS/TS Game Library for making 2d games using HTML Canvas",
 	"main": "main.js",

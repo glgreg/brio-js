@@ -2,13 +2,16 @@
 	"compilerOptions": {
 		"target": "ESNext",
 		"module": "ESNext",
-		"outDir": "./dist",
 		"rootDir": "./src",
+		"outDir": "./dist",
+		"noEmit": false,
 		"strict": true,
-		"esModuleInterop": true,
+		"allowJs": true,
+		"checkJs": true,
 		"skipLibCheck": true,
-		"checkJs": true
+		"esModuleInterop": true,
+		"moduleResolution": "node"
 	},
-	"include": ["src/**/*"],
+	"include": ["src/**/*.js", "src/**/*.ts"],
 	"exclude": ["node_modules"]
 }

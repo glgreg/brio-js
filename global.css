@@ -17,7 +17,7 @@ body {
 	image-rendering: pixelated;
 }
 canvas {
-	background: gray;
+	/* background: url("./images/forest_pixelart.png") center / cover no-repeat lightgray; */
 }
 
 #test_container {
