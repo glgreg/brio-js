@@ -1,4 +1,4 @@
-import { GameLogger } from "../logging/GameLogger.js";
+import { BrioLogger } from "../logging/BrioLogger.js";
 export class GameSprite {
     /** @type {string} The name of the sprite asset */
     #name;
@@ -41,7 +41,7 @@ export class GameSprite {
             this.#element.src = this.#src;
         }
         else
-            throw GameLogger.fatalError("Invalid sprite type: use 'img' or 'vec'");
+            throw BrioLogger.fatalError("Invalid sprite type: use 'img' or 'vec'");
     }
     /**
      * GETTERS AND SETTERS -------------------------------------------------------------

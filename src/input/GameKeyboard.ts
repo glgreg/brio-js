@@ -1,4 +1,4 @@
-import { GameLogger } from "../logging/GameLogger";
+import { BrioLogger } from "../logging/BrioLogger";
 
 export class GameKeyboard {
 	/** @type {Map<string, boolean>} A map that stores the keyboard overall state of keys that are being pressed (true) or not (false) */
@@ -41,7 +41,7 @@ export class GameKeyboard {
 
 		window.addEventListener("keydown", this.#keyDownListenerId);
 		window.addEventListener("keyup", this.#keyUpListenerId);
-		GameLogger.out("info", "Keyboard Event Listener sucessfuly created.");
+		BrioLogger.out("info", "Keyboard Event Listener sucessfuly created.");
 	}
 
 	/**
@@ -53,7 +53,7 @@ export class GameKeyboard {
 		if (this.#keyDownListenerId !== undefined && this.#keyUpListenerId !== undefined) {
 			window.removeEventListener("keydown", this.#keyDownListenerId);
 			window.removeEventListener("keyup", this.#keyUpListenerId);
-			GameLogger.out("info", "Keyboard Event Listener sucessfuly removed.");
+			BrioLogger.out("info", "Keyboard Event Listener sucessfuly removed.");
 		}
 	}
 

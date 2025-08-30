@@ -9,7 +9,7 @@ import { GameUtils as Utils } from "./GameUtils";
 import { GameCamera as Camera } from "./GameCamera";
 import { GameAudio as Audio } from "./asset/GameAudio";
 import { GameCollision as Collision } from "./GameCollision";
-import { GameLogger as Logger } from "./logging/GameLogger";
+import { BrioLogger as Logger } from "./logging/BrioLogger";
 
 export {
 	Game as BrioGame,

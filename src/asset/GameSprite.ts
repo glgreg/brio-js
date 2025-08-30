@@ -1,5 +1,5 @@
 import { Vector2 } from "../GameTypes";
-import { GameLogger } from "../logging/GameLogger";
+import { BrioLogger } from "../logging/BrioLogger";
 
 type Vector2Bool = {
 	x: boolean;
@@ -64,7 +64,7 @@ export class GameSprite implements SpriteManipulation {
 		} else if (this.#type === "vec") {
 			this.#element = new Image();
 			this.#element.src = this.#src;
-		} else throw GameLogger.fatalError("Invalid sprite type: use 'img' or 'vec'");
+		} else throw BrioLogger.fatalError("Invalid sprite type: use 'img' or 'vec'");
 	}
 
 	/**

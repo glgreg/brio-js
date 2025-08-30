@@ -1,6 +1,6 @@
 import { GameSprite } from "./asset/GameSprite.js";
 import { GameCollision } from "./GameCollision.js";
-import { GameLogger } from "./logging/GameLogger.js";
+import { BrioLogger } from "./logging/BrioLogger.js";
 export class GameObject {
     // Basic properites
     /** @type {string} The name of the game object */
@@ -156,7 +156,7 @@ export class GameObject {
     }
     set clonesInstantiated(value) {
         if (!GameObject.instanceOfObject) {
-            throw GameLogger.fatalError("The number of clones can't be hard coded, their amount increases automatically when new instances are created.");
+            throw BrioLogger.fatalError("The number of clones can't be hard coded, their amount increases automatically when new instances are created.");
         }
         this.#clonesInstantiated += value;
     }

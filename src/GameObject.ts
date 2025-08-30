@@ -1,7 +1,7 @@
 import { GameSprite, SpriteManipulation } from "./asset/GameSprite";
 import { GameCollision } from "./GameCollision";
 import { Vector2 } from "./GameTypes";
-import { GameLogger } from "./logging/GameLogger";
+import { BrioLogger } from "./logging/BrioLogger";
 
 export type KeyActions = {
 	[key: string]: () => void;
@@ -190,7 +190,7 @@ export class GameObject implements SpriteManipulation {
 
 	public set clonesInstantiated(value: number) {
 		if (!GameObject.instanceOfObject) {
-			throw GameLogger.fatalError(
+			throw BrioLogger.fatalError(
 				"The number of clones can't be hard coded, their amount increases automatically when new instances are created.",
 			);
 		}

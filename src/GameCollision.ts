@@ -2,7 +2,7 @@ import { Game } from "./Game";
 import { GameObject } from "./GameObject";
 import { CollisionColliderType, CollisionType, CollisionShapeType } from "./GameObject";
 import { Vector2 } from "./GameTypes";
-import { GameLogger } from "./logging/GameLogger";
+import { BrioLogger } from "./logging/BrioLogger";
 
 type RectangleCollisionType = {
 	object: GameObject;
