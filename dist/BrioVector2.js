@@ -1,13 +1,18 @@
 export class BrioVector2 {
     x;
     y;
+    /**
+     * @property {number} x
+     * @property {number} y
+     */
     constructor(x, y) {
         this.x = x;
         this.y = y;
     }
     /**
-     * A functions that receives a Vector2 and returns a normalized Vector2
-     * @param {Vector2} vec2
+     * Returns a normalized version of this vector
+     * @example const vec2 = new BrioVector2(10, 10);
+     *
      * @returns {Vector2}
      */
     get normalized() {
