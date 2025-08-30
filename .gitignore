@@ -2,7 +2,6 @@
 node_modules/
 
 #dev
-dist/
 images/
 audios/
 /nbproject/private/
@@ -13,8 +12,6 @@ main.js
 src/test.ts
 index.html
 global.css
-lib.js
-lib.tests
 
 # trash
 trash
