@@ -8,7 +8,7 @@ import { BrioKeyboard as Keyboard } from "./input/BrioKeyboard";
 import { BrioUtils as Utils } from "./BrioUtils";
 import { BrioCamera as Camera } from "./BrioCamera";
 import { BrioAudio as Audio } from "./asset/BrioAudio";
-import { GameCollision as Collision } from "./BrioCollision";
+import { BrioCollision as Collision } from "./BrioCollision";
 import { BrioLogger as Logger } from "./logging/BrioLogger";
 import { BrioVector2 as Vector2 } from "./BrioVector2";
 

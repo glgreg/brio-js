@@ -1,7 +1,6 @@
 import { BrioObject } from "./BrioObject";
 import { BrioSprite } from "./asset/BrioSprite";
 import { BrioGame } from "./BrioGame";
-import { Vector2 } from "./BrioTypes";
 
 export class BrioUtils {
 	/** A function that loops throught a given callback until it stops at given time

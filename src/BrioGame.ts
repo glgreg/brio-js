@@ -1,5 +1,5 @@
 import { BrioSprite } from "./asset/BrioSprite";
-import { BrioObject, KeyActions } from "./BrioObject";
+import { BrioObject } from "./BrioObject";
 import { BrioKeyboard } from "./input/BrioKeyboard";
 import { BrioMap } from "./BrioMap";
 import { BrioCamera } from "./BrioCamera";

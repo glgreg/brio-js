@@ -1,5 +1,5 @@
 import { BrioSprite, SpriteManipulation } from "./asset/BrioSprite";
-import { GameCollision } from "./BrioCollision";
+import { BrioCollision } from "./BrioCollision";
 import { Vector2 } from "./BrioTypes";
 import { BrioLogger } from "./logging/BrioLogger";
 
@@ -241,7 +241,7 @@ export class BrioObject implements SpriteManipulation {
 		const object = new BrioObject(gameObject.#name, gameObject.#sprite, gameObject.#layer);
 
 		if (object.collision) {
-			GameCollision.addSquare({
+			BrioCollision.addSquare({
 				object: object,
 				pos: object.collision.pos,
 				size: object.collision.size.x,

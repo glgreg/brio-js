@@ -1,8 +1,7 @@
 import { BrioGame } from "./BrioGame";
 import { BrioObject } from "./BrioObject";
-import { CollisionColliderType, CollisionType, CollisionShapeType } from "./BrioObject";
+import { CollisionColliderType } from "./BrioObject";
 import { Vector2 } from "./BrioTypes";
-import { BrioLogger } from "./logging/BrioLogger";
 
 interface RectangleCollisionType {
 	object: BrioObject;
@@ -17,7 +16,7 @@ type SquareCollisionType = {
 	size: number;
 };
 
-export class GameCollision {
+export class BrioCollision {
 	public static isColliding(game: BrioGame, obj1: BrioObject, obj2: BrioObject): boolean {
 		if (!obj1.collision || !obj2.collision) return false;
 
