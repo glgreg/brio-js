@@ -1,6 +1,6 @@
 import { errors, exceptions, LoggerLogType } from "./game_logs";
 
-export class GameLogger {
+export class BrioLogger {
 	static #storedErrors?: Set<number>;
 	static #storedExceptions?: Set<number>;
 	static #errors: LoggerLogType[] = errors;

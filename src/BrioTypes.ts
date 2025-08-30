@@ -1,5 +1,3 @@
-import { GameSprite } from "./asset/GameSprite";
-
 export interface Vector2 {
 	x: number;
 	y: number;

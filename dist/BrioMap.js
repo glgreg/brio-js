@@ -1,5 +1,5 @@
-import { GameSprite } from "./asset/GameSprite.js";
-export class GameMap {
+import { BrioSprite } from "./asset/BrioSprite.js";
+export class BrioMap {
     name;
     size;
     pos;
@@ -13,9 +13,9 @@ export class GameMap {
     }
     static getEmptyInstance() {
         if (this.#emptyInstance === undefined) {
-            const instance = new GameMap({
+            const instance = new BrioMap({
                 name: "",
-                sprite: GameSprite.getEmptyInstance(),
+                sprite: BrioSprite.getEmptyInstance(),
                 pos: { x: 0, y: 0 },
                 size: { x: 100, y: 100 },
             });

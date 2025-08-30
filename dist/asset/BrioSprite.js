@@ -1,5 +1,5 @@
-import { GameLogger } from "../logging/GameLogger.js";
-export class GameSprite {
+import { BrioLogger } from "../logging/BrioLogger.js";
+export class BrioSprite {
     /** @type {string} The name of the sprite asset */
     #name;
     /** @type {HTMLImageElement} Element created to receive an image */
@@ -41,7 +41,7 @@ export class GameSprite {
             this.#element.src = this.#src;
         }
         else
-            throw GameLogger.fatalError("Invalid sprite type: use 'img' or 'vec'");
+            throw BrioLogger.fatalError("Invalid sprite type: use 'img' or 'vec'");
     }
     /**
      * GETTERS AND SETTERS -------------------------------------------------------------
@@ -189,7 +189,7 @@ export class GameSprite {
     }
     static getEmptyInstance() {
         if (this.#emptyInstance === undefined) {
-            const instance = new GameSprite({
+            const instance = new BrioSprite({
                 name: "",
                 src: "",
                 pos: { x: 0, y: 0 },
@@ -204,7 +204,7 @@ export class GameSprite {
         }
     }
     static clone(targetGameSprite) {
-        return new GameSprite({
+        return new BrioSprite({
             name: targetGameSprite.#name,
             src: targetGameSprite.#src,
             pos: { x: targetGameSprite.#pos.x, y: targetGameSprite.#pos.y },

@@ -1,7 +1,7 @@
-import { GameSprite } from "./asset/GameSprite.js";
-import { GameCollision } from "./GameCollision.js";
-import { GameLogger } from "./logging/GameLogger.js";
-export class GameObject {
+import { BrioSprite } from "./asset/BrioSprite.js";
+import { GameCollision } from "./BrioCollision.js";
+import { BrioLogger } from "./logging/BrioLogger.js";
+export class BrioObject {
     // Basic properites
     /** @type {string} The name of the game object */
     #name;
@@ -16,10 +16,10 @@ export class GameObject {
     instanceId;
     /** @type {number} The number of instantiated clones of this object (clones can also be cloned) */
     #clonesInstantiated = 0;
-    /** @type {GameObject} */
+    /** @type {BrioObject} */
     static #emptyInstance;
     // COLLISION LOGIC
-    /** @type {import("./../src/GameObject.ts").CollisionType} An object that contains collision properties of the game object, such as shape, position and size */
+    /** @type {import("./../src/BrioObject.ts").CollisionType} An object that contains collision properties of the game object, such as shape, position and size */
     collision;
     /**
      * @param {string} name The name of the game object
@@ -27,18 +27,18 @@ export class GameObject {
      * @example game.load((assets) => {
      *
      * const spr_player = assets.preloaded("spr_player");
-     * const player = new GameObject("player", spr_player);
-     * return [player]; // now the "player" GameObject can be used in the 'update' step
+     * const player = new BrioObject("player", spr_player);
+     * return [player]; // now the "player" BrioObject can be used in the 'update' step
      * });
      */
     constructor(name, sprite, layer) {
         // Checks if the given name have -[0-9] at the end (so it doesn't conflict with instances of the same game object)
-        if (/-[0-9]+$/.test(name) && !GameObject.instanceOfObject) {
+        if (/-[0-9]+$/.test(name) && !BrioObject.instanceOfObject) {
             throw new Error("Game objects can't end with '-number', try using underline instead (bot-5 -> bot_5)");
         }
         this.#name = name;
         // clones the Sprite so that more than one game object can have the same one
-        this.#sprite = GameSprite.clone(sprite);
+        this.#sprite = BrioSprite.clone(sprite);
         this.#layer = Math.round(Math.abs(layer));
         this.instanceId = 0;
     }
@@ -105,7 +105,7 @@ export class GameObject {
         return this.#sprite;
     }
     /** Sets and returns the size of the game object Width and Height
-     * @example const player = new GameObject("player", spr_player);
+     * @example const player = new BrioObject("player", spr_player);
      * player.size.w = 128;
      * player.size.h = 128;
      * console.log(player.size.w, player.size.h); // 128, 128 (attention: it will be multiplied by the game "scale" property)
@@ -132,7 +132,7 @@ export class GameObject {
         return this.#name;
     }
     /** Sets and returns the position of the game object in the X and Y axis
-     * @example const player = new GameObject("player", spr_player);
+     * @example const player = new BrioObject("player", spr_player);
      * player.pos.x = 0;
      * player.pos.y = 0;
      * console.log(player.pos.x, player.pos.y); // 0, 0
@@ -155,8 +155,8 @@ export class GameObject {
         };
     }
     set clonesInstantiated(value) {
-        if (!GameObject.instanceOfObject) {
-            throw GameLogger.fatalError("The number of clones can't be hard coded, their amount increases automatically when new instances are created.");
+        if (!BrioObject.instanceOfObject) {
+            throw BrioLogger.fatalError("The number of clones can't be hard coded, their amount increases automatically when new instances are created.");
         }
         this.#clonesInstantiated += value;
     }
@@ -180,7 +180,7 @@ export class GameObject {
     }
     static getEmptyInstance() {
         if (this.#emptyInstance === undefined) {
-            const instance = new GameObject("", GameSprite.getEmptyInstance(), 1);
+            const instance = new BrioObject("", BrioSprite.getEmptyInstance(), 1);
             this.#emptyInstance = instance;
             return this.#emptyInstance;
         }
@@ -189,7 +189,7 @@ export class GameObject {
         }
     }
     static clone(gameObject) {
-        const object = new GameObject(gameObject.#name, gameObject.#sprite, gameObject.#layer);
+        const object = new BrioObject(gameObject.#name, gameObject.#sprite, gameObject.#layer);
         if (object.collision) {
             GameCollision.addSquare({
                 object: object,

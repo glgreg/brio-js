@@ -1,8 +1,8 @@
-export class GameUtils {
+export class BrioUtils {
     /** A function that loops throught a given callback until it stops at given time
      * @param {() => void} callbackFn The callback that will be looped
      * @param {number} animationDuration The timeout for stoping the animation
-     * @example const player = new GameObject("player", spr_gato);
+     * @example const player = new BrioObject("player", spr_gato);
      * player.setActions({ onKeyDown: {
      * ArrowUp: () => { Utils.timedAnimation(() => {
      * player.sprite.posY -= 10;
@@ -21,7 +21,7 @@ export class GameUtils {
         }, animationDuration);
     }
     /** An method used for safely (in the 'strict mode' JS sense) adding new properties into an object
-     * @example const player = new GameObject("player", spr_player);
+     * @example const player = new BrioObject("player", spr_player);
      *
      * Utils.addProperty(player, "health", 100);
      * console.log(player.health); // 100
@@ -63,17 +63,5 @@ export class GameUtils {
         else if (target.pos.y <= -(target.size.y * game.scale - game.height)) {
             target.pos.y = -(target.size.y * game.scale - game.height);
         }
-    }
-    /**
-     * A functions that receives a Vector2 and returns a normalized Vector2
-     * @param {Vector2} vec2
-     * @returns {Vector2}
-     */
-    static normalize(vec2) {
-        const magnitude = Math.sqrt(vec2.x * vec2.x + vec2.y * vec2.y);
-        if (magnitude === 0) {
-            return { x: 0, y: 0 };
-        }
-        return { x: vec2.x / magnitude, y: vec2.y / magnitude };
     }
 }

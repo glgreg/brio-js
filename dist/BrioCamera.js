@@ -1,4 +1,4 @@
-export class GameCamera {
+export class BrioCamera {
     #name;
     #pos;
     #size;

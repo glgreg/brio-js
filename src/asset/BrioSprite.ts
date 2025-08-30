@@ -1,10 +1,10 @@
-import { Vector2 } from "../GameTypes";
-import { GameLogger } from "../logging/GameLogger";
+import { Vector2 } from "../BrioTypes";
+import { BrioLogger } from "../logging/BrioLogger";
 
-type Vector2Bool = {
+interface Vector2Bool {
 	x: boolean;
 	y: boolean;
-};
+}
 export interface SpriteManipulation {
 	size: Vector2;
 	pos: Vector2;
@@ -14,15 +14,15 @@ export interface SpriteManipulation {
 	flip: Vector2Bool;
 }
 
-export type GameSpriteProps = {
+export interface SpriteProps {
 	name: string;
 	src: string;
 	pos: Vector2;
 	size: Vector2;
 	type: string;
-};
+}
 
-export class GameSprite implements SpriteManipulation {
+export class BrioSprite implements SpriteManipulation {
 	/** @type {string} The name of the sprite asset */
 	#name: string;
 	/** @type {HTMLImageElement} Element created to receive an image */
@@ -38,7 +38,7 @@ export class GameSprite implements SpriteManipulation {
 	#scale: number = 1;
 	#flip: { x: boolean; y: boolean } = { x: false, y: false };
 
-	static #emptyInstance?: GameSprite;
+	static #emptyInstance?: BrioSprite;
 
 	/**
 	 * @param {string} name A name for the sprite object
@@ -50,7 +50,7 @@ export class GameSprite implements SpriteManipulation {
 	 * return [spr_player]; // now the "spr_player" GameSprite can be used in the 'load' step
 	 * });
 	 */
-	constructor(props: GameSpriteProps) {
+	constructor(props: SpriteProps) {
 		this.#name = props.name;
 		this.#src = props.src;
 		this.#pos = props.pos;
@@ -64,7 +64,7 @@ export class GameSprite implements SpriteManipulation {
 		} else if (this.#type === "vec") {
 			this.#element = new Image();
 			this.#element.src = this.#src;
-		} else throw GameLogger.fatalError("Invalid sprite type: use 'img' or 'vec'");
+		} else throw BrioLogger.fatalError("Invalid sprite type: use 'img' or 'vec'");
 	}
 
 	/**
@@ -222,9 +222,9 @@ export class GameSprite implements SpriteManipulation {
 		}
 	}
 
-	public static getEmptyInstance(): GameSprite {
+	public static getEmptyInstance(): BrioSprite {
 		if (this.#emptyInstance === undefined) {
-			const instance = new GameSprite({
+			const instance = new BrioSprite({
 				name: "",
 				src: "",
 				pos: { x: 0, y: 0 },
@@ -239,8 +239,8 @@ export class GameSprite implements SpriteManipulation {
 		}
 	}
 
-	public static clone(targetGameSprite: GameSprite): GameSprite {
-		return new GameSprite({
+	public static clone(targetGameSprite: BrioSprite): BrioSprite {
+		return new BrioSprite({
 			name: targetGameSprite.#name,
 			src: targetGameSprite.#src,
 			pos: { x: targetGameSprite.#pos.x, y: targetGameSprite.#pos.y },

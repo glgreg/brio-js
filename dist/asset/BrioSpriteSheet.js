@@ -1,5 +1,5 @@
-import { GameSprite } from "./asset/GameSprite.js";
-export class SpriteSheet {
+import { BrioSprite } from "./BrioSprite.js";
+export class BrioSpriteSheet {
     #sprite;
     #slicing;
     #grid;
@@ -20,7 +20,7 @@ export class SpriteSheet {
             return;
         }
         if (!this.#animations.get(name)) {
-            this.#animations.set(name, new GameSprite({
+            this.#animations.set(name, new BrioSprite({
                 name: `${this.#sprite.name}_${name}`,
                 src: this.#sprite.src,
                 pos: this.#sprite.pos,

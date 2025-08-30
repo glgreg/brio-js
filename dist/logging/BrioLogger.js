@@ -1,5 +1,5 @@
 import { errors, exceptions } from "./game_logs.js";
-export class GameLogger {
+export class BrioLogger {
     static #storedErrors;
     static #storedExceptions;
     static #errors = errors;
