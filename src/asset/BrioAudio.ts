@@ -79,6 +79,10 @@ export class BrioAudio {
 		return Math.round(this.#element.duration * 100) / 100;
 	}
 
+	public get isPaused() {
+		return this.#element.paused;
+	}
+
 	/**
 	 * PUBLIC METHODS -------------------------------------------------------------------
 	 */
@@ -87,7 +91,7 @@ export class BrioAudio {
 	 * When correctly preloaded, plays the audio once
 	 * @example game.load((loader) => {
 	 *
-	 * const aud = loader.preloaded("aud_player_jump");
+	 * const aud = loader.getAudio("aud_player_jump");
 	 * aud.playOnce(); // plays the audio once as soon as the audio is ready
 	 * })
 	 */
@@ -104,8 +108,8 @@ export class BrioAudio {
 	 * the second replay would just ignore the time that was specified.
 	 * @example game.load((loader) => {
 	 *
-	 * const aud = loader.preloaded("aud_main_song");
-	 * aud.playFromTime(20); // skips the first 20 seconds of the sound specified
+	 * const aud = loader.getAudio("aud_main_song");
+	 * aud.playFromTime(20.5); // skips the first 20 seconds and 500 miliseconds of the specified sound
 	 * })
 	 */
 	public playFromTime(timeInSeconds: number) {
@@ -119,7 +123,7 @@ export class BrioAudio {
 	 * Plays the audio the amount of times it was specified
 	 * @example game.load((loader) => {
 	 *
-	 * const aud = loader.preloaded("aud_player_punch");
+	 * const aud = loader.getAudio("aud_player_punch");
 	 * aud.playMany(5); // plays the audio 5 times in sequence
 	 * })
 	 */
@@ -158,7 +162,7 @@ export class BrioAudio {
 	 * When correctly preloaded, plays the audio on a loop
 	 * @example game.load((loader) => {
 	 *
-	 * const aud = loader.preloaded("aud_player_punch");
+	 * const aud = loader.getAudio("aud_player_punch");
 	 * aud.playLoop(); // plays the audio indefinitely in sequence
 	 * })
 	 */
@@ -172,7 +176,7 @@ export class BrioAudio {
 	/**
 	 * Pauses the audio if currently playing
 	 * @example
-	 * const aud = loader.preloaded("aud_background_ambience");
+	 * const aud = loader.getAudio("aud_background_ambience");
 	 * aud.playLoop(); // plays the audio on a loop
 	 *
 	 * setTimeout(() => {
@@ -189,7 +193,7 @@ export class BrioAudio {
 	/**
 	 * Resumes the audio if currently paused
 	 * @example
-	 * const aud = loader.preloaded("aud_background_ambience");
+	 * const aud = loader.getAudio("aud_background_ambience");
 	 * aud.playLoop(); // plays the audio on a loop
 	 *
 	 * setTimeout(() => {
@@ -210,7 +214,7 @@ export class BrioAudio {
 	 * When correctly preloaded, plays the audio many times at the sime time
 	 * @example game.load((loader) => {
 	 *
-	 * const aud = loader.preloaded("aud_explosion");
+	 * const aud = loader.getAudio("aud_explosion");
 	 * aud.playManyAtTime(3); // plays the audio indefinitely
 	 * })
 	 */
@@ -237,8 +241,8 @@ export class BrioAudio {
 	 *
 	 * @example game.load((loader) => {
 	 *
-	 * const aud_1 = loader.preloaded("aud_fire");
-	 * const aud_2 = loader.preloaded("aud_explosion")
+	 * const aud_1 = loader.getAudio("aud_fire");
+	 * const aud_2 = loader.getAudio("aud_explosion")
 	 *
 	 * BrioAudio.playTogether([aud_1, aud_2]); // plays the 2 audios (only once by default)
 	 */
