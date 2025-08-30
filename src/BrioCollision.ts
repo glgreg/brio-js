@@ -1,24 +1,24 @@
-import { Game } from "./Game";
-import { GameObject } from "./GameObject";
-import { CollisionColliderType, CollisionType, CollisionShapeType } from "./GameObject";
-import { Vector2 } from "./GameTypes";
+import { BrioGame } from "./BrioGame";
+import { BrioObject } from "./BrioObject";
+import { CollisionColliderType, CollisionType, CollisionShapeType } from "./BrioObject";
+import { Vector2 } from "./BrioTypes";
 import { BrioLogger } from "./logging/BrioLogger";
 
-type RectangleCollisionType = {
-	object: GameObject;
+interface RectangleCollisionType {
+	object: BrioObject;
 	collisionType: CollisionColliderType;
 	pos: Vector2;
 	size: Vector2;
-};
+}
 type SquareCollisionType = {
-	object: GameObject;
+	object: BrioObject;
 	colliderType: CollisionColliderType;
 	pos: Vector2;
 	size: number;
 };
 
 export class GameCollision {
-	public static isColliding(game: Game, obj1: GameObject, obj2: GameObject): boolean {
+	public static isColliding(game: BrioGame, obj1: BrioObject, obj2: BrioObject): boolean {
 		if (!obj1.collision || !obj2.collision) return false;
 
 		switch (obj1.collision.shape && obj2.collision.shape) {
@@ -78,5 +78,5 @@ export class GameCollision {
 		};
 	}
 
-	public static addCircle(object: GameObject) {}
+	public static addCircle(object: BrioObject) {}
 }

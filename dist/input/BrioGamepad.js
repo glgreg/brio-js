@@ -1,2 +1,2 @@
-export default class BrioGamepad {
+export class BrioGamepad {
 }

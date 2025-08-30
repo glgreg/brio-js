@@ -1,5 +1,5 @@
 import { BrioSprite } from "./asset/BrioSprite";
-import { Vector2 } from "./GameTypes";
+import { Vector2 } from "./BrioTypes";
 
 export interface MapProps {
 	name: string;
@@ -8,12 +8,12 @@ export interface MapProps {
 	sprite: BrioSprite;
 }
 
-export class GameMap {
+export class BrioMap {
 	name: string;
 	size: Vector2;
 	pos: Vector2;
 	sprite: BrioSprite;
-	static #emptyInstance?: GameMap;
+	static #emptyInstance?: BrioMap;
 
 	constructor(mapProps: MapProps) {
 		this.pos = mapProps.pos;
@@ -23,9 +23,9 @@ export class GameMap {
 		this.sprite = mapProps.sprite;
 	}
 
-	public static getEmptyInstance(): GameMap {
+	public static getEmptyInstance(): BrioMap {
 		if (this.#emptyInstance === undefined) {
-			const instance = new GameMap({
+			const instance = new BrioMap({
 				name: "",
 				sprite: BrioSprite.getEmptyInstance(),
 				pos: { x: 0, y: 0 },

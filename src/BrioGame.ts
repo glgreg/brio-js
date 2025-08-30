@@ -1,9 +1,9 @@
 import { BrioSprite } from "./asset/BrioSprite";
-import { GameObject, KeyActions } from "./GameObject";
+import { BrioObject, KeyActions } from "./BrioObject";
 import { BrioKeyboard } from "./input/BrioKeyboard";
-import { GameMap } from "./GameMap";
-import { GameCamera } from "./GameCamera";
-import { GameAudio } from "./asset/GameAudio";
+import { BrioMap } from "./BrioMap";
+import { BrioCamera } from "./BrioCamera";
+import { BrioAudio } from "./asset/BrioAudio";
 import { BrioLogger } from "./logging/BrioLogger";
 
 // Used for managing the game-state step process
@@ -28,20 +28,20 @@ type CanvasBackgroundParam = {
 type AssetLoaderParam = {
 	logAssets: () => void;
 	getSprite: (spriteName: string) => BrioSprite;
-	getAudio: (audioName: string) => GameAudio;
+	getAudio: (audioName: string) => BrioAudio;
 };
 
 // Used in the "update" step method, in the param of the callbackFn
 export type UpdaterObjectParam = {
 	logObjectKeys: () => void;
 	getSprite: (spriteName: string) => BrioSprite;
-	getAudio: (audioName: string) => GameAudio;
-	getObject: (gameObjectName: string) => GameObject;
-	getMap: (mapName: string) => GameMap;
+	getAudio: (audioName: string) => BrioAudio;
+	getObject: (gameObjectName: string) => BrioObject;
+	getMap: (mapName: string) => BrioMap;
 
 	animateFromName: (gameObjectName: string) => void;
 	animate: <T>(object: T) => void;
-	animateMany: (gameObjects: GameObject[]) => void;
+	animateMany: (gameObjects: BrioObject[]) => void;
 
 	runOnce: (identifier: string, callbackFn: () => void) => void;
 	pause: () => void;
@@ -59,7 +59,7 @@ type UseLogsParam = {
 	showStackInGameClasses?: boolean;
 };
 
-export class Game {
+export class BrioGame {
 	// CANVAS
 	/** @type {HTMLCanvasElement} Canvas element that serves as the game sandbox */
 	#canvas: HTMLCanvasElement;
@@ -82,14 +82,14 @@ export class Game {
 	// STORED OBJECTS
 	/** @type {Map<string, BrioSprite>} A map that stores loaded sprites (returned in the preload state) */
 	#loadedSprites: Map<string, BrioSprite> = new Map<string, BrioSprite>();
-	/** @type {Map<string, GameObject>} A map that stores loaded gameobjects (returned in the load state) */
-	#loadedGameObjects: Map<string, GameObject> = new Map<string, GameObject>();
-	/** @type {Map<string, GameAudio>} A map that stores loaded game audios (returned in the preload state) */
-	#loadedAudios: Map<string, GameAudio> = new Map();
+	/** @type {Map<string, BrioObject>} A map that stores loaded gameobjects (returned in the load state) */
+	#loadedGameObjects: Map<string, BrioObject> = new Map<string, BrioObject>();
+	/** @type {Map<string, BrioAudio>} A map that stores loaded game audios (returned in the preload state) */
+	#loadedAudios: Map<string, BrioAudio> = new Map();
 	/** @type {Map<string, GameMap>} A map that stores loaded game maps (returned in the preload state) */
-	#loadedGameMaps: Map<string, GameMap> = new Map<string, GameMap>();
+	#loadedGameMaps: Map<string, BrioMap> = new Map<string, BrioMap>();
 	/** @type {Map<string, GameCamera>} A map that stores loaded game maps (returned in the preload state) */
-	#loadedGameCameras: Map<string, GameCamera> = new Map<string, GameCamera>();
+	#loadedGameCameras: Map<string, BrioCamera> = new Map<string, BrioCamera>();
 
 	// LOGS
 	/** @type {Set<string>} A set that holds the logged erros so they don't appear multiple times in the console when using the update loop */
@@ -120,7 +120,7 @@ export class Game {
 	#keyboardInstance?: BrioKeyboard;
 
 	// RESTAR LOGIC
-	#gameStartingState: Game;
+	#gameStartingState: BrioGame;
 
 	// CHECKPOINT LOGIC
 	cachedObjects: Map<string, Map<string, any>> = new Map();
@@ -142,11 +142,11 @@ export class Game {
 		canvasContextSettings: CanvasRenderingContext2DSettings = {},
 	) {
 		if (width < 0 || height < 0) {
-			BrioLogger.out("warn", "Game constructor: Negative values converted into positive.");
+			BrioLogger.out("warn", "BrioGame constructor: Negative values converted into positive.");
 		}
 		if (!(appendToElement instanceof HTMLElement)) {
 			BrioLogger.fatalError(
-				"Game constructor: A Game should be appended to a working HTMLElement.",
+				"BrioGame constructor: A BrioGame should be appended to a working HTMLElement.",
 			);
 		}
 
@@ -217,7 +217,7 @@ export class Game {
 
 	/** The global scale of the canvas object. All objects are scaled according to this property
 	 * @type {number}
-	 * @example const game = new Game(600, 400, document.body);
+	 * @example const game = new BrioGame(600, 400, document.body);
 	 * game.scale = 2; // 128px sprites are now 256px
 	 */
 	public get scale() {
@@ -228,7 +228,7 @@ export class Game {
 	}
 
 	/** The rendering type used in the game
-	 * @example const game = new Game(600, 400, document.body);
+	 * @example const game = new BrioGame(600, 400, document.body);
 	 * game.renderingType = "pixelated"; // makes the sprites crispy looking
 	 * @default "smooth"
 	 */
@@ -241,7 +241,7 @@ export class Game {
 	}
 
 	/** The quality of the smoothness of game sprites. Only works when renderingType is set to "smooth"
-	 * @example const game = new Game(600, 400, document.body);
+	 * @example const game = new BrioGame(600, 400, document.body);
 	 * game.renderingType = "smooth";
 	 * game.smoothingQuality = "high"; // makes the sprites more smooth
 	 * @default "low"
@@ -275,9 +275,9 @@ export class Game {
 	 * The first step into the game logic responsible for preloading assets
 	 * such as GameSprites, Audios and Videos. Those assets are loaded in an
 	 * assyncronous manner, that's why this step in needed
-	 * @param {() => Array<BrioSprite | GameAudio>} callbackFn
+	 * @param {() => Array<BrioSprite | BrioAudio>} callbackFn
 	 */
-	public preload(callbackFn: () => Array<BrioSprite | GameAudio>): this {
+	public preload(callbackFn: () => Array<BrioSprite | BrioAudio>): this {
 		this.#lifecyclePromise = this.#lifecyclePromise.then(async () => {
 			this.#currentState = GameState.preload;
 
@@ -288,7 +288,7 @@ export class Game {
 			}
 
 			const sprites = assets.filter((asset) => asset instanceof BrioSprite);
-			const audios = assets.filter((asset) => asset instanceof GameAudio);
+			const audios = assets.filter((asset) => asset instanceof BrioAudio);
 
 			const spriteLoadPromises = sprites.map((sprite) => {
 				return new Promise<void>((resolve, reject) => {
@@ -334,10 +334,10 @@ export class Game {
 	 * @typedef {object} AssetsObject The object passed as a param into the callbackFn
 	 * @property {() => void} logAssets Logs the available sprites that were preloaded
 	 * @property {(spriteName: string) => BrioSprite} getSprite Returns the BrioSprite object with the given name
-	 * @property {(audioName: string) => GameAudio} getAudio Returns the GameAudio object with the given name
+	 * @property {(audioName: string) => BrioAudio} getAudio Returns the BrioAudio object with the given name
 	 **/
-	/** @param {(assets: AssetsObject) => Array<GameObject | GameMap>} callbackFn A callback function that passes, by param, an object for assets manipulation */
-	public load(callbackFn: (assets: AssetLoaderParam) => Array<GameObject | GameMap>): this {
+	/** @param {(assets: AssetsObject) => Array<BrioObject | GameMap>} callbackFn A callback function that passes, by param, an object for assets manipulation */
+	public load(callbackFn: (assets: AssetLoaderParam) => Array<BrioObject | BrioMap>): this {
 		this.#lifecyclePromise = this.#lifecyclePromise.then(() => {
 			this.#currentState = GameState.load;
 
@@ -378,14 +378,14 @@ export class Game {
 						}
 					}
 
-					return GameAudio.getEmptyInstance();
+					return BrioAudio.getEmptyInstance();
 				},
 			};
 
 			const objects = callbackFn(assetsManipulationObject);
-			const gameObjects = objects.filter((object) => object instanceof GameObject);
-			const gameMaps = objects.filter((object) => object instanceof GameMap);
-			const gameCameras = objects.filter((object) => object instanceof GameCamera);
+			const gameObjects = objects.filter((object) => object instanceof BrioObject);
+			const gameMaps = objects.filter((object) => object instanceof BrioMap);
+			const gameCameras = objects.filter((object) => object instanceof BrioCamera);
 
 			gameObjects.forEach((gameObject) => {
 				this.#loadedGameObjects.set(gameObject.name, gameObject);
@@ -410,13 +410,13 @@ export class Game {
 	 * @typedef {object} UpdaterObject The object passed as a param into the callbackFn
 	 * @property {() => void} logObjectKeys Logs the available objects that were loaded
 	 * @property {(spriteName: string) => BrioSprite} getSprite Returns the BrioSprite object with the given name
-	 * @property {(audioName: string) => GameAudio} getAudio Returns the GameAudio object with the given name
-	 * @property {(gameObjectName: string) => GameObject} getObject Returns the GameObject with the given name
-	 * @property {(mapName: string) => GameObject} getMap Returns the GameMap with the given name
-	 * @property {(cameraName: string) => GameObject} getCamera Returns the GameCamera with the given name
+	 * @property {(audioName: string) => BrioAudio} getAudio Returns the BrioAudio object with the given name
+	 * @property {(gameObjectName: string) => BrioObject} getObject Returns the BrioObject with the given name
+	 * @property {(mapName: string) => BrioObject} getMap Returns the GameMap with the given name
+	 * @property {(cameraName: string) => BrioObject} getCamera Returns the GameCamera with the given name
 	 * @property {(gameObjectName: string) => void} animateFromName Animates a given named game object and its properties
-	 * @property {(gameObject: GameObject) => void} animate Animates the given game object
-	 * @property {(gameObjects: GameObject[]) => void} animateMany Animates instances of a given array of game objects
+	 * @property {(gameObject: BrioObject) => void} animate Animates the given game object
+	 * @property {(gameObjects: BrioObject[]) => void} animateMany Animates instances of a given array of game objects
 	 * @property {() => void} pause Pauses the update animation loop, essencialy freezing the game
 	 * @property {() => void} resume Resumes the update animation loop
 	 * @property {boolean} isRunning Returns true if the update loop is running and false if it is paused
@@ -424,13 +424,13 @@ export class Game {
 	 */
 	/**
 	 * A method that loops through given logic inside it many times per second, be it for
-	 * changing GameObject coordinates or checking if a key was pressed.
+	 * changing BrioObject coordinates or checking if a key was pressed.
 	 * @param {(updater: UpdaterObject, deltaTime: number) => void } callbackFn A callback function that passes, by param, an object for game objects manipulation and the time elapsed since the last frame (delta time)
 	 * @param {UpdaterObject} callbackFn.updater An object providing methods to manipulate game objects and work around the update loop
 	 * @param {number} callbackFn.deltaTime The time elapsed since the last frame, in seconds, used for frame-rate independent updates
 	 *
 	 * @example game.update((updater, dt) => {
-	 * const obj_player = updater.loaded("obj_player"); // returns the GameObject for Player
+	 * const obj_player = updater.loaded("obj_player"); // returns the BrioObject for Player
 	 *
 	 * if(game.keyboard.isDown("ArrowUp")) {
 	 * obj_player.pos.y += -300 * dt; // makes the player go up (multiplying it by DeltaTime for FPS consistency)
@@ -505,7 +505,7 @@ export class Game {
 						}
 					}
 
-					return GameAudio.getEmptyInstance();
+					return BrioAudio.getEmptyInstance();
 				},
 				getObject: (gameObjectName) => {
 					if (
@@ -526,7 +526,7 @@ export class Game {
 						}
 					}
 
-					return GameObject.getEmptyInstance();
+					return BrioObject.getEmptyInstance();
 				},
 				getMap: (gameMapName) => {
 					if (
@@ -547,7 +547,7 @@ export class Game {
 						}
 					}
 
-					return GameMap.getEmptyInstance();
+					return BrioMap.getEmptyInstance();
 				},
 				animateFromName: (gameObjectName) => {
 					if (
@@ -572,7 +572,7 @@ export class Game {
 					if (!targetObject) return;
 
 					let object = null;
-					if (targetObject instanceof GameObject) {
+					if (targetObject instanceof BrioObject) {
 						object = this.#loadedGameObjects.get(targetObject.name);
 					}
 
@@ -670,7 +670,7 @@ export class Game {
 	 */
 
 	/** A function that draws an object into the canvas element while considering scale and rendering type */
-	#renderGameObject<T extends GameObject>(object: T) {
+	#renderGameObject<T extends BrioObject>(object: T) {
 		if (!this.ctx || !object) {
 			return;
 		}
@@ -728,7 +728,7 @@ export class Game {
 		this.ctx.restore();
 	}
 
-	#clearGameObject<T extends BrioSprite | GameObject>(gameObject: T) {
+	#clearGameObject<T extends BrioSprite | BrioObject>(gameObject: T) {
 		if (!this.ctx || !gameObject) {
 			return;
 		}
@@ -746,7 +746,7 @@ export class Game {
 	 */
 
 	public createCheckPoint() {
-		this.cachedObjects.set("objects", new Map<string, GameObject>());
+		this.cachedObjects.set("objects", new Map<string, BrioObject>());
 		this.#loadedGameObjects.forEach((object, id) => {
 			this.cachedObjects.get("objects")?.set(id, object);
 		});
@@ -850,14 +850,14 @@ export class Game {
 		// restart logic
 	}
 
-	public removeObject<T extends BrioSprite | GameObject>(targetObject: T) {
+	public removeObject<T extends BrioSprite | BrioObject>(targetObject: T) {
 		let objectExists: boolean = false;
 
 		if (targetObject instanceof BrioSprite && this.#loadedSprites.has(targetObject.name)) {
 			objectExists = true;
 			this.#loadedSprites.delete(targetObject.name);
 		} else if (
-			targetObject instanceof GameObject &&
+			targetObject instanceof BrioObject &&
 			this.#loadedGameObjects.has(targetObject.name)
 		) {
 			objectExists = true;
@@ -872,7 +872,7 @@ export class Game {
 		}
 	}
 
-	public outbound(targetObject: GameObject, screenThreshold: number = 1, callbackFn?: () => void) {
+	public outbound(targetObject: BrioObject, screenThreshold: number = 1, callbackFn?: () => void) {
 		if (!targetObject) {
 			return;
 		}
@@ -895,11 +895,11 @@ export class Game {
 		}
 	}
 
-	public instantiate(targetObject: GameObject): GameObject {
-		GameObject.instanceOfObject = true;
+	public instantiate(targetObject: BrioObject): BrioObject {
+		BrioObject.instanceOfObject = true;
 
 		// cloning object
-		const newObject = new GameObject(
+		const newObject = new BrioObject(
 			`${targetObject.name}-${targetObject.clonesInstantiated + 1}`,
 			targetObject.sprite,
 			targetObject.layer,
@@ -927,18 +927,18 @@ export class Game {
 			this.#loadedGameObjects.set(newObject.name, newObject);
 		}
 
-		GameObject.instanceOfObject = false;
+		BrioObject.instanceOfObject = false;
 
 		return newObject;
 	}
 
-	public instantiateMany(targetObject: GameObject, quantity: number = 1): GameObject[] {
-		const instances: GameObject[] = [];
-		GameObject.instanceOfObject = true;
+	public instantiateMany(targetObject: BrioObject, quantity: number = 1): BrioObject[] {
+		const instances: BrioObject[] = [];
+		BrioObject.instanceOfObject = true;
 
 		for (let i = 0; i < quantity; i++) {
 			// cloning object
-			const newObject = new GameObject(
+			const newObject = new BrioObject(
 				`${targetObject.name}-${targetObject.clonesInstantiated + 1}`,
 				targetObject.sprite,
 				targetObject.layer,
@@ -971,12 +971,12 @@ export class Game {
 			}
 		}
 
-		GameObject.instanceOfObject = false;
+		BrioObject.instanceOfObject = false;
 
 		return instances;
 	}
 
-	public destroy(targetObject: GameObject) {
+	public destroy(targetObject: BrioObject) {
 		if (this.#loadedGameObjects.has(targetObject.name)) {
 			this.#loadedGameObjects.delete(targetObject.name);
 		}
@@ -986,7 +986,7 @@ export class Game {
 		}
 	}
 
-	public isColliding(obj1: GameObject, obj2: GameObject): boolean {
+	public isColliding(obj1: BrioObject, obj2: BrioObject): boolean {
 		let result: boolean = false;
 
 		if (!obj1.collision || !obj2.collision) {

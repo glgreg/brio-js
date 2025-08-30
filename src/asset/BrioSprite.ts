@@ -1,10 +1,10 @@
-import { Vector2 } from "../GameTypes";
+import { Vector2 } from "../BrioTypes";
 import { BrioLogger } from "../logging/BrioLogger";
 
-type Vector2Bool = {
+interface Vector2Bool {
 	x: boolean;
 	y: boolean;
-};
+}
 export interface SpriteManipulation {
 	size: Vector2;
 	pos: Vector2;
@@ -14,13 +14,13 @@ export interface SpriteManipulation {
 	flip: Vector2Bool;
 }
 
-export type GameSpriteProps = {
+export interface SpriteProps {
 	name: string;
 	src: string;
 	pos: Vector2;
 	size: Vector2;
 	type: string;
-};
+}
 
 export class BrioSprite implements SpriteManipulation {
 	/** @type {string} The name of the sprite asset */
@@ -50,7 +50,7 @@ export class BrioSprite implements SpriteManipulation {
 	 * return [spr_player]; // now the "spr_player" GameSprite can be used in the 'load' step
 	 * });
 	 */
-	constructor(props: GameSpriteProps) {
+	constructor(props: SpriteProps) {
 		this.#name = props.name;
 		this.#src = props.src;
 		this.#pos = props.pos;

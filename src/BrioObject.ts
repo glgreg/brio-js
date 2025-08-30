@@ -1,6 +1,6 @@
 import { BrioSprite, SpriteManipulation } from "./asset/BrioSprite";
-import { GameCollision } from "./GameCollision";
-import { Vector2 } from "./GameTypes";
+import { GameCollision } from "./BrioCollision";
+import { Vector2 } from "./BrioTypes";
 import { BrioLogger } from "./logging/BrioLogger";
 
 export type KeyActions = {
@@ -17,7 +17,7 @@ export type CollisionType = {
 export type CollisionColliderType = "solid" | "intangible";
 export type CollisionShapeType = "square" | "circle" | "rectangle";
 
-export class GameObject implements SpriteManipulation {
+export class BrioObject implements SpriteManipulation {
 	// Basic properites
 	/** @type {string} The name of the game object */
 	#name: string;
@@ -33,11 +33,11 @@ export class GameObject implements SpriteManipulation {
 	public instanceId: number;
 	/** @type {number} The number of instantiated clones of this object (clones can also be cloned) */
 	#clonesInstantiated: number = 0;
-	/** @type {GameObject} */
-	static #emptyInstance?: GameObject;
+	/** @type {BrioObject} */
+	static #emptyInstance?: BrioObject;
 
 	// COLLISION LOGIC
-	/** @type {import("./../src/GameObject.ts").CollisionType} An object that contains collision properties of the game object, such as shape, position and size */
+	/** @type {import("./../src/BrioObject.ts").CollisionType} An object that contains collision properties of the game object, such as shape, position and size */
 	public collision?: CollisionType;
 
 	/**
@@ -46,13 +46,13 @@ export class GameObject implements SpriteManipulation {
 	 * @example game.load((assets) => {
 	 *
 	 * const spr_player = assets.preloaded("spr_player");
-	 * const player = new GameObject("player", spr_player);
-	 * return [player]; // now the "player" GameObject can be used in the 'update' step
+	 * const player = new BrioObject("player", spr_player);
+	 * return [player]; // now the "player" BrioObject can be used in the 'update' step
 	 * });
 	 */
 	constructor(name: string, sprite: BrioSprite, layer: number) {
 		// Checks if the given name have -[0-9] at the end (so it doesn't conflict with instances of the same game object)
-		if (/-[0-9]+$/.test(name) && !GameObject.instanceOfObject) {
+		if (/-[0-9]+$/.test(name) && !BrioObject.instanceOfObject) {
 			throw new Error(
 				"Game objects can't end with '-number', try using underline instead (bot-5 -> bot_5)",
 			);
@@ -136,7 +136,7 @@ export class GameObject implements SpriteManipulation {
 	}
 
 	/** Sets and returns the size of the game object Width and Height
-	 * @example const player = new GameObject("player", spr_player);
+	 * @example const player = new BrioObject("player", spr_player);
 	 * player.size.w = 128;
 	 * player.size.h = 128;
 	 * console.log(player.size.w, player.size.h); // 128, 128 (attention: it will be multiplied by the game "scale" property)
@@ -165,7 +165,7 @@ export class GameObject implements SpriteManipulation {
 	}
 
 	/** Sets and returns the position of the game object in the X and Y axis
-	 * @example const player = new GameObject("player", spr_player);
+	 * @example const player = new BrioObject("player", spr_player);
 	 * player.pos.x = 0;
 	 * player.pos.y = 0;
 	 * console.log(player.pos.x, player.pos.y); // 0, 0
@@ -189,7 +189,7 @@ export class GameObject implements SpriteManipulation {
 	}
 
 	public set clonesInstantiated(value: number) {
-		if (!GameObject.instanceOfObject) {
+		if (!BrioObject.instanceOfObject) {
 			throw BrioLogger.fatalError(
 				"The number of clones can't be hard coded, their amount increases automatically when new instances are created.",
 			);
@@ -226,9 +226,9 @@ export class GameObject implements SpriteManipulation {
 		};
 	}
 
-	static getEmptyInstance(): GameObject {
+	static getEmptyInstance(): BrioObject {
 		if (this.#emptyInstance === undefined) {
-			const instance = new GameObject("", BrioSprite.getEmptyInstance(), 1);
+			const instance = new BrioObject("", BrioSprite.getEmptyInstance(), 1);
 			this.#emptyInstance = instance;
 
 			return this.#emptyInstance;
@@ -237,8 +237,8 @@ export class GameObject implements SpriteManipulation {
 		}
 	}
 
-	public static clone(gameObject: GameObject) {
-		const object = new GameObject(gameObject.#name, gameObject.#sprite, gameObject.#layer);
+	public static clone(gameObject: BrioObject) {
+		const object = new BrioObject(gameObject.#name, gameObject.#sprite, gameObject.#layer);
 
 		if (object.collision) {
 			GameCollision.addSquare({

@@ -1,13 +1,13 @@
-import { GameObject } from "./GameObject";
+import { BrioObject } from "./BrioObject";
 import { BrioSprite } from "./asset/BrioSprite";
-import { Game } from "./Game";
-import { Vector2 } from "./GameTypes";
+import { BrioGame } from "./BrioGame";
+import { Vector2 } from "./BrioTypes";
 
-export class GameUtils {
+export class BrioUtils {
 	/** A function that loops throught a given callback until it stops at given time
 	 * @param {() => void} callbackFn The callback that will be looped
 	 * @param {number} animationDuration The timeout for stoping the animation
-	 * @example const player = new GameObject("player", spr_gato);
+	 * @example const player = new BrioObject("player", spr_gato);
 	 * player.setActions({ onKeyDown: {
 	 * ArrowUp: () => { Utils.timedAnimation(() => {
 	 * player.sprite.posY -= 10;
@@ -29,7 +29,7 @@ export class GameUtils {
 	}
 
 	/** An method used for safely (in the 'strict mode' JS sense) adding new properties into an object
-	 * @example const player = new GameObject("player", spr_player);
+	 * @example const player = new BrioObject("player", spr_player);
 	 *
 	 * Utils.addProperty(player, "health", 100);
 	 * console.log(player.health); // 100
@@ -38,7 +38,7 @@ export class GameUtils {
 	 * @param {string} propertyKey The property key
 	 * @param {K} propertyValue The initial value (obligatory adding is needed for type cohersion)
 	 */
-	public static addProperty<T extends BrioSprite | GameObject, K>(
+	public static addProperty<T extends BrioSprite | BrioObject, K>(
 		object: T,
 		propertyKey: string,
 		propertyValue: K,
@@ -66,7 +66,7 @@ export class GameUtils {
 		}, timInMiliseconds);
 	}
 
-	public static mapRestrainOffbound(game: Game, target: GameObject) {
+	public static mapRestrainOffbound(game: BrioGame, target: BrioObject) {
 		if (target.pos.x >= 0) {
 			target.pos.x = 0;
 		} else if (target.pos.x <= -(target.size.x * game.scale - game.width)) {

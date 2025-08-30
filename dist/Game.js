@@ -1,8 +1,8 @@
 import { BrioSprite } from "./asset/BrioSprite.js";
-import { GameObject } from "./GameObject.js";
+import { BrioObject } from "./BrioObject.js";
 import { BrioKeyboard } from "./input/BrioKeyboard.js";
-import { GameMap } from "./GameMap.js";
-import { GameCamera } from "./GameCamera.js";
+import { BrioMap } from "./BrioMap.js";
+import { BrioCamera } from "./BrioCamera.js";
 import { GameAudio } from "./asset/GameAudio.js";
 import { BrioLogger } from "./logging/BrioLogger.js";
 // Used for managing the game-state step process
@@ -36,7 +36,7 @@ export class Game {
     // STORED OBJECTS
     /** @type {Map<string, BrioSprite>} A map that stores loaded sprites (returned in the preload state) */
     #loadedSprites = new Map();
-    /** @type {Map<string, GameObject>} A map that stores loaded gameobjects (returned in the load state) */
+    /** @type {Map<string, BrioObject>} A map that stores loaded gameobjects (returned in the load state) */
     #loadedGameObjects = new Map();
     /** @type {Map<string, GameAudio>} A map that stores loaded game audios (returned in the preload state) */
     #loadedAudios = new Map();
@@ -249,7 +249,7 @@ export class Game {
      * @property {(spriteName: string) => BrioSprite} getSprite Returns the BrioSprite object with the given name
      * @property {(audioName: string) => GameAudio} getAudio Returns the GameAudio object with the given name
      **/
-    /** @param {(assets: AssetsObject) => Array<GameObject | GameMap>} callbackFn A callback function that passes, by param, an object for assets manipulation */
+    /** @param {(assets: AssetsObject) => Array<BrioObject | GameMap>} callbackFn A callback function that passes, by param, an object for assets manipulation */
     load(callbackFn) {
         this.#lifecyclePromise = this.#lifecyclePromise.then(() => {
             this.#currentState = GameState.load;
@@ -284,9 +284,9 @@ export class Game {
                 },
             };
             const objects = callbackFn(assetsManipulationObject);
-            const gameObjects = objects.filter((object) => object instanceof GameObject);
-            const gameMaps = objects.filter((object) => object instanceof GameMap);
-            const gameCameras = objects.filter((object) => object instanceof GameCamera);
+            const gameObjects = objects.filter((object) => object instanceof BrioObject);
+            const gameMaps = objects.filter((object) => object instanceof BrioMap);
+            const gameCameras = objects.filter((object) => object instanceof BrioCamera);
             gameObjects.forEach((gameObject) => {
                 this.#loadedGameObjects.set(gameObject.name, gameObject);
             });
@@ -306,12 +306,12 @@ export class Game {
      * @property {() => void} logObjectKeys Logs the available objects that were loaded
      * @property {(spriteName: string) => BrioSprite} getSprite Returns the BrioSprite object with the given name
      * @property {(audioName: string) => GameAudio} getAudio Returns the GameAudio object with the given name
-     * @property {(gameObjectName: string) => GameObject} getObject Returns the GameObject with the given name
-     * @property {(mapName: string) => GameObject} getMap Returns the GameMap with the given name
-     * @property {(cameraName: string) => GameObject} getCamera Returns the GameCamera with the given name
+     * @property {(gameObjectName: string) => BrioObject} getObject Returns the BrioObject with the given name
+     * @property {(mapName: string) => BrioObject} getMap Returns the GameMap with the given name
+     * @property {(cameraName: string) => BrioObject} getCamera Returns the GameCamera with the given name
      * @property {(gameObjectName: string) => void} animateFromName Animates a given named game object and its properties
-     * @property {(gameObject: GameObject) => void} animate Animates the given game object
-     * @property {(gameObjects: GameObject[]) => void} animateMany Animates instances of a given array of game objects
+     * @property {(gameObject: BrioObject) => void} animate Animates the given game object
+     * @property {(gameObjects: BrioObject[]) => void} animateMany Animates instances of a given array of game objects
      * @property {() => void} pause Pauses the update animation loop, essencialy freezing the game
      * @property {() => void} resume Resumes the update animation loop
      * @property {boolean} isRunning Returns true if the update loop is running and false if it is paused
@@ -319,13 +319,13 @@ export class Game {
      */
     /**
      * A method that loops through given logic inside it many times per second, be it for
-     * changing GameObject coordinates or checking if a key was pressed.
+     * changing BrioObject coordinates or checking if a key was pressed.
      * @param {(updater: UpdaterObject, deltaTime: number) => void } callbackFn A callback function that passes, by param, an object for game objects manipulation and the time elapsed since the last frame (delta time)
      * @param {UpdaterObject} callbackFn.updater An object providing methods to manipulate game objects and work around the update loop
      * @param {number} callbackFn.deltaTime The time elapsed since the last frame, in seconds, used for frame-rate independent updates
      *
      * @example game.update((updater, dt) => {
-     * const obj_player = updater.loaded("obj_player"); // returns the GameObject for Player
+     * const obj_player = updater.loaded("obj_player"); // returns the BrioObject for Player
      *
      * if(game.keyboard.isDown("ArrowUp")) {
      * obj_player.pos.y += -300 * dt; // makes the player go up (multiplying it by DeltaTime for FPS consistency)
@@ -396,7 +396,7 @@ export class Game {
                             return obj;
                         }
                     }
-                    return GameObject.getEmptyInstance();
+                    return BrioObject.getEmptyInstance();
                 },
                 getMap: (gameMapName) => {
                     if (!this.#loadedGameMaps.has(gameMapName) &&
@@ -410,7 +410,7 @@ export class Game {
                             return map;
                         }
                     }
-                    return GameMap.getEmptyInstance();
+                    return BrioMap.getEmptyInstance();
                 },
                 animateFromName: (gameObjectName) => {
                     if (!this.#loadedGameObjects.has(gameObjectName) &&
@@ -429,7 +429,7 @@ export class Game {
                     if (!targetObject)
                         return;
                     let object = null;
-                    if (targetObject instanceof GameObject) {
+                    if (targetObject instanceof BrioObject) {
                         object = this.#loadedGameObjects.get(targetObject.name);
                     }
                     if (object) {
@@ -654,7 +654,7 @@ export class Game {
             objectExists = true;
             this.#loadedSprites.delete(targetObject.name);
         }
-        else if (targetObject instanceof GameObject &&
+        else if (targetObject instanceof BrioObject &&
             this.#loadedGameObjects.has(targetObject.name)) {
             objectExists = true;
             this.#loadedGameObjects.delete(targetObject.name);
@@ -687,9 +687,9 @@ export class Game {
         }
     }
     instantiate(targetObject) {
-        GameObject.instanceOfObject = true;
+        BrioObject.instanceOfObject = true;
         // cloning object
-        const newObject = new GameObject(`${targetObject.name}-${targetObject.clonesInstantiated + 1}`, targetObject.sprite, targetObject.layer);
+        const newObject = new BrioObject(`${targetObject.name}-${targetObject.clonesInstantiated + 1}`, targetObject.sprite, targetObject.layer);
         // increasing the amount of clones created
         targetObject.clonesInstantiated = 1;
         // cloning collider
@@ -702,15 +702,15 @@ export class Game {
         if (!this.#loadedGameObjects.has(newObject.name)) {
             this.#loadedGameObjects.set(newObject.name, newObject);
         }
-        GameObject.instanceOfObject = false;
+        BrioObject.instanceOfObject = false;
         return newObject;
     }
     instantiateMany(targetObject, quantity = 1) {
         const instances = [];
-        GameObject.instanceOfObject = true;
+        BrioObject.instanceOfObject = true;
         for (let i = 0; i < quantity; i++) {
             // cloning object
-            const newObject = new GameObject(`${targetObject.name}-${targetObject.clonesInstantiated + 1}`, targetObject.sprite, targetObject.layer);
+            const newObject = new BrioObject(`${targetObject.name}-${targetObject.clonesInstantiated + 1}`, targetObject.sprite, targetObject.layer);
             // increasing the amount of clones created
             targetObject.clonesInstantiated = 1;
             // cloning collider
@@ -727,7 +727,7 @@ export class Game {
                 instances.push(newObject);
             }
         }
-        GameObject.instanceOfObject = false;
+        BrioObject.instanceOfObject = false;
         return instances;
     }
     destroy(targetObject) {

@@ -1,5 +1,5 @@
 /** @classdesc A class used to instantiate GameAudio objects that can
- * be played, paused, resumed, loooped through and linked to GameObject objects
+ * be played, paused, resumed, loooped through and linked to BrioObject objects
  * and more */
 export class GameAudio {
     /** @type {string} The name of the audio asset */

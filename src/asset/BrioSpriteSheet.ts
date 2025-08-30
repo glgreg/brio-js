@@ -1,7 +1,7 @@
-import { Vector2 } from "./GameTypes";
-import { BrioSprite, GameSpriteProps } from "./asset/BrioSprite";
+import { Vector2 } from "../BrioTypes";
+import { BrioSprite, SpriteProps } from "./BrioSprite";
 
-interface SpriteSheetProps extends GameSpriteProps {
+interface SpriteSheetProps extends SpriteProps {
 	slicing: Vector2;
 }
 interface KeyframeAnimation {
@@ -9,7 +9,7 @@ interface KeyframeAnimation {
 	grid: Vector2;
 }
 
-export class SpriteSheet {
+export class BrioSpriteSheet {
 	#sprite: BrioSprite;
 	#slicing: Vector2;
 	#grid: Vector2;

@@ -1,2 +1,2 @@
-export default class BrioMouse {
+export class BrioMouse {
 }

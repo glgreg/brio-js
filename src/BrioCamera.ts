@@ -1,15 +1,15 @@
-import { GameMap } from "./GameMap";
-import { GameObject } from "./GameObject";
-import { Vector2 } from "./GameTypes";
+import { BrioMap } from "./BrioMap";
+import { BrioObject } from "./BrioObject";
+import { Vector2 } from "./BrioTypes";
 
-export class GameCamera {
+export class BrioCamera {
 	#name: string;
 	#pos: Vector2;
 	#size: Vector2;
-	#map: GameMap;
-	#target?: GameObject;
+	#map: BrioMap;
+	#target?: BrioObject;
 
-	constructor(id: string, pos: Vector2, size: Vector2, map: GameMap) {
+	constructor(id: string, pos: Vector2, size: Vector2, map: BrioMap) {
 		this.#name = id;
 		this.#pos = pos;
 		this.#size = size;
