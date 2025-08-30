@@ -1,6 +1,6 @@
 import { BrioSprite } from "./asset/BrioSprite";
 import { GameObject, KeyActions } from "./GameObject";
-import { GameKeyboard } from "./input/GameKeyboard";
+import { BrioKeyboard } from "./input/BrioKeyboard";
 import { GameMap } from "./GameMap";
 import { GameCamera } from "./GameCamera";
 import { GameAudio } from "./asset/GameAudio";
@@ -117,7 +117,7 @@ export class Game {
 	// KEYBOARD
 	#keyboardEnabled: boolean = false;
 	#keyboardState: Map<string, boolean> = new Map<string, boolean>();
-	#keyboardInstance?: GameKeyboard;
+	#keyboardInstance?: BrioKeyboard;
 
 	// RESTAR LOGIC
 	#gameStartingState: Game;
@@ -1113,7 +1113,7 @@ export class Game {
 	}
 
 	public useKeyboard() {
-		this.#keyboardInstance = new GameKeyboard(this.#keyboardState);
+		this.#keyboardInstance = new BrioKeyboard(this.#keyboardState);
 		this.#keyboardEnabled = true;
 	}
 
@@ -1129,9 +1129,9 @@ export class Game {
 
 	/**
 	 * An object that contains logic related to keyboard input
-	 * @returns {GameKeyboard}
+	 * @returns {BrioKeyboard}
 	 */
-	public get keyboard(): GameKeyboard {
+	public get keyboard(): BrioKeyboard {
 		if (this.#keyboardInstance !== undefined) {
 			return this.#keyboardInstance;
 		}

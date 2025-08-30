@@ -1,6 +1,6 @@
 import { BrioLogger } from "../logging/BrioLogger";
 
-export class GameKeyboard {
+export class BrioKeyboard {
 	/** @type {Map<string, boolean>} A map that stores the keyboard overall state of keys that are being pressed (true) or not (false) */
 	#keyboardState: Map<string, boolean>;
 	#keyDownListenerId?: (event: KeyboardEvent) => void;

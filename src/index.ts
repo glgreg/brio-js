@@ -4,7 +4,7 @@ import { GameMap as Map } from "./GameMap";
 import { BrioSprite as Sprite } from "./asset/BrioSprite";
 import { SpriteSheet } from "./GameSpriteSheet";
 import { GameObject as Object } from "./GameObject";
-import { GameKeyboard as Keyboard } from "./input/GameKeyboard";
+import { BrioKeyboard as Keyboard } from "./input/BrioKeyboard";
 import { GameUtils as Utils } from "./GameUtils";
 import { GameCamera as Camera } from "./GameCamera";
 import { GameAudio as Audio } from "./asset/GameAudio";

@@ -1,6 +1,6 @@
 import { BrioSprite } from "./asset/BrioSprite.js";
 import { GameObject } from "./GameObject.js";
-import { GameKeyboard } from "./input/GameKeyboard.js";
+import { BrioKeyboard } from "./input/BrioKeyboard.js";
 import { GameMap } from "./GameMap.js";
 import { GameCamera } from "./GameCamera.js";
 import { GameAudio } from "./asset/GameAudio.js";
@@ -842,7 +842,7 @@ export class Game {
         this.ctx.closePath();
     }
     useKeyboard() {
-        this.#keyboardInstance = new GameKeyboard(this.#keyboardState);
+        this.#keyboardInstance = new BrioKeyboard(this.#keyboardState);
         this.#keyboardEnabled = true;
     }
     useGamepad() {
@@ -855,7 +855,7 @@ export class Game {
     }
     /**
      * An object that contains logic related to keyboard input
-     * @returns {GameKeyboard}
+     * @returns {BrioKeyboard}
      */
     get keyboard() {
         if (this.#keyboardInstance !== undefined) {
