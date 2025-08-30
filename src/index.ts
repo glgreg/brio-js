@@ -10,6 +10,7 @@ import { BrioCamera as Camera } from "./BrioCamera";
 import { BrioAudio as Audio } from "./asset/BrioAudio";
 import { GameCollision as Collision } from "./BrioCollision";
 import { BrioLogger as Logger } from "./logging/BrioLogger";
+import { BrioVector2 as Vector2 } from "./BrioVector2";
 
 export {
 	Game as BrioGame,
@@ -24,6 +25,7 @@ export {
 	Audio as BrioAudio,
 	Collision as BrioCollision,
 	Logger as BrioLogger,
+	Vector2 as BrioVector2,
 };
 
 const Brio = {
@@ -39,6 +41,7 @@ const Brio = {
 	Audio,
 	Collision,
 	Logger,
+	Vector2,
 };
 
 export default Brio;

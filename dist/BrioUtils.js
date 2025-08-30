@@ -64,16 +64,4 @@ export class BrioUtils {
             target.pos.y = -(target.size.y * game.scale - game.height);
         }
     }
-    /**
-     * A functions that receives a Vector2 and returns a normalized Vector2
-     * @param {Vector2} vec2
-     * @returns {Vector2}
-     */
-    static normalize(vec2) {
-        const magnitude = Math.sqrt(vec2.x * vec2.x + vec2.y * vec2.y);
-        if (magnitude === 0) {
-            return { x: 0, y: 0 };
-        }
-        return { x: vec2.x / magnitude, y: vec2.y / magnitude };
-    }
 }

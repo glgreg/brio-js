@@ -1,4 +1,7 @@
 import B from "./index.js";
+import { BrioVector2 } from "./BrioVector2.js";
+const val = new BrioVector2(10, 20);
+console.log(val.x, val.y);
 function main() {
     const game = new B.Game(600, 480, document.body);
     game.preload(() => {
