@@ -1,5 +1,5 @@
 import { Vector2 } from "./GameTypes";
-import { GameSprite, GameSpriteProps } from "./asset/GameSprite";
+import { BrioSprite, GameSpriteProps } from "./asset/BrioSprite";
 
 interface SpriteSheetProps extends GameSpriteProps {
 	slicing: Vector2;
@@ -10,12 +10,12 @@ interface KeyframeAnimation {
 }
 
 export class SpriteSheet {
-	#sprite: GameSprite;
+	#sprite: BrioSprite;
 	#slicing: Vector2;
 	#grid: Vector2;
-	#animations: Map<string, GameSprite> = new Map();
+	#animations: Map<string, BrioSprite> = new Map();
 
-	constructor(sprite: GameSprite, sliceX: number, sliceY: number) {
+	constructor(sprite: BrioSprite, sliceX: number, sliceY: number) {
 		this.#sprite = sprite;
 		this.#slicing = { x: sliceX, y: sliceY };
 		this.#grid = {
@@ -36,7 +36,7 @@ export class SpriteSheet {
 		if (!this.#animations.get(name)) {
 			this.#animations.set(
 				name,
-				new GameSprite({
+				new BrioSprite({
 					name: `${this.#sprite.name}_${name}`,
 					src: this.#sprite.src,
 					pos: this.#sprite.pos,

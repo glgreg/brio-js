@@ -1,5 +1,5 @@
 import { GameObject } from "./GameObject";
-import { GameSprite } from "./asset/GameSprite";
+import { BrioSprite } from "./asset/BrioSprite";
 import { Game } from "./Game";
 import { Vector2 } from "./GameTypes";
 
@@ -38,7 +38,7 @@ export class GameUtils {
 	 * @param {string} propertyKey The property key
 	 * @param {K} propertyValue The initial value (obligatory adding is needed for type cohersion)
 	 */
-	public static addProperty<T extends GameSprite | GameObject, K>(
+	public static addProperty<T extends BrioSprite | GameObject, K>(
 		object: T,
 		propertyKey: string,
 		propertyValue: K,

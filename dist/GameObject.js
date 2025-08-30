@@ -1,4 +1,4 @@
-import { GameSprite } from "./asset/GameSprite.js";
+import { BrioSprite } from "./asset/BrioSprite.js";
 import { GameCollision } from "./GameCollision.js";
 import { BrioLogger } from "./logging/BrioLogger.js";
 export class GameObject {
@@ -38,7 +38,7 @@ export class GameObject {
         }
         this.#name = name;
         // clones the Sprite so that more than one game object can have the same one
-        this.#sprite = GameSprite.clone(sprite);
+        this.#sprite = BrioSprite.clone(sprite);
         this.#layer = Math.round(Math.abs(layer));
         this.instanceId = 0;
     }
@@ -180,7 +180,7 @@ export class GameObject {
     }
     static getEmptyInstance() {
         if (this.#emptyInstance === undefined) {
-            const instance = new GameObject("", GameSprite.getEmptyInstance(), 1);
+            const instance = new GameObject("", BrioSprite.getEmptyInstance(), 1);
             this.#emptyInstance = instance;
             return this.#emptyInstance;
         }

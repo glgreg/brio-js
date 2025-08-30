@@ -1,4 +1,4 @@
-import { GameSprite, SpriteManipulation } from "./asset/GameSprite";
+import { BrioSprite, SpriteManipulation } from "./asset/BrioSprite";
 import { GameCollision } from "./GameCollision";
 import { Vector2 } from "./GameTypes";
 import { BrioLogger } from "./logging/BrioLogger";
@@ -22,7 +22,7 @@ export class GameObject implements SpriteManipulation {
 	/** @type {string} The name of the game object */
 	#name: string;
 	/** @type {Sprite} The sprite attached to the game object */
-	#sprite: GameSprite;
+	#sprite: BrioSprite;
 	/** @type {number} The layer level the object is located */
 	#layer: number;
 
@@ -50,7 +50,7 @@ export class GameObject implements SpriteManipulation {
 	 * return [player]; // now the "player" GameObject can be used in the 'update' step
 	 * });
 	 */
-	constructor(name: string, sprite: GameSprite, layer: number) {
+	constructor(name: string, sprite: BrioSprite, layer: number) {
 		// Checks if the given name have -[0-9] at the end (so it doesn't conflict with instances of the same game object)
 		if (/-[0-9]+$/.test(name) && !GameObject.instanceOfObject) {
 			throw new Error(
@@ -60,7 +60,7 @@ export class GameObject implements SpriteManipulation {
 
 		this.#name = name;
 		// clones the Sprite so that more than one game object can have the same one
-		this.#sprite = GameSprite.clone(sprite);
+		this.#sprite = BrioSprite.clone(sprite);
 		this.#layer = Math.round(Math.abs(layer));
 		this.instanceId = 0;
 	}
@@ -131,7 +131,7 @@ export class GameObject implements SpriteManipulation {
 	/** Returns the attached Sprite used in the game object
 	 * @returns {GameSprite}
 	 */
-	public get sprite(): GameSprite {
+	public get sprite(): BrioSprite {
 		return this.#sprite;
 	}
 
@@ -228,7 +228,7 @@ export class GameObject implements SpriteManipulation {
 
 	static getEmptyInstance(): GameObject {
 		if (this.#emptyInstance === undefined) {
-			const instance = new GameObject("", GameSprite.getEmptyInstance(), 1);
+			const instance = new GameObject("", BrioSprite.getEmptyInstance(), 1);
 			this.#emptyInstance = instance;
 
 			return this.#emptyInstance;

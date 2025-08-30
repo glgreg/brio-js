@@ -1,4 +1,4 @@
-import { GameSprite } from "./asset/GameSprite";
+import { BrioSprite } from "./asset/BrioSprite";
 
 export interface Vector2 {
 	x: number;

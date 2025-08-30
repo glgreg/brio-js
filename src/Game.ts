@@ -1,4 +1,4 @@
-import { GameSprite } from "./asset/GameSprite";
+import { BrioSprite } from "./asset/BrioSprite";
 import { GameObject, KeyActions } from "./GameObject";
 import { GameKeyboard } from "./input/GameKeyboard";
 import { GameMap } from "./GameMap";
@@ -27,14 +27,14 @@ type CanvasBackgroundParam = {
 // Used in the "load" step method, in the param of the callbackFn
 type AssetLoaderParam = {
 	logAssets: () => void;
-	getSprite: (spriteName: string) => GameSprite;
+	getSprite: (spriteName: string) => BrioSprite;
 	getAudio: (audioName: string) => GameAudio;
 };
 
 // Used in the "update" step method, in the param of the callbackFn
 export type UpdaterObjectParam = {
 	logObjectKeys: () => void;
-	getSprite: (spriteName: string) => GameSprite;
+	getSprite: (spriteName: string) => BrioSprite;
 	getAudio: (audioName: string) => GameAudio;
 	getObject: (gameObjectName: string) => GameObject;
 	getMap: (mapName: string) => GameMap;
@@ -80,8 +80,8 @@ export class Game {
 	#background: CanvasBackgroundParam = {};
 
 	// STORED OBJECTS
-	/** @type {Map<string, GameSprite>} A map that stores loaded sprites (returned in the preload state) */
-	#loadedSprites: Map<string, GameSprite> = new Map<string, GameSprite>();
+	/** @type {Map<string, BrioSprite>} A map that stores loaded sprites (returned in the preload state) */
+	#loadedSprites: Map<string, BrioSprite> = new Map<string, BrioSprite>();
 	/** @type {Map<string, GameObject>} A map that stores loaded gameobjects (returned in the load state) */
 	#loadedGameObjects: Map<string, GameObject> = new Map<string, GameObject>();
 	/** @type {Map<string, GameAudio>} A map that stores loaded game audios (returned in the preload state) */
@@ -176,7 +176,7 @@ export class Game {
 
 	/** Returns the loaded sprites that were returned in the preload step
 	 * @example game.load(() => {
-	 * return new GameSprite("spr_player", "./spr_player.png", "img");
+	 * return new BrioSprite("spr_player", "./spr_player.png", "img");
 	 * })
 	 * console.log(game.loadedGameSprites); // Map(spr_player -> {})
 	 */
@@ -275,9 +275,9 @@ export class Game {
 	 * The first step into the game logic responsible for preloading assets
 	 * such as GameSprites, Audios and Videos. Those assets are loaded in an
 	 * assyncronous manner, that's why this step in needed
-	 * @param {() => Array<GameSprite | GameAudio>} callbackFn
+	 * @param {() => Array<BrioSprite | GameAudio>} callbackFn
 	 */
-	public preload(callbackFn: () => Array<GameSprite | GameAudio>): this {
+	public preload(callbackFn: () => Array<BrioSprite | GameAudio>): this {
 		this.#lifecyclePromise = this.#lifecyclePromise.then(async () => {
 			this.#currentState = GameState.preload;
 
@@ -287,14 +287,14 @@ export class Game {
 				throw new Error("Zero assets returned. You must return at least one asset.");
 			}
 
-			const sprites = assets.filter((asset) => asset instanceof GameSprite);
+			const sprites = assets.filter((asset) => asset instanceof BrioSprite);
 			const audios = assets.filter((asset) => asset instanceof GameAudio);
 
 			const spriteLoadPromises = sprites.map((sprite) => {
 				return new Promise<void>((resolve, reject) => {
 					sprite.element.onload = () => {
 						this.#loadedSprites.set(sprite.name, sprite);
-						BrioLogger.out("log", `GameSprite: ${sprite.name} sucessfully preloaded.`);
+						BrioLogger.out("log", `BrioSprite: ${sprite.name} sucessfully preloaded.`);
 						resolve();
 					};
 					sprite.element.onerror = (event, source, lineno, colno, err) => {
@@ -333,7 +333,7 @@ export class Game {
 	/**
 	 * @typedef {object} AssetsObject The object passed as a param into the callbackFn
 	 * @property {() => void} logAssets Logs the available sprites that were preloaded
-	 * @property {(spriteName: string) => GameSprite} getSprite Returns the GameSprite object with the given name
+	 * @property {(spriteName: string) => BrioSprite} getSprite Returns the BrioSprite object with the given name
 	 * @property {(audioName: string) => GameAudio} getAudio Returns the GameAudio object with the given name
 	 **/
 	/** @param {(assets: AssetsObject) => Array<GameObject | GameMap>} callbackFn A callback function that passes, by param, an object for assets manipulation */
@@ -361,7 +361,7 @@ export class Game {
 						}
 					}
 
-					return GameSprite.getEmptyInstance();
+					return BrioSprite.getEmptyInstance();
 				},
 				getAudio: (audioName: string) => {
 					if (!this.#loadedAudios.has(audioName)) {
@@ -409,7 +409,7 @@ export class Game {
 	 * Type for the updater object used inside callbackFn in the update step
 	 * @typedef {object} UpdaterObject The object passed as a param into the callbackFn
 	 * @property {() => void} logObjectKeys Logs the available objects that were loaded
-	 * @property {(spriteName: string) => GameSprite} getSprite Returns the GameSprite object with the given name
+	 * @property {(spriteName: string) => BrioSprite} getSprite Returns the BrioSprite object with the given name
 	 * @property {(audioName: string) => GameAudio} getAudio Returns the GameAudio object with the given name
 	 * @property {(gameObjectName: string) => GameObject} getObject Returns the GameObject with the given name
 	 * @property {(mapName: string) => GameObject} getMap Returns the GameMap with the given name
@@ -484,7 +484,7 @@ export class Game {
 						}
 					}
 
-					return GameSprite.getEmptyInstance();
+					return BrioSprite.getEmptyInstance();
 				},
 				getAudio: (audioName: string) => {
 					if (
@@ -728,7 +728,7 @@ export class Game {
 		this.ctx.restore();
 	}
 
-	#clearGameObject<T extends GameSprite | GameObject>(gameObject: T) {
+	#clearGameObject<T extends BrioSprite | GameObject>(gameObject: T) {
 		if (!this.ctx || !gameObject) {
 			return;
 		}
@@ -850,10 +850,10 @@ export class Game {
 		// restart logic
 	}
 
-	public removeObject<T extends GameSprite | GameObject>(targetObject: T) {
+	public removeObject<T extends BrioSprite | GameObject>(targetObject: T) {
 		let objectExists: boolean = false;
 
-		if (targetObject instanceof GameSprite && this.#loadedSprites.has(targetObject.name)) {
+		if (targetObject instanceof BrioSprite && this.#loadedSprites.has(targetObject.name)) {
 			objectExists = true;
 			this.#loadedSprites.delete(targetObject.name);
 		} else if (

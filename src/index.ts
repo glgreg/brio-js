@@ -1,7 +1,7 @@
 import { Game } from "./Game";
 import { GameScene as Scene } from "./GameScene";
 import { GameMap as Map } from "./GameMap";
-import { GameSprite as Sprite } from "./asset/GameSprite";
+import { BrioSprite as Sprite } from "./asset/BrioSprite";
 import { SpriteSheet } from "./GameSpriteSheet";
 import { GameObject as Object } from "./GameObject";
 import { GameKeyboard as Keyboard } from "./input/GameKeyboard";

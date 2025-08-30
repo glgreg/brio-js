@@ -22,7 +22,7 @@ export type GameSpriteProps = {
 	type: string;
 };
 
-export class GameSprite implements SpriteManipulation {
+export class BrioSprite implements SpriteManipulation {
 	/** @type {string} The name of the sprite asset */
 	#name: string;
 	/** @type {HTMLImageElement} Element created to receive an image */
@@ -38,7 +38,7 @@ export class GameSprite implements SpriteManipulation {
 	#scale: number = 1;
 	#flip: { x: boolean; y: boolean } = { x: false, y: false };
 
-	static #emptyInstance?: GameSprite;
+	static #emptyInstance?: BrioSprite;
 
 	/**
 	 * @param {string} name A name for the sprite object
@@ -222,9 +222,9 @@ export class GameSprite implements SpriteManipulation {
 		}
 	}
 
-	public static getEmptyInstance(): GameSprite {
+	public static getEmptyInstance(): BrioSprite {
 		if (this.#emptyInstance === undefined) {
-			const instance = new GameSprite({
+			const instance = new BrioSprite({
 				name: "",
 				src: "",
 				pos: { x: 0, y: 0 },
@@ -239,8 +239,8 @@ export class GameSprite implements SpriteManipulation {
 		}
 	}
 
-	public static clone(targetGameSprite: GameSprite): GameSprite {
-		return new GameSprite({
+	public static clone(targetGameSprite: BrioSprite): BrioSprite {
+		return new BrioSprite({
 			name: targetGameSprite.#name,
 			src: targetGameSprite.#src,
 			pos: { x: targetGameSprite.#pos.x, y: targetGameSprite.#pos.y },
