@@ -1,4 +1,5 @@
 import { GameSprite, SpriteManipulation } from "./asset/GameSprite";
+import { GameCollision } from "./GameCollision";
 import { Vector2 } from "./GameTypes";
 import { GameLogger } from "./logging/GameLogger";
 
@@ -234,5 +235,20 @@ export class GameObject implements SpriteManipulation {
 		} else {
 			return this.#emptyInstance;
 		}
+	}
+
+	public static clone(gameObject: GameObject) {
+		const object = new GameObject(gameObject.#name, gameObject.#sprite, gameObject.#layer);
+
+		if (object.collision) {
+			GameCollision.addSquare({
+				object: object,
+				pos: object.collision.pos,
+				size: object.collision.size.x,
+				colliderType: object.collision.colliderType,
+			});
+		}
+
+		return object;
 	}
 }

@@ -122,6 +122,10 @@ export class Game {
 	// RESTAR LOGIC
 	#gameStartingState: Game;
 
+	// CHECKPOINT LOGIC
+	cachedObjects: Map<string, Map<string, any>> = new Map();
+	#cacheExists: boolean = false;
+
 	/**
 	 * CONSTRUCTOR ----------------------------------------------------------------------
 	 */
@@ -740,6 +744,35 @@ export class Game {
 	/**
 	 * EXTERNAL METHODS -----------------------------------------------------------------
 	 */
+
+	public createCheckPoint() {
+		this.cachedObjects.set("objects", new Map<string, GameObject>());
+		this.#loadedGameObjects.forEach((object, id) => {
+			this.cachedObjects.get("objects")?.set(id, object);
+		});
+
+		this.cachedObjects.set("sprites", this.#loadedSprites);
+		this.cachedObjects.set("audios", this.#loadedAudios);
+		this.cachedObjects.set("cameras", this.#loadedGameCameras);
+		this.cachedObjects.set("maps", this.#loadedGameMaps);
+
+		if (!this.#cacheExists) this.#cacheExists = true;
+	}
+
+	public gotoCheckPoint() {
+		// if (!this.#cacheExists) return;
+
+		let cachedValue;
+		let currentValue;
+
+		const cachedGato = this.cachedObjects.get("objects")?.get("obj_gato");
+		const currentGato = this.#loadedGameObjects.get("obj_gato");
+
+		console.log("cached: ", cachedGato?.pos.x, currentGato?.pos.y);
+		console.log("current: ", currentGato?.pos.x, currentGato?.pos.y);
+
+		console.log(cachedGato === currentGato);
+	}
 
 	/**
 	 * Pauses the game.

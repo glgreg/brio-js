@@ -80,8 +80,8 @@ export class GameKeyboard {
 
 	/**
 	 * Returns a Map that stores functions that will be called when the given Keyboard key is pressed.
-	 * Map keys should be the same the ones JS accepts in the KeyboardEvent.key.
-	 * Map values shoud be callable functions (callbacks, arrow functions, anonymous functionss)
+	 * Map keys should be the same as the ones JS accepts in the KeyboardEvent.key.
+	 * Map values shoud be callable functions (callbacks, arrow functions, anonymous functions)
 	 * @example game.useKeyboard();
 	 * game.keyboard.globalCustomEvents.set("Escape", () => {
 	 *
