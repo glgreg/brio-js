@@ -794,11 +794,19 @@ export class BrioGame {
     }
     useShowCollisions() {
         this.#loadedGameObjects.forEach((gameObject, key) => {
-            if (this.ctx && gameObject.collision) {
+            if (this.ctx && gameObject.collision && gameObject.collision.colliderType) {
                 this.ctx.save();
                 this.ctx.scale(this.#scale, this.#scale);
                 this.ctx.beginPath();
-                this.ctx.rect(gameObject.pos.x + gameObject.collision.pos.x, gameObject.pos.y + gameObject.collision.pos.y, gameObject.collision.size.x, gameObject.collision.size.y);
+                switch (gameObject.collision.shape) {
+                    case "square":
+                    case "rectangle":
+                        this.ctx.rect(gameObject.pos.x + gameObject.collision.pos.x, gameObject.pos.y + gameObject.collision.pos.y, gameObject.collision.size.x, gameObject.collision.size.y);
+                        break;
+                    case "circle":
+                        this.ctx.arc(gameObject.pos.x + (gameObject.collision.pos.x + gameObject.collision.size.x / 2), gameObject.pos.y + (gameObject.collision.pos.y + gameObject.collision.size.y / 2), gameObject.collision.size.x / 2, 0, 2 * Math.PI);
+                        break;
+                }
                 this.ctx.lineWidth = 2 / this.#scale;
                 this.ctx.strokeStyle = "#F00";
                 this.ctx.stroke();
