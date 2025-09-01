@@ -6,6 +6,8 @@ images/
 audios/
 /nbproject/private/
 todo.md
+.prettierrc
+.prettierignore
 
 # arquives used in tests
 main.js
