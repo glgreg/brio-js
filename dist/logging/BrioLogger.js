@@ -82,7 +82,9 @@ export class BrioLogger {
     static exception(exceptionId) {
         if (!this.logsEnabled)
             return;
-        if (!this.#exceptions || !this.#storedExceptions || this.#storedExceptions.has(exceptionId))
+        if (!this.#exceptions ||
+            !this.#storedExceptions ||
+            this.#storedExceptions.has(exceptionId))
             return;
         let isFound = false;
         for (const ex of this.#exceptions) {

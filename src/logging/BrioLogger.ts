@@ -77,13 +77,17 @@ export class BrioLogger {
 
 	public static error(errorId: number) {
 		if (!this.logsEnabled) return;
-		if (!this.#errors || !this.#storedErrors || this.#storedErrors.has(errorId)) return;
+		if (!this.#errors || !this.#storedErrors || this.#storedErrors.has(errorId))
+			return;
 
 		let isFound = false;
 
 		for (const err of this.#errors) {
 			if (err.id === errorId) {
-				this.out("error", `${err.title}\n\n${err.message}\n\nError id: ${err.id}`);
+				this.out(
+					"error",
+					`${err.title}\n\n${err.message}\n\nError id: ${err.id}`,
+				);
 				this.#storedErrors.add(errorId);
 				isFound = true;
 				break;
@@ -97,14 +101,21 @@ export class BrioLogger {
 
 	public static exception(exceptionId: number) {
 		if (!this.logsEnabled) return;
-		if (!this.#exceptions || !this.#storedExceptions || this.#storedExceptions.has(exceptionId))
+		if (
+			!this.#exceptions ||
+			!this.#storedExceptions ||
+			this.#storedExceptions.has(exceptionId)
+		)
 			return;
 
 		let isFound = false;
 
 		for (const ex of this.#exceptions) {
 			if (ex.id === exceptionId) {
-				this.out("warn", `${ex.title}\n\n${ex.message}\n\nException id: ${ex.id}`);
+				this.out(
+					"warn",
+					`${ex.title}\n\n${ex.message}\n\nException id: ${ex.id}`,
+				);
 				this.#storedExceptions.add(exceptionId);
 				isFound = true;
 				break;
