@@ -1,5 +1,5 @@
 import { BrioSprite } from "./asset/BrioSprite.js";
-import { GameCollision } from "./BrioCollision.js";
+import { BrioCollision } from "./BrioCollision.js";
 import { BrioLogger } from "./logging/BrioLogger.js";
 export class BrioObject {
     // Basic properites
@@ -191,12 +191,32 @@ export class BrioObject {
     static clone(gameObject) {
         const object = new BrioObject(gameObject.#name, gameObject.#sprite, gameObject.#layer);
         if (object.collision) {
-            GameCollision.addSquare({
-                object: object,
-                pos: object.collision.pos,
-                size: object.collision.size.x,
-                colliderType: object.collision.colliderType,
-            });
+            switch (object.collision.shape) {
+                case "square":
+                    BrioCollision.addSquare({
+                        object: object,
+                        colliderType: "solid",
+                        pos: object.collision.pos,
+                        size: object.collision.size.x,
+                    });
+                    break;
+                case "rectangle":
+                    BrioCollision.addRectangle({
+                        object: object,
+                        colliderType: "solid",
+                        pos: object.collision.pos,
+                        size: object.collision.size,
+                    });
+                    break;
+                case "circle":
+                    BrioCollision.addCircle({
+                        object: object,
+                        colliderType: "solid",
+                        pos: object.collision.pos,
+                        size: object.collision.size.x,
+                    });
+                    break;
+            }
         }
         return object;
     }

@@ -238,15 +238,39 @@ export class BrioObject implements SpriteManipulation {
 	}
 
 	public static clone(gameObject: BrioObject) {
-		const object = new BrioObject(gameObject.#name, gameObject.#sprite, gameObject.#layer);
+		const object = new BrioObject(
+			gameObject.#name,
+			gameObject.#sprite,
+			gameObject.#layer,
+		);
 
 		if (object.collision) {
-			BrioCollision.addSquare({
-				object: object,
-				pos: object.collision.pos,
-				size: object.collision.size.x,
-				colliderType: object.collision.colliderType,
-			});
+			switch (object.collision.shape) {
+				case "square":
+					BrioCollision.addSquare({
+						object: object,
+						colliderType: "solid",
+						pos: object.collision.pos,
+						size: object.collision.size.x,
+					});
+					break;
+				case "rectangle":
+					BrioCollision.addRectangle({
+						object: object,
+						colliderType: "solid",
+						pos: object.collision.pos,
+						size: object.collision.size,
+					});
+					break;
+				case "circle":
+					BrioCollision.addCircle({
+						object: object,
+						colliderType: "solid",
+						pos: object.collision.pos,
+						size: object.collision.size.x,
+					});
+					break;
+			}
 		}
 
 		return object;
