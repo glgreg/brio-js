@@ -79,64 +79,6 @@ export class BrioCollision {
                 rect1.y + rect1.h <= rect2.y ||
                 rect2.y + rect2.h <= rect1.y);
         }
-        // if ((oneShape === "square" || oneShape === "rectangle") && twoShape === "circle") {
-        // } else if (oneShape === "circle" && (twoShape === "square" || twoShape === "rectangle")) {
-        // }
-        return false;
-        // switch (one.collision.shape && two.collision.shape) {
-        // 	case "square":
-        // 	case "rectangle":
-        // 		const rect1 = {
-        // 			x: one.pos.x + one.collision.pos.x,
-        // 			y: one.pos.y + one.collision.pos.y,
-        // 			w: one.collision.size.x,
-        // 			h: one.collision.size.y,
-        // 		};
-        // 		const rect2 = {
-        // 			x: two.pos.x + two.collision.pos.x,
-        // 			y: two.pos.y + two.collision.pos.y,
-        // 			w: two.collision.size.x,
-        // 			h: two.collision.size.y,
-        // 		};
-        // 		return !(
-        // 			rect1.x + rect1.w <= rect2.x ||
-        // 			rect2.x + rect2.w <= rect1.x ||
-        // 			rect1.y + rect1.h <= rect2.y ||
-        // 			rect2.y + rect2.h <= rect1.y
-        // 		);
-        // 		break;
-        // 	case "circle": // FIX THIS
-        // 		const oneCenterX = one.pos.x + one.collision.pos.x;
-        // 		const oneCenterY = one.pos.y + one.collision.pos.y;
-        // 		const twoCenterX = two.pos.x + two.collision.pos.x;
-        // 		const twoCenterY = two.pos.y + two.collision.pos.y;
-        // 		const oneRadius = Math.min(one.collision.size.x, one.collision.size.y) / 2;
-        // 		const twoRadius = Math.min(two.collision.size.x, two.collision.size.y) / 2;
-        // 		const oneAabbMinX = oneCenterX - oneRadius;
-        // 		const oneAabbMaxX = oneCenterX + oneRadius;
-        // 		const oneAabbMinY = oneCenterY - oneRadius;
-        // 		const oneAabbMaxY = oneCenterY + oneRadius;
-        // 		const twoAabbMinX = twoCenterX - twoRadius;
-        // 		const twoAabbMaxX = twoCenterX + twoRadius;
-        // 		const twoAabbMinY = twoCenterY - twoRadius;
-        // 		const twoAabbMaxY = twoCenterY + twoRadius;
-        // 		if (
-        // 			oneAabbMaxX < twoAabbMinX ||
-        // 			twoAabbMaxX < oneAabbMinX ||
-        // 			oneAabbMaxY < twoAabbMinY ||
-        // 			twoAabbMaxY < oneAabbMinY
-        // 		) {
-        // 			return false;
-        // 		}
-        // 		const dx = oneCenterX - twoCenterX;
-        // 		const dy = oneCenterY - twoCenterY;
-        // 		const distance = Math.sqrt(dx * dx + dy * dy);
-        // 		return distance < oneRadius + twoRadius;
-        // 		break;
-        // 	default:
-        // 		BrioLogger.out("warn", "Collision: something went wrong.");
-        // 		return false;
-        // }
     }
     static addSquare(configurationObject) {
         const config = configurationObject;
