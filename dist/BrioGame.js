@@ -72,6 +72,10 @@ export class BrioGame {
     // CHECKPOINT LOGIC
     cachedObjects = new Map();
     #cacheExists = false;
+    // TEMPORARY CACHING LOGIC
+    #cachedSprites = new Map();
+    #cachedAudios = new Map();
+    #cachedObjects = new Map();
     /**
      * CONSTRUCTOR ----------------------------------------------------------------------
      */
@@ -296,6 +300,7 @@ export class BrioGame {
             gameCameras.forEach((gameCamera) => {
                 this.#loadedGameCameras.set(gameCamera.name, gameCamera);
             });
+            this.createSnapshot();
             BrioLogger.out("info", "Load step complete!");
         });
         return this;
@@ -555,6 +560,23 @@ export class BrioGame {
         this.ctx.clearRect(gameObject.pos.x, gameObject.pos.y, gameObject.size.x, gameObject.size.y);
         this.ctx.restore();
     }
+    createSnapshot() {
+        this.#loadedGameObjects.forEach((object, key) => {
+            this.#cachedObjects.set(key, JSON.stringify(object));
+        });
+        this.#loadedSprites.forEach((sprite, key) => {
+            this.#cachedSprites.set(key, JSON.stringify(sprite));
+        });
+    }
+    useSnapshot() {
+        for (const [key, object] of this.#cachedObjects) {
+            if (!this.#loadedGameObjects.has(key)) {
+                //this.#loadedGameObjects.delete(key);
+                break;
+            }
+            this.#loadedGameObjects.set(key, JSON.parse(object));
+        }
+    }
     /**
      * EXTERNAL METHODS -----------------------------------------------------------------
      */
@@ -673,7 +695,8 @@ export class BrioGame {
         let auxWidth = screenThreshold !== 1 ? this.#width : 0;
         let auxHeight = screenThreshold !== 1 ? this.#width : 0;
         if (targetObject.pos.x > this.#width * screenThreshold ||
-            targetObject.pos.x + targetObject.size.x * this.#scale < 0 * auxWidth * screenThreshold ||
+            targetObject.pos.x + targetObject.size.x * this.#scale <
+                0 * auxWidth * screenThreshold ||
             targetObject.pos.y > this.#height * screenThreshold ||
             targetObject.pos.y + targetObject.size.y * this.#scale < 0 * auxHeight * screenThreshold) {
             // this.stopGame();
@@ -804,7 +827,9 @@ export class BrioGame {
                         this.ctx.rect(gameObject.pos.x + gameObject.collision.pos.x, gameObject.pos.y + gameObject.collision.pos.y, gameObject.collision.size.x, gameObject.collision.size.y);
                         break;
                     case "circle":
-                        this.ctx.arc(gameObject.pos.x + (gameObject.collision.pos.x + gameObject.collision.size.x / 2), gameObject.pos.y + (gameObject.collision.pos.y + gameObject.collision.size.y / 2), gameObject.collision.size.x / 2, 0, 2 * Math.PI);
+                        this.ctx.arc(gameObject.pos.x +
+                            (gameObject.collision.pos.x + gameObject.collision.size.x / 2), gameObject.pos.y +
+                            (gameObject.collision.pos.y + gameObject.collision.size.y / 2), gameObject.collision.size.x / 2, 0, 2 * Math.PI);
                         break;
                 }
                 this.ctx.lineWidth = 2 / this.#scale;

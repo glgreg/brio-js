@@ -5,6 +5,7 @@ import { BrioMap } from "./BrioMap";
 import { BrioCamera } from "./BrioCamera";
 import { BrioAudio } from "./asset/BrioAudio";
 import { BrioLogger } from "./logging/BrioLogger";
+import { BrioSpriteSheet } from "./asset/BrioSpriteSheet";
 
 // Used for managing the game-state step process
 enum GameState {
@@ -126,6 +127,11 @@ export class BrioGame {
 	cachedObjects: Map<string, Map<string, any>> = new Map();
 	#cacheExists: boolean = false;
 
+	// TEMPORARY CACHING LOGIC
+	#cachedSprites: Map<string, string> = new Map();
+	#cachedAudios: Map<string, string> = new Map();
+	#cachedObjects: Map<string, string> = new Map();
+
 	/**
 	 * CONSTRUCTOR ----------------------------------------------------------------------
 	 */
@@ -142,7 +148,10 @@ export class BrioGame {
 		canvasContextSettings: CanvasRenderingContext2DSettings = {},
 	) {
 		if (width < 0 || height < 0) {
-			BrioLogger.out("warn", "BrioGame constructor: Negative values converted into positive.");
+			BrioLogger.out(
+				"warn",
+				"BrioGame constructor: Negative values converted into positive.",
+			);
 		}
 		if (!(appendToElement instanceof HTMLElement)) {
 			BrioLogger.fatalError(
@@ -399,6 +408,7 @@ export class BrioGame {
 				this.#loadedGameCameras.set(gameCamera.name, gameCamera);
 			});
 
+			this.createSnapshot();
 			BrioLogger.out("info", "Load step complete!");
 		});
 
@@ -691,7 +701,10 @@ export class BrioGame {
 		const offsetX = object.sprite.flip.x ? object.size.x * this.#scale : 0;
 		const offsetY = object.sprite.flip.y ? object.size.y * this.#scale : 0;
 
-		this.ctx.translate(object.pos.x * this.#scale + offsetX, object.pos.y * this.#scale + offsetY);
+		this.ctx.translate(
+			object.pos.x * this.#scale + offsetX,
+			object.pos.y * this.#scale + offsetY,
+		);
 		this.ctx.scale(scaleX, scaleY);
 
 		let translated = false;
@@ -736,9 +749,33 @@ export class BrioGame {
 		this.ctx.save();
 
 		this.ctx.scale(this.#scale, this.#scale);
-		this.ctx.clearRect(gameObject.pos.x, gameObject.pos.y, gameObject.size.x, gameObject.size.y);
+		this.ctx.clearRect(
+			gameObject.pos.x,
+			gameObject.pos.y,
+			gameObject.size.x,
+			gameObject.size.y,
+		);
 
 		this.ctx.restore();
+	}
+
+	public createSnapshot() {
+		this.#loadedGameObjects.forEach((object, key) => {
+			this.#cachedObjects.set(key, JSON.stringify(object));
+		});
+		this.#loadedSprites.forEach((sprite, key) => {
+			this.#cachedSprites.set(key, JSON.stringify(sprite));
+		});
+	}
+
+	public useSnapshot() {
+		for (const [key, object] of this.#cachedObjects) {
+			if (!this.#loadedGameObjects.has(key)) {
+				//this.#loadedGameObjects.delete(key);
+				break;
+			}
+			this.#loadedGameObjects.set(key, JSON.parse(object));
+		}
 	}
 
 	/**
@@ -872,7 +909,11 @@ export class BrioGame {
 		}
 	}
 
-	public outbound(targetObject: BrioObject, screenThreshold: number = 1, callbackFn?: () => void) {
+	public outbound(
+		targetObject: BrioObject,
+		screenThreshold: number = 1,
+		callbackFn?: () => void,
+	) {
 		if (!targetObject) {
 			return;
 		}
@@ -881,7 +922,8 @@ export class BrioGame {
 		let auxHeight = screenThreshold !== 1 ? this.#width : 0;
 		if (
 			targetObject.pos.x > this.#width * screenThreshold ||
-			targetObject.pos.x + targetObject.size.x * this.#scale < 0 * auxWidth * screenThreshold ||
+			targetObject.pos.x + targetObject.size.x * this.#scale <
+				0 * auxWidth * screenThreshold ||
 			targetObject.pos.y > this.#height * screenThreshold ||
 			targetObject.pos.y + targetObject.size.y * this.#scale < 0 * auxHeight * screenThreshold
 		) {
@@ -1044,7 +1086,8 @@ export class BrioGame {
 		BrioLogger.setExceptionsStore(this.#loggedExceptions);
 		BrioLogger.logsEnabled = true;
 		if (logsObjectParam.showStackCaller === true) BrioLogger.logsCallerEnabled = true;
-		if (logsObjectParam.showStackInGameClasses === true) BrioLogger.logsCallerClassesEnabled = true;
+		if (logsObjectParam.showStackInGameClasses === true)
+			BrioLogger.logsCallerClassesEnabled = true;
 
 		BrioLogger.out("info", "Utility logs are now enabled.");
 	}
@@ -1068,8 +1111,10 @@ export class BrioGame {
 						break;
 					case "circle":
 						this.ctx.arc(
-							gameObject.pos.x + (gameObject.collision.pos.x + gameObject.collision.size.x / 2),
-							gameObject.pos.y + (gameObject.collision.pos.y + gameObject.collision.size.y / 2),
+							gameObject.pos.x +
+								(gameObject.collision.pos.x + gameObject.collision.size.x / 2),
+							gameObject.pos.y +
+								(gameObject.collision.pos.y + gameObject.collision.size.y / 2),
 							gameObject.collision.size.x / 2,
 							0,
 							2 * Math.PI,
@@ -1094,7 +1139,12 @@ export class BrioGame {
 
 				this.ctx.scale(this.#scale, this.#scale);
 				this.ctx.beginPath();
-				this.ctx.rect(gameObject.pos.x, gameObject.pos.y, gameObject.size.x, gameObject.size.y);
+				this.ctx.rect(
+					gameObject.pos.x,
+					gameObject.pos.y,
+					gameObject.size.x,
+					gameObject.size.y,
+				);
 				this.ctx.lineWidth = 2 / this.#scale;
 				this.ctx.strokeStyle = "#0F0";
 				this.ctx.stroke();
