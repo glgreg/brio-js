@@ -9,7 +9,11 @@
 		"allowJs": true,
 		"checkJs": true,
 		"skipLibCheck": true,
-		"esModuleInterop": true
+		"esModuleInterop": true,
+		"declaration": true,
+		"declarationDir": "./dist",
+		"declarationMap": true,
+		"emitDeclarationOnly": false
 	},
 	"include": ["src/**/*.js", "src/**/*.ts"],
 	"exclude": ["node_modules"]
