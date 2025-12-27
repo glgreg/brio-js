@@ -1,0 +1,14 @@
+# npm files
+node_modules/
+package-lock.json
+
+# git files
+.gitignore
+
+# dev and config files
+src/
+jsconfig.json
+tsconfig.json
+
+# test files
+demo/
