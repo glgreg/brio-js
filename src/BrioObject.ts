@@ -7,13 +7,13 @@ export type KeyActions = {
 	[key: string]: () => void;
 };
 
-export type CollisionType = {
+export interface CollisionType {
 	enabled: boolean;
 	colliderType: CollisionColliderType;
 	shape: CollisionShapeType;
 	pos: Vector2;
 	size: Vector2;
-};
+}
 export type CollisionColliderType = "solid" | "intangible";
 export type CollisionShapeType = "square" | "circle" | "rectangle";
 
@@ -21,7 +21,7 @@ export class BrioObject implements SpriteManipulation {
 	// Basic properites
 	/** @type {string} The name of the game object */
 	#name: string;
-	/** @type {Sprite} The sprite attached to the game object */
+	/** The sprite attached to the game object */
 	#sprite: BrioSprite;
 	/** @type {number} The layer level the object is located */
 	#layer: number;
@@ -32,7 +32,7 @@ export class BrioObject implements SpriteManipulation {
 	/** @type {string} An instance ID used when a game object is a instance of the same game object, defaults to 0 if it's the original object */
 	public instanceId: number;
 	/** @type {number} The number of instantiated clones of this object (clones can also be cloned) */
-	#clonesInstantiated: number = 0;
+	#clonesInstantiatedValue: number = 0;
 	/** @type {BrioObject} */
 	static #emptyInstance?: BrioObject;
 
@@ -41,8 +41,8 @@ export class BrioObject implements SpriteManipulation {
 	public collision?: CollisionType;
 
 	/**
-	 * @param {string} name The name of the game object
-	 * @param {Sprite} sprite The Sprite that will be attached to the game object
+	 * @param name The name of the game object
+	 * @param sprite The Sprite that will be attached to the game object
 	 * @example game.load((assets) => {
 	 *
 	 * const spr_player = assets.preloaded("spr_player");
@@ -129,10 +129,14 @@ export class BrioObject implements SpriteManipulation {
 	}
 
 	/** Returns the attached Sprite used in the game object
-	 * @returns {GameSprite}
 	 */
 	public get sprite(): BrioSprite {
 		return this.#sprite;
+	}
+	/** Returns the attached Sprite used in the game object
+	 */
+	public set sprite(newSprite) {
+		this.#sprite = newSprite;
 	}
 
 	/** Sets and returns the size of the game object Width and Height
@@ -188,17 +192,17 @@ export class BrioObject implements SpriteManipulation {
 		};
 	}
 
-	public set clonesInstantiated(value: number) {
+	public set clonesInstantiatedValue(value: number) {
 		if (!BrioObject.instanceOfObject) {
 			throw BrioLogger.fatalError(
 				"The number of clones can't be hard coded, their amount increases automatically when new instances are created.",
 			);
 		}
 
-		this.#clonesInstantiated += value;
+		this.#clonesInstantiatedValue += value;
 	}
-	public get clonesInstantiated() {
-		return this.#clonesInstantiated;
+	public get clonesInstantiatedValue() {
+		return this.#clonesInstantiatedValue;
 	}
 
 	/**
@@ -238,11 +242,7 @@ export class BrioObject implements SpriteManipulation {
 	}
 
 	public static clone(gameObject: BrioObject) {
-		const object = new BrioObject(
-			gameObject.#name,
-			gameObject.#sprite,
-			gameObject.#layer,
-		);
+		const object = new BrioObject(gameObject.#name, gameObject.#sprite, gameObject.#layer);
 
 		if (object.collision) {
 			switch (object.collision.shape) {

@@ -2,11 +2,13 @@ import { BrioLogger } from "../logging/BrioLogger.js";
 export class BrioKeyboard {
     /** @type {Map<string, boolean>} A map that stores the keyboard overall state of keys that are being pressed (true) or not (false) */
     #keyboardState;
+    #keyboardPrevState;
     #keyDownListenerId;
     #keyUpListenerId;
     #customEventMaps = new Map();
-    constructor(keyboardStateMap) {
+    constructor(keyboardStateMap, keyboardPrevStateMap) {
         this.#keyboardState = keyboardStateMap;
+        this.#keyboardPrevState = keyboardPrevStateMap;
         this.#addListener();
     }
     #addListener() {
@@ -59,12 +61,17 @@ export class BrioKeyboard {
      * });
      */
     isDown(key) {
-        if (this.#keyboardState.has(key)) {
-            if (this.#keyboardState.get(key) === true) {
-                return true;
-            }
-        }
-        return false;
+        if (!this.#keyboardState.get(key) === true)
+            return false;
+        const isKeyDown = this.#keyboardState.has(key);
+        return isKeyDown;
+    }
+    isUp(key) {
+        if (!this.#keyboardState.has(key))
+            return false;
+        const wasKeyDown = this.#keyboardPrevState.get(key) === true;
+        const isKeyDown = this.#keyboardState.get(key) === false;
+        return wasKeyDown && isKeyDown;
     }
     /**
      * Returns a Map that stores functions that will be called when the given Keyboard key is pressed.

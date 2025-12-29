@@ -14,25 +14,33 @@ export interface SpriteManipulation {
 	flip: Vector2Bool;
 }
 
-export interface SpriteProps {
+export type SpriteType = "img" | "svg";
+
+export interface SpriteProperties {
+	/** A name for the sprite object */
 	name: string;
+	/** The source URI for the targeted image */
 	src: string;
+	/** A Vec2 of a Sprite position */
 	pos: Vector2;
+	/** A Vec2 of a Sprite size */
 	size: Vector2;
-	type: string;
+	/** The type of the image (img | svg */
+	type: SpriteType;
 }
 
-export class BrioSprite implements SpriteManipulation {
-	/** @type {string} The name of the sprite asset */
+export class BrioSprite implements SpriteProperties, SpriteManipulation {
+	/** The name of the sprite asset */
 	#name: string;
-	/** @type {HTMLImageElement} Element created to receive an image */
+	/** Element created to receive an image */
 	#element: HTMLImageElement;
-	/** @type {string} The source URL used in the sprite */
-	#pos: Vector2;
+	/** The source URL used in the sprite */
 	#src: string;
+	/** The Sprite position in the x and y axis */
+	#pos: Vector2;
 	#initialSize: Vector2;
 	#size: Vector2;
-	#type: string;
+	#type: SpriteType;
 	#rotation: number = 0;
 	#skew: Vector2 = { x: 0, y: 0 };
 	#scale: number = 1;
@@ -41,16 +49,12 @@ export class BrioSprite implements SpriteManipulation {
 	static #emptyInstance?: BrioSprite;
 
 	/**
-	 * @param {string} name A name for the sprite object
-	 * @param {string} src The source URI for the targeted image
-	 * @param {string} [type="img"] The type of the image (img | svg)
 	 * @example game.preload(() => {
-	 *
 	 * const spr_player = new GameSprite("spr_player", "./sprites/player.png", 0, 0, 32, 32);
 	 * return [spr_player]; // now the "spr_player" GameSprite can be used in the 'load' step
 	 * });
 	 */
-	constructor(props: SpriteProps) {
+	constructor(props: SpriteProperties) {
 		this.#name = props.name;
 		this.#src = props.src;
 		this.#pos = props.pos;
@@ -58,13 +62,10 @@ export class BrioSprite implements SpriteManipulation {
 		this.#initialSize = props.size;
 		this.#type = props.type;
 
-		if (this.#type === "img") {
-			this.#element = new Image();
-			this.#element.src = this.#src;
-		} else if (this.#type === "vec") {
-			this.#element = new Image();
-			this.#element.src = this.#src;
-		} else throw BrioLogger.fatalError("Invalid sprite type: use 'img' or 'vec'");
+		this.#element = new Image();
+		this.#element.src = this.#src;
+
+		// TODO: Add svg type logic
 	}
 
 	/**
@@ -180,6 +181,11 @@ export class BrioSprite implements SpriteManipulation {
 		};
 	}
 
+	/**
+	 * Flips the Sprite in the x or y axis
+	 * @example const player = new GLS.GameSprite("spr_player", "./spr_player.png");
+	 * player.src = "./spr_player_jump.png";
+	 */
 	public get flip() {
 		const self = this;
 		return {
@@ -200,7 +206,7 @@ export class BrioSprite implements SpriteManipulation {
 
 	/**
 	 * Set the source URL of the GameSprite object
-	 * @example const player = new GLS.GameSprite("spr_player", "./spr_player.png");
+	 * @example const player = new BrioSprite("spr_player", "./spr_player.png");
 	 * player.src = "./spr_player_jump.png";
 	 */
 	public set src(value) {

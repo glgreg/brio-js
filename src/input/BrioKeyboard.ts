@@ -3,13 +3,15 @@ import { BrioLogger } from "../logging/BrioLogger";
 export class BrioKeyboard {
 	/** @type {Map<string, boolean>} A map that stores the keyboard overall state of keys that are being pressed (true) or not (false) */
 	#keyboardState: Map<string, boolean>;
+	#keyboardPrevState: Map<string, boolean>;
 	#keyDownListenerId?: (event: KeyboardEvent) => void;
 	#keyUpListenerId?: (event: KeyboardEvent) => void;
 
 	#customEventMaps: Map<string, Function> = new Map();
 
-	constructor(keyboardStateMap: Map<string, boolean>) {
+	constructor(keyboardStateMap: Map<string, boolean>, keyboardPrevStateMap: Map<string, boolean>) {
 		this.#keyboardState = keyboardStateMap;
+		this.#keyboardPrevState = keyboardPrevStateMap;
 		this.#addListener();
 	}
 
@@ -70,12 +72,18 @@ export class BrioKeyboard {
 	 * });
 	 */
 	public isDown(key: string): boolean {
-		if (this.#keyboardState.has(key)) {
-			if (this.#keyboardState.get(key) === true) {
-				return true;
-			}
-		}
-		return false;
+		if (!this.#keyboardState.get(key) === true) return false;
+
+		const isKeyDown = this.#keyboardState.has(key);
+		return isKeyDown;
+	}
+
+	public isUp(key: string): boolean {
+		if (!this.#keyboardState.has(key)) return false;
+
+		const wasKeyDown = this.#keyboardPrevState.get(key) === true;
+		const isKeyDown = this.#keyboardState.get(key) === false;
+		return wasKeyDown && isKeyDown;
 	}
 
 	/**
