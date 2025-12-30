@@ -1,7 +1,7 @@
 import { BrioGame } from "./BrioGame";
 import { BrioObject } from "./BrioObject";
 import { CollisionColliderType, CollisionShapeType } from "./BrioObject";
-import { Vector2 } from "./BrioTypes";
+import { Vector2 } from "./BrioVector2";
 import { BrioVector2 } from "./BrioVector2";
 import { BrioLogger } from "./logging/BrioLogger";
 

@@ -2,18 +2,11 @@
 node_modules/
 
 #dev
-images/
-audios/
-/nbproject/private/
-todo.md
-.prettierrc
-.prettierignore
+TODO.md
 
 # arquives used in tests
-main.js
-src/test.ts
-index.html
-global.css
+demo/
+dist/
 
 # trash
-trash
+*.tgz

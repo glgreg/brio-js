@@ -10,7 +10,10 @@
 		"checkJs": true,
 		"skipLibCheck": true,
 		"esModuleInterop": true,
-		"moduleResolution": "node"
+		"declaration": true,
+		"declarationDir": "./dist",
+		"declarationMap": true,
+		"emitDeclarationOnly": false
 	},
 	"include": ["src/**/*.js", "src/**/*.ts"],
 	"exclude": ["node_modules"]

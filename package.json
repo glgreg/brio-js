@@ -1,10 +1,11 @@
 {
-	"name": "brio",
+	"name": "brio-js",
 	"version": "0.0.1",
 	"description": "A simple JS/TS Game Library for making 2d games using HTML Canvas",
-	"main": "main.js",
+	"main": "dist/index.js",
 	"scripts": {
-		"build": "cls & tsc & ts-add-js-extension --dir=dist"
+		"build:win": "cls & tsc & npx ts-add-js-extension --dir=dist",
+		"build:lin": "clear; tsc; npx ts-add-js-extension --dir=dist"
 	},
 	"repository": {
 		"type": "git",
@@ -18,7 +19,7 @@
 		"Object-Oriented"
 	],
 	"author": "Gustavo L. Gregorio",
-	"license": "ISC",
+	"license": "MIT",
 	"bugs": {
 		"url": "https://github.com/GustavoLGregorio/game-library/issues"
 	},
@@ -27,5 +28,19 @@
 		"prettier": "^3.5.3",
 		"ts-add-js-extension": "^1.6.6",
 		"typescript": "^5.8.3"
+	},
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		},
+		"./types": {
+			"types": "./dist/types.d.ts"
+		}
+	},
+	"dependencies": {
+		"brio-js": "file:brio-js-0.0.1.tgz",
+		"die-statement": "^1.0.0"
 	}
 }

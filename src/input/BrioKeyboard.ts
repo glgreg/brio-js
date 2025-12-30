@@ -1,15 +1,18 @@
 import { BrioLogger } from "../logging/BrioLogger";
 
 export class BrioKeyboard {
-	/** @type {Map<string, boolean>} A map that stores the keyboard overall state of keys that are being pressed (true) or not (false) */
+	/** A map storing keys that were pressed */
 	#keyboardState: Map<string, boolean>;
+	/** A map storing keys that were pressed and will be memorized */
+	#keyboardPrevState: Map<string, boolean>;
 	#keyDownListenerId?: (event: KeyboardEvent) => void;
 	#keyUpListenerId?: (event: KeyboardEvent) => void;
 
 	#customEventMaps: Map<string, Function> = new Map();
 
-	constructor(keyboardStateMap: Map<string, boolean>) {
+	constructor(keyboardStateMap: Map<string, boolean>, keyboardPrevStateMap: Map<string, boolean>) {
 		this.#keyboardState = keyboardStateMap;
+		this.#keyboardPrevState = keyboardPrevStateMap;
 		this.#addListener();
 	}
 
@@ -59,8 +62,7 @@ export class BrioKeyboard {
 
 	/**
 	 * Checks if the given KeyboardKey is pressed down.
-	 * @param {string} key
-	 * @returns {boolean}
+	 * @param key
 	 * @example game.update((updater, dt) => {
 	 * const obj_player = updater.getObject("obj_player");
 	 *
@@ -70,12 +72,29 @@ export class BrioKeyboard {
 	 * });
 	 */
 	public isDown(key: string): boolean {
-		if (this.#keyboardState.has(key)) {
-			if (this.#keyboardState.get(key) === true) {
-				return true;
-			}
-		}
-		return false;
+		if (!this.#keyboardState.get(key) === true) return false;
+
+		const isKeyDown = this.#keyboardState.has(key);
+		return isKeyDown;
+	}
+
+	/**
+	 * Checks if the given KeyboardKey was pressed.
+	 * @param key
+	 * @example game.update((updater, dt) => {
+	 * const obj_player = updater.getObject("obj_player");
+	 *
+	 * if(game.keyboard.isUp("z")) {
+	 * obj_player.flip.x += !obj_player.flip.x; // makes the player sprite flip in the x axis
+	 * }
+	 * });
+	 */
+	public isUp(key: string): boolean {
+		if (!this.#keyboardState.has(key)) return false;
+
+		const wasKeyDown = this.#keyboardPrevState.get(key) === true;
+		const isKeyDown = this.#keyboardState.get(key) === false;
+		return wasKeyDown && isKeyDown;
 	}
 
 	/**
@@ -87,7 +106,6 @@ export class BrioKeyboard {
 	 *
 	 * console.log(game.keyboard.globalCustomEvents); // Map(Escape -> ())
 	 * });
-	 * @returns {Map<string, Function>}
 	 */
 	public get customActions(): Map<string, Function> {
 		return this.#customEventMaps;

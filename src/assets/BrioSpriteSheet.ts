@@ -1,7 +1,7 @@
-import { Vector2 } from "../BrioTypes";
-import { BrioSprite, SpriteProps } from "./BrioSprite";
+import { Vector2 } from "../BrioVector2";
+import { BrioSprite, SpriteProperties } from "./BrioSprite";
 
-interface SpriteSheetProps extends SpriteProps {
+interface SpriteSheetProps extends SpriteProperties {
 	slicing: Vector2;
 }
 interface KeyframeAnimation {

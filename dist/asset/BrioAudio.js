@@ -2,16 +2,16 @@
  * be played, paused, resumed, loooped through and linked to BrioObject objects
  * and more */
 export class BrioAudio {
-    /** @type {string} The name of the audio asset */
+    /** The name of the audio asset */
     #name;
-    /** @type {string} The source URL used in the audio asset */
+    /** The source URL used in the audio asset */
     #src;
-    /** @type {string} Element created to receive the audio */
+    /** Element created to receive the audio */
     #element;
     static #emptyInstance;
     /**
-     * @param {string} name A name for the audio object
-     * @param {string} src The source URL for the targeted audio
+     * @param name A name for the audio object
+     * @param src The source URL for the targeted audio
      * @example game.preload(() => {
      *
      * const aud_player_jump = new BrioAudio("aud_player_jump", "./audios/player_jump.mp3");
@@ -66,6 +66,20 @@ export class BrioAudio {
      */
     /**
      * When correctly preloaded, plays the audio once
+     * @example game.load((loader) => {
+     *
+     * const aud = loader.getAudio("aud_player_jump");
+     * aud.play(); // plays the audio once as soon as the audio is ready
+     * })
+     */
+    play() {
+        const voice = this.#element.cloneNode(true);
+        voice.loop = false;
+        voice.volume = this.#element.volume;
+        voice.play();
+    }
+    /**
+     * When correctly preloaded, plays the audio once and waits for it to be played again in the Audio Queue
      * @example game.load((loader) => {
      *
      * const aud = loader.getAudio("aud_player_jump");
@@ -197,14 +211,9 @@ export class BrioAudio {
      * STATIC METHODS -------------------------------------------------------------------
      */
     /**
-     * @typedef {object} PlayTogetherConfigObject
-     * @property {"once" | "loop" | "many"} [iterationType] // The iteration type used ("once", "loop", "many")
-     * @property {number} [iterationQuantity] // The quantity of iterations when using iterationType: "many"
-     */
-    /**
      * Play many audios at the same time
-     * @param {BrioAudio[]} audios An array of BrioAudio objects to iterate through at the same time
-     * @param {PlayTogetherConfigObject} [configurationObject] A configuration object for configuring iteration and timing of the audios
+     * @param audios An array of BrioAudio objects to iterate through at the same time
+     * @param configurationObject A configuration object for configuring iteration and timing of the audios
      *
      * @example game.load((loader) => {
      *

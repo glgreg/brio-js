@@ -1,29 +1,29 @@
-import { BrioSprite } from "./asset/BrioSprite.js";
+import { BrioSprite } from "./assets/BrioSprite.js";
 import { BrioCollision } from "./BrioCollision.js";
 import { BrioLogger } from "./logging/BrioLogger.js";
 export class BrioObject {
     // Basic properites
-    /** @type {string} The name of the game object */
+    /** The name of the game object */
     #name;
-    /** @type {Sprite} The sprite attached to the game object */
+    /** The sprite attached to the game object */
     #sprite;
-    /** @type {number} The layer level the object is located */
+    /** The layer level the object is located */
     #layer;
     // Cloning and identification logic
-    /** @type {boolean} Used to check if the object is the original object or a instance of itself  */
+    /** Used to check if the object is the original object or a instance of itself  */
     static instanceOfObject = false;
-    /** @type {string} An instance ID used when a game object is a instance of the same game object, defaults to 0 if it's the original object */
+    /** An instance ID used when a game object is a instance of the same game object, defaults to 0 if it's the original object */
     instanceId;
-    /** @type {number} The number of instantiated clones of this object (clones can also be cloned) */
-    #clonesInstantiated = 0;
-    /** @type {BrioObject} */
+    /** The number of instantiated clones of this object (clones can also be cloned) */
+    #clonesInstantiatedValue = 0;
+    /** An empty instance for singleton logic */ // todo: remove this
     static #emptyInstance;
     // COLLISION LOGIC
-    /** @type {import("./../src/BrioObject.ts").CollisionType} An object that contains collision properties of the game object, such as shape, position and size */
+    /** An object that contains collision properties of the game object, such as shape, position and size */
     collision;
     /**
-     * @param {string} name The name of the game object
-     * @param {Sprite} sprite The Sprite that will be attached to the game object
+     * @param name The name of the game object
+     * @param sprite The Sprite that will be attached to the game object
      * @example game.load((assets) => {
      *
      * const spr_player = assets.preloaded("spr_player");
@@ -99,10 +99,14 @@ export class BrioObject {
         return this.#layer;
     }
     /** Returns the attached Sprite used in the game object
-     * @returns {GameSprite}
      */
     get sprite() {
         return this.#sprite;
+    }
+    /** Returns the attached Sprite used in the game object
+     */
+    set sprite(newSprite) {
+        this.#sprite = newSprite;
     }
     /** Sets and returns the size of the game object Width and Height
      * @example const player = new BrioObject("player", spr_player);
@@ -154,14 +158,14 @@ export class BrioObject {
             },
         };
     }
-    set clonesInstantiated(value) {
+    set clonesInstantiatedValue(value) {
         if (!BrioObject.instanceOfObject) {
             throw BrioLogger.fatalError("The number of clones can't be hard coded, their amount increases automatically when new instances are created.");
         }
-        this.#clonesInstantiated += value;
+        this.#clonesInstantiatedValue += value;
     }
-    get clonesInstantiated() {
-        return this.#clonesInstantiated;
+    get clonesInstantiatedValue() {
+        return this.#clonesInstantiatedValue;
     }
     /**
      * METHODS --------------------------------------------------------------------------

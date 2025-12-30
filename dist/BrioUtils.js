@@ -1,7 +1,7 @@
 export class BrioUtils {
     /** A function that loops throught a given callback until it stops at given time
-     * @param {() => void} callbackFn The callback that will be looped
-     * @param {number} animationDuration The timeout for stoping the animation
+     * @param callbackFn The callback that will be looped
+     * @param animationDuration The timeout for stoping the animation
      * @example const player = new BrioObject("player", spr_gato);
      * player.setActions({ onKeyDown: {
      * ArrowUp: () => { Utils.timedAnimation(() => {
@@ -20,15 +20,16 @@ export class BrioUtils {
             cancelAnimationFrame(animationFrameId);
         }, animationDuration);
     }
-    /** An method used for safely (in the 'strict mode' JS sense) adding new properties into an object
+    // TODO: check this unusable gargabe
+    /**
+     * An method used for safely (in the 'strict mode' JS sense) adding new properties into an object
+     * @param object The target object (can be of any class and literals)
+     * @param propertyKey The property key
+     * @param propertyValue The initial value (obligatory adding is needed for type cohersion)
      * @example const player = new BrioObject("player", spr_player);
      *
      * Utils.addProperty(player, "health", 100);
      * console.log(player.health); // 100
-     * @template T, K Generic types for object class type and value type
-     * @param {T} object The target object (can be of any class and literals)
-     * @param {string} propertyKey The property key
-     * @param {K} propertyValue The initial value (obligatory adding is needed for type cohersion)
      */
     static addProperty(object, propertyKey, propertyValue) {
         if (typeof object !== "object") {
