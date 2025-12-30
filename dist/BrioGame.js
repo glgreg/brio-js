@@ -1,9 +1,9 @@
-import { BrioSprite } from "./asset/BrioSprite.js";
+import { BrioSprite } from "./assets/BrioSprite.js";
 import { BrioObject } from "./BrioObject.js";
 import { BrioKeyboard } from "./input/BrioKeyboard.js";
 import { BrioMap } from "./BrioMap.js";
 import { BrioCamera } from "./BrioCamera.js";
-import { BrioAudio } from "./asset/BrioAudio.js";
+import { BrioAudio } from "./assets/BrioAudio.js";
 import { BrioLogger } from "./logging/BrioLogger.js";
 /** Used for managing the game-state step process */
 var GameState;
@@ -28,9 +28,9 @@ export class BrioGame {
     #height;
     /** The type of rendering that the canvas will use */
     #renderingType = "smooth";
-    /** @type {"low" | "medium" | "high"} The quality of smoothing that will be used if using the "smooth" type */
+    /** The quality of smoothing that will be used if using the "smooth" type */
     #renderingSmoothValue = "low";
-    /** @type {number} Global scale multiplier for all sprites in-game */
+    /** Global scale multiplier for all sprites in-game */
     #scale = 1;
     #background = {};
     // STORED OBJECTS
@@ -178,7 +178,7 @@ export class BrioGame {
     get smoothingQuality() {
         return this.#renderingSmoothValue;
     }
-    /** @param {"low" | "medium" | "high"} smoothingQuality */
+    /** @param smoothingQuality */
     set smoothingQuality(smoothingQuality) {
         if (this.#renderingType !== "smooth") {
             throw new Error(`The current rendering type is set to '${this.renderingType}', set it to 'smooth' to use the 'smoothingQuality' attribute`);
@@ -241,13 +241,7 @@ export class BrioGame {
         });
         return this;
     }
-    /**
-     * @typedef {object} AssetsObject The object passed as a param into the callbackFn
-     * @property {() => void} logAssets Logs the available sprites that were preloaded
-     * @property {(spriteName: string) => BrioSprite} getSprite Returns the BrioSprite object with the given name
-     * @property {(audioName: string) => BrioAudio} getAudio Returns the BrioAudio object with the given name
-     **/
-    /** @param {(assets: AssetsObject) => Array<BrioObject | GameMap>} callbackFn A callback function that passes, by param, an object for assets manipulation */
+    /** @param callbackFn A callback function that passes, by param, an object for assets manipulation */
     load(callbackFn) {
         this.#lifecyclePromise = this.#lifecyclePromise.then(() => {
             this.#currentState = GameState.LOAD;
@@ -300,28 +294,11 @@ export class BrioGame {
         return this;
     }
     /**
-     * Type for the updater object used inside callbackFn in the update step
-     * @typedef {object} UpdaterObject The object passed as a param into the callbackFn
-     * @property {() => void} logObjectKeys Logs the available objects that were loaded
-     * @property {(spriteName: string) => BrioSprite} getSprite Returns the BrioSprite object with the given name
-     * @property {(audioName: string) => BrioAudio} getAudio Returns the BrioAudio object with the given name
-     * @property {(gameObjectName: string) => BrioObject} getObject Returns the BrioObject with the given name
-     * @property {(mapName: string) => BrioObject} getMap Returns the GameMap with the given name
-     * @property {(cameraName: string) => BrioObject} getCamera Returns the GameCamera with the given name
-     * @property {(gameObjectName: string) => void} animateFromName Animates a given named game object and its properties
-     * @property {(gameObject: BrioObject) => void} animate Animates the given game object
-     * @property {(gameObjects: BrioObject[]) => void} animateMany Animates instances of a given array of game objects
-     * @property {() => void} pause Pauses the update animation loop, essencialy freezing the game
-     * @property {() => void} resume Resumes the update animation loop
-     * @property {boolean} isRunning Returns true if the update loop is running and false if it is paused
-     * @property {(identifier: string, callbackFn: () => any) => void} runOnce Runs only once time the logic inside the block code
-     */
-    /**
      * A method that loops through given logic inside it many times per second, be it for
      * changing BrioObject coordinates or checking if a key was pressed.
-     * @param {(updater: UpdaterObject, deltaTime: number) => void } callbackFn A callback function that passes, by param, an object for game objects manipulation and the time elapsed since the last frame (delta time)
-     * @param {UpdaterObject} callbackFn.updater An object providing methods to manipulate game objects and work around the update loop
-     * @param {number} callbackFn.deltaTime The time elapsed since the last frame, in seconds, used for frame-rate independent updates
+     * @param callbackFn A callback function that passes, by param, an object for game objects manipulation and the time elapsed since the last frame (delta time)
+     * @param callbackFn.updater An object providing methods to manipulate game objects and work around the update loop
+     * @param callbackFn.deltaTime The time elapsed since the last frame, in seconds, used for frame-rate independent updates
      *
      * @example game.update((updater, dt) => {
      * const obj_player = updater.loaded("obj_player"); // returns the BrioObject for Player
@@ -391,9 +368,8 @@ export class BrioGame {
                     }
                     if (this.#loadedGameObjects.has(gameObjectName)) {
                         const obj = this.#loadedGameObjects.get(gameObjectName);
-                        if (obj !== undefined) {
+                        if (obj)
                             return obj;
-                        }
                     }
                     return BrioObject.getEmptyInstance();
                 },
@@ -424,21 +400,14 @@ export class BrioGame {
                         }
                     }
                 },
-                animate: (targetObject) => {
-                    if (!targetObject)
+                animate: (gameObject) => {
+                    if (!gameObject)
                         return;
-                    let object = null;
-                    if (targetObject instanceof BrioObject) {
-                        object = this.#loadedGameObjects.get(targetObject.name);
-                    }
-                    if (object) {
+                    const isBrioObjectLike = gameObject instanceof BrioObject;
+                    const gameObjectName = isBrioObjectLike ? gameObject.name : gameObject;
+                    const object = this.#loadedGameObjects.get(gameObjectName);
+                    if (object)
                         this.#renderGameObject(object);
-                        if (object.clonesInstantiatedValue > 0) {
-                            for (let i = 1; i <= object.clonesInstantiatedValue; ++i) {
-                                updater.animateFromName(`${object.name}-${i}`);
-                            }
-                        }
-                    }
                 },
                 animateMany: (gameObjects) => {
                     if (!gameObjects)
@@ -449,6 +418,18 @@ export class BrioGame {
                             if (gameObject) {
                                 this.#renderGameObject(gameObject);
                             }
+                        }
+                    }
+                },
+                animateInstancesOf: (gameObject) => {
+                    if (!gameObject)
+                        return;
+                    const isBrioObjectLike = gameObject instanceof BrioObject;
+                    const gameObjectName = isBrioObjectLike ? gameObject.name : gameObject;
+                    const object = this.#loadedGameObjects.get(gameObjectName);
+                    if (object && object.clonesInstantiatedValue > 0) {
+                        for (let i = 1; i <= object.clonesInstantiatedValue; ++i) {
+                            updater.animate(`${object.name}-${i}`);
                         }
                     }
                 },
@@ -699,7 +680,8 @@ export class BrioGame {
         let auxWidth = screenThreshold !== 1 ? this.#width : 0;
         let auxHeight = screenThreshold !== 1 ? this.#width : 0;
         if (targetObject.pos.x > this.#width * screenThreshold ||
-            targetObject.pos.x + targetObject.size.x * this.#scale < 0 * auxWidth * screenThreshold ||
+            targetObject.pos.x + targetObject.size.x * this.#scale <
+                0 * auxWidth * screenThreshold ||
             targetObject.pos.y > this.#height * screenThreshold ||
             targetObject.pos.y + targetObject.size.y * this.#scale < 0 * auxHeight * screenThreshold) {
             // this.stopGame();
@@ -784,9 +766,7 @@ export class BrioGame {
             this.ctx.setTransform(1, 0, 0, 1, px, py);
         }
     }
-    /**
-     * GAME UTILITIES -------------------------------------------------------------------
-     */
+    // -> GAME UTILITIES
     /** Automatically resizes the game screen into Fullscreen Mode using an EventListener */
     useFullScreen() {
         window.addEventListener("load", () => {
@@ -800,14 +780,6 @@ export class BrioGame {
             this.ctx.reset();
         }
     }
-    /**
-     * @typedef {object} LogsParamObject
-     * @property {boolean} showStackCaller If true, enables stack traces for archives that are calling logs
-     * @property {boolean} showStackInGameClasses If true, enables stack traces in the BrioClasses
-     */
-    /** Allows utility logs into the console, such as assets and objects being loaded
-     * @param {LogsParamObject} logsObjectParam
-     */
     useLogs(logsObjectParam) {
         BrioLogger.setErrorsStore(this.#loggedErrors);
         BrioLogger.setExceptionsStore(this.#loggedExceptions);
@@ -830,7 +802,9 @@ export class BrioGame {
                         this.ctx.rect(gameObject.pos.x + gameObject.collision.pos.x, gameObject.pos.y + gameObject.collision.pos.y, gameObject.collision.size.x, gameObject.collision.size.y);
                         break;
                     case "circle":
-                        this.ctx.arc(gameObject.pos.x + (gameObject.collision.pos.x + gameObject.collision.size.x / 2), gameObject.pos.y + (gameObject.collision.pos.y + gameObject.collision.size.y / 2), gameObject.collision.size.x / 2, 0, 2 * Math.PI);
+                        this.ctx.arc(gameObject.pos.x +
+                            (gameObject.collision.pos.x + gameObject.collision.size.x / 2), gameObject.pos.y +
+                            (gameObject.collision.pos.y + gameObject.collision.size.y / 2), gameObject.collision.size.x / 2, 0, 2 * Math.PI);
                         break;
                 }
                 this.ctx.lineWidth = 2 / this.#scale;
@@ -889,7 +863,6 @@ export class BrioGame {
     }
     /**
      * An object that contains logic related to keyboard input
-     * @returns {BrioKeyboard}
      */
     get keyboard() {
         if (this.#keyboardInstance !== undefined) {

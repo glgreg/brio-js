@@ -1,7 +1,8 @@
 import { BrioLogger } from "../logging/BrioLogger.js";
 export class BrioKeyboard {
-    /** @type {Map<string, boolean>} A map that stores the keyboard overall state of keys that are being pressed (true) or not (false) */
+    /** A map storing keys that were pressed */
     #keyboardState;
+    /** A map storing keys that were pressed and will be memorized */
     #keyboardPrevState;
     #keyDownListenerId;
     #keyUpListenerId;
@@ -50,8 +51,7 @@ export class BrioKeyboard {
     }
     /**
      * Checks if the given KeyboardKey is pressed down.
-     * @param {string} key
-     * @returns {boolean}
+     * @param key
      * @example game.update((updater, dt) => {
      * const obj_player = updater.getObject("obj_player");
      *
@@ -66,6 +66,17 @@ export class BrioKeyboard {
         const isKeyDown = this.#keyboardState.has(key);
         return isKeyDown;
     }
+    /**
+     * Checks if the given KeyboardKey was pressed.
+     * @param key
+     * @example game.update((updater, dt) => {
+     * const obj_player = updater.getObject("obj_player");
+     *
+     * if(game.keyboard.isUp("z")) {
+     * obj_player.flip.x += !obj_player.flip.x; // makes the player sprite flip in the x axis
+     * }
+     * });
+     */
     isUp(key) {
         if (!this.#keyboardState.has(key))
             return false;
@@ -82,7 +93,6 @@ export class BrioKeyboard {
      *
      * console.log(game.keyboard.globalCustomEvents); // Map(Escape -> ())
      * });
-     * @returns {Map<string, Function>}
      */
     get customActions() {
         return this.#customEventMaps;

@@ -1,13 +1,17 @@
-import { Vector2 } from "./BrioTypes";
 import { BrioLogger } from "./logging/BrioLogger";
+
+export interface Vector2 {
+	x: number;
+	y: number;
+}
 
 export class BrioVector2 implements Vector2 {
 	public x: number;
 	public y: number;
 
 	/**
-	 * @param {number} x
-	 * @param {number} y
+	 * @param x
+	 * @param y
 	 */
 	constructor(x: number, y: number) {
 		this.x = x;
@@ -17,8 +21,6 @@ export class BrioVector2 implements Vector2 {
 	/**
 	 * Returns a normalized version of this vector
 	 * @example const vec2 = new BrioVector2(10, 10);
-	 *
-	 * @returns {Vector2}
 	 */
 	public normalize(): Vector2 {
 		const magnitude = Math.sqrt(this.x * this.x + this.y * this.y);

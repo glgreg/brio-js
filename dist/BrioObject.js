@@ -1,25 +1,25 @@
-import { BrioSprite } from "./asset/BrioSprite.js";
+import { BrioSprite } from "./assets/BrioSprite.js";
 import { BrioCollision } from "./BrioCollision.js";
 import { BrioLogger } from "./logging/BrioLogger.js";
 export class BrioObject {
     // Basic properites
-    /** @type {string} The name of the game object */
+    /** The name of the game object */
     #name;
     /** The sprite attached to the game object */
     #sprite;
-    /** @type {number} The layer level the object is located */
+    /** The layer level the object is located */
     #layer;
     // Cloning and identification logic
-    /** @type {boolean} Used to check if the object is the original object or a instance of itself  */
+    /** Used to check if the object is the original object or a instance of itself  */
     static instanceOfObject = false;
-    /** @type {string} An instance ID used when a game object is a instance of the same game object, defaults to 0 if it's the original object */
+    /** An instance ID used when a game object is a instance of the same game object, defaults to 0 if it's the original object */
     instanceId;
-    /** @type {number} The number of instantiated clones of this object (clones can also be cloned) */
+    /** The number of instantiated clones of this object (clones can also be cloned) */
     #clonesInstantiatedValue = 0;
-    /** @type {BrioObject} */
+    /** An empty instance for singleton logic */ // todo: remove this
     static #emptyInstance;
     // COLLISION LOGIC
-    /** @type {import("./../src/BrioObject.ts").CollisionType} An object that contains collision properties of the game object, such as shape, position and size */
+    /** An object that contains collision properties of the game object, such as shape, position and size */
     collision;
     /**
      * @param name The name of the game object

@@ -1,13 +1,13 @@
 import { BrioGame as Game } from "./BrioGame.js";
 import { BrioScene as Scene } from "./BrioScene.js";
 import { BrioMap as Map } from "./BrioMap.js";
-import { BrioSprite as Sprite } from "./asset/BrioSprite.js";
-import { BrioSpriteSheet as SpriteSheet } from "./asset/BrioSpriteSheet.js";
+import { BrioSprite as Sprite } from "./assets/BrioSprite.js";
+import { BrioSpriteSheet as SpriteSheet } from "./assets/BrioSpriteSheet.js";
 import { BrioObject as Object } from "./BrioObject.js";
 import { BrioKeyboard as Keyboard } from "./input/BrioKeyboard.js";
 import { BrioUtils as Utils } from "./BrioUtils.js";
 import { BrioCamera as Camera } from "./BrioCamera.js";
-import { BrioAudio as Audio } from "./asset/BrioAudio.js";
+import { BrioAudio as Audio } from "./assets/BrioAudio.js";
 import { BrioCollision as Collision } from "./BrioCollision.js";
 import { BrioLogger as Logger } from "./logging/BrioLogger.js";
 import { BrioVector2 as Vector2 } from "./BrioVector2.js";

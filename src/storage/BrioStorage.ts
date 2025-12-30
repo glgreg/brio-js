@@ -1,5 +1,3 @@
-import { BrioGame } from "../BrioGame";
-
 interface Storage {
 	get state(): any;
 	get session(): any;

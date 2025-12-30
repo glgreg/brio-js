@@ -1,13 +1,13 @@
 import { BrioGame as Game } from "./BrioGame";
 import { BrioScene as Scene } from "./BrioScene";
 import { BrioMap as Map } from "./BrioMap";
-import { BrioSprite as Sprite } from "./asset/BrioSprite";
-import { BrioSpriteSheet as SpriteSheet } from "./asset/BrioSpriteSheet";
+import { BrioSprite as Sprite } from "./assets/BrioSprite";
+import { BrioSpriteSheet as SpriteSheet } from "./assets/BrioSpriteSheet";
 import { BrioObject as Object } from "./BrioObject";
 import { BrioKeyboard as Keyboard } from "./input/BrioKeyboard";
 import { BrioUtils as Utils } from "./BrioUtils";
 import { BrioCamera as Camera } from "./BrioCamera";
-import { BrioAudio as Audio } from "./asset/BrioAudio";
+import { BrioAudio as Audio } from "./assets/BrioAudio";
 import { BrioCollision as Collision } from "./BrioCollision";
 import { BrioLogger as Logger } from "./logging/BrioLogger";
 import { BrioVector2 as Vector2 } from "./BrioVector2";

@@ -3,8 +3,8 @@ export class BrioVector2 {
     x;
     y;
     /**
-     * @param {number} x
-     * @param {number} y
+     * @param x
+     * @param y
      */
     constructor(x, y) {
         this.x = x;
@@ -13,8 +13,6 @@ export class BrioVector2 {
     /**
      * Returns a normalized version of this vector
      * @example const vec2 = new BrioVector2(10, 10);
-     *
-     * @returns {Vector2}
      */
     normalize() {
         const magnitude = Math.sqrt(this.x * this.x + this.y * this.y);

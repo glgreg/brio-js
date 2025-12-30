@@ -1,5 +1,5 @@
-import { BrioSprite } from "./asset/BrioSprite";
-import { Vector2 } from "./BrioTypes";
+import { BrioSprite } from "./assets/BrioSprite";
+import { Vector2 } from "./BrioVector2";
 
 export interface MapProps {
 	name: string;

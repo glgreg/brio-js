@@ -1,5 +1,4 @@
-import { Vector2 } from "../BrioTypes";
-import { BrioLogger } from "../logging/BrioLogger";
+import { Vector2 } from "../BrioVector2";
 
 interface Vector2Bool {
 	x: boolean;

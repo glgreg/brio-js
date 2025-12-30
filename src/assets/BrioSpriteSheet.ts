@@ -1,4 +1,4 @@
-import { Vector2 } from "../BrioTypes";
+import { Vector2 } from "../BrioVector2";
 import { BrioSprite, SpriteProperties } from "./BrioSprite";
 
 interface SpriteSheetProps extends SpriteProperties {

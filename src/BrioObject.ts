@@ -1,6 +1,6 @@
-import { BrioSprite, SpriteManipulation } from "./asset/BrioSprite";
+import { BrioSprite, SpriteManipulation } from "./assets/BrioSprite";
 import { BrioCollision } from "./BrioCollision";
-import { Vector2 } from "./BrioTypes";
+import { Vector2 } from "./BrioVector2";
 import { BrioLogger } from "./logging/BrioLogger";
 
 export type KeyActions = {
@@ -19,25 +19,25 @@ export type CollisionShapeType = "square" | "circle" | "rectangle";
 
 export class BrioObject implements SpriteManipulation {
 	// Basic properites
-	/** @type {string} The name of the game object */
+	/** The name of the game object */
 	#name: string;
 	/** The sprite attached to the game object */
 	#sprite: BrioSprite;
-	/** @type {number} The layer level the object is located */
+	/** The layer level the object is located */
 	#layer: number;
 
 	// Cloning and identification logic
-	/** @type {boolean} Used to check if the object is the original object or a instance of itself  */
+	/** Used to check if the object is the original object or a instance of itself  */
 	public static instanceOfObject: boolean = false;
-	/** @type {string} An instance ID used when a game object is a instance of the same game object, defaults to 0 if it's the original object */
+	/** An instance ID used when a game object is a instance of the same game object, defaults to 0 if it's the original object */
 	public instanceId: number;
-	/** @type {number} The number of instantiated clones of this object (clones can also be cloned) */
+	/** The number of instantiated clones of this object (clones can also be cloned) */
 	#clonesInstantiatedValue: number = 0;
-	/** @type {BrioObject} */
+	/** An empty instance for singleton logic */ // todo: remove this
 	static #emptyInstance?: BrioObject;
 
 	// COLLISION LOGIC
-	/** @type {import("./../src/BrioObject.ts").CollisionType} An object that contains collision properties of the game object, such as shape, position and size */
+	/** An object that contains collision properties of the game object, such as shape, position and size */
 	public collision?: CollisionType;
 
 	/**

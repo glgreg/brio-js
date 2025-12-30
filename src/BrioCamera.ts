@@ -1,6 +1,6 @@
 import { BrioMap } from "./BrioMap";
 import { BrioObject } from "./BrioObject";
-import { Vector2 } from "./BrioTypes";
+import { Vector2 } from "./BrioVector2";
 
 export class BrioCamera {
 	#name: string;

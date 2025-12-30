@@ -1,4 +1,4 @@
-import { BrioSprite } from "./asset/BrioSprite.js";
+import { BrioSprite } from "./assets/BrioSprite.js";
 export class BrioMap {
     name;
     size;
