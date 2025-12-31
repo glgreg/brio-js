@@ -6,6 +6,14 @@ import { BrioCamera } from "./BrioCamera";
 import { BrioAudio } from "./assets/BrioAudio";
 import { BrioLogger } from "./logging/BrioLogger";
 import { BrioSpriteSheet } from "./assets/BrioSpriteSheet";
+import {
+	CSSBackgroundBlendMode,
+	CSSBackgroundPosition,
+	CSSBackgroundRendering,
+	CSSBackgroundRepeat,
+	CSSBackgroundSize,
+	CSSLength,
+} from "./base_types";
 
 /** Used for managing the game-state step process */
 enum GameState {
@@ -16,13 +24,15 @@ enum GameState {
 	ERROR = 4,
 }
 
-export interface CanvasBackgroundParam {
+// TODO: Check the color and image for types
+export interface CanvasBackground {
 	color?: string;
 	image?: string;
-	repeat?: "no-repeat" | "repeat-x" | "repeat-y";
-	position?: { x: string; y: string };
-	size?: string;
-	blendMode?: "normal" | "multiply" | "hard-light" | "difference";
+	repeat?: CSSBackgroundRepeat;
+	position?: CSSBackgroundPosition;
+	size?: CSSBackgroundSize;
+	blendMode?: CSSBackgroundBlendMode;
+	rendering?: CSSBackgroundRendering;
 }
 
 // -> Used in the "load" step method, in the param of the callbackFn
@@ -109,7 +119,8 @@ export class BrioGame {
 	#renderingSmoothValue: CanvasImageSmoothingOptions = "low";
 	/** Global scale multiplier for all sprites in-game */
 	#scale: number = 1;
-	#background: CanvasBackgroundParam = {};
+	/** An object containing configuration the canvas background using CSS logic */
+	#background: CanvasBackground = {};
 
 	// STORED OBJECTS
 	/** A map that stores loaded sprites (returned in the preload state) */
@@ -145,6 +156,8 @@ export class BrioGame {
 	#deltaTimePreviousTime: number = 0;
 	#updateIsRunning: boolean = false;
 	#updateLoopLogic?: (currentTime: number) => void;
+
+	#gameLastFPS: number = 0;
 
 	// KEYBOARD
 	#keyboardEnabled: boolean = false;
@@ -195,6 +208,7 @@ export class BrioGame {
 
 		this.#canvas = document.createElement("canvas");
 		this.ctx = this.#canvas.getContext("2d", this.#ctxSettings);
+		this.#canvas.style.background = "transparent";
 
 		this.#canvas.width = this.#width;
 		this.#canvas.height = this.#height;
@@ -234,21 +248,82 @@ export class BrioGame {
 	 * Sets the background of the game screen using CSS logic
 	 * @param value
 	 */
-	public set background(value: CanvasBackgroundParam) {
+	public set background(value: CanvasBackground) {
 		if (value.image) this.#canvas.style.backgroundImage = `url('${value.image}')`;
 		if (value.color) this.#canvas.style.background = value.color;
-		if (value.position && value.position.x && value.position.y) {
-			this.#canvas.style.backgroundPositionX = value.position.x;
-			this.#canvas.style.backgroundPositionY = value.position.y;
+		if (value.position) {
+			this.#canvas.style.backgroundPosition = value.position;
 		}
 		if (value.repeat) this.#canvas.style.backgroundRepeat = value.repeat;
 		if (value.size) this.#canvas.style.backgroundSize = value.size;
 		if (value.blendMode) this.#canvas.style.backgroundBlendMode = value.blendMode;
+		if (value.rendering) this.#canvas.style.imageRendering = value.rendering;
 
 		this.#background = value;
 	}
+
+	/**
+	 * Sets the background, as a object, of the game screen using CSS logic
+	 */
 	public get background() {
-		return this.#background;
+		const canvas = this.#canvas;
+		const self = this.#background;
+
+		return {
+			set color(CSSColorLike: CanvasBackground["color"]) {
+				canvas.style.background = CSSColorLike as string;
+				self.color = CSSColorLike;
+			},
+			get color() {
+				return self.color;
+			},
+			set blendMode(blendMode: CanvasBackground["blendMode"]) {
+				canvas.style.backgroundBlendMode = blendMode as string;
+				self.blendMode = blendMode;
+			},
+			get blendMode() {
+				return self.blendMode;
+			},
+			set image(imageSrc: CanvasBackground["image"]) {
+				const image = `url('${imageSrc}')`;
+				const color = self.color || null;
+				const result = color ? `${image}, ${color}` : image;
+
+				canvas.style.backgroundImage = result;
+				self.image = imageSrc;
+			},
+			get image() {
+				return self.image;
+			},
+			set position(imagePosition: NonNullable<CanvasBackground["position"]>) {
+				canvas.style.backgroundPosition = imagePosition as string;
+				self.position = imagePosition;
+			},
+			get position() {
+				return self.position!;
+			},
+			set repeat(imageRepeat: CanvasBackground["repeat"]) {
+				canvas.style.backgroundRepeat = imageRepeat as string;
+				self.repeat = imageRepeat;
+			},
+			get repeat() {
+				return self.repeat;
+			},
+			set size(imageSize: CanvasBackground["size"]) {
+				canvas.style.backgroundSize = imageSize as string;
+				self.size = imageSize;
+			},
+			get size() {
+				return self.size;
+			},
+			set rendering(renderingMode: CanvasBackground["rendering"]) {
+				canvas.style.imageRendering = renderingMode as string;
+				self.rendering = renderingMode;
+			},
+			get rendering() {
+				return self.rendering;
+			},
+		};
 	}
 
 	/** The global scale of the canvas object. All objects are scaled according to this property
