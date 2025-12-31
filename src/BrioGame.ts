@@ -14,6 +14,7 @@ import {
 	CSSBackgroundSize,
 	CSSLength,
 } from "./base_types";
+import { Vector2 } from "./BrioVector2";
 
 /** Used for managing the game-state step process */
 enum GameState {
@@ -101,6 +102,17 @@ interface CanvasRendering {
 	mode: "smooth" | "pixelated";
 	smoothness: ImageSmoothingQuality;
 }
+
+export type CanvasFPSPosition =
+	| "left-top"
+	| "left-center"
+	| "left-bottom"
+	| "center-top"
+	| "center-center"
+	| "center-bottom"
+	| "right-top"
+	| "right-center"
+	| "right-bottom";
 
 export class BrioGame {
 	// CANVAS
@@ -733,15 +745,19 @@ export class BrioGame {
 
 				const deltaTime = (currentTime - this.#deltaTimePreviousTime) / 1000;
 
-				// storing the keyboard prev state before it changes
+				// -> debug PFS
+				this.#gameLastFPS = 1 / deltaTime;
 
 				callbackFn(updater, deltaTime);
+
+				// storing the keyboard prev state before it changes
 				this.#keyboardPrevState.clear();
 				for (const state of this.#keyboardState) {
 					this.#keyboardPrevState.set(state[0], state[1]);
 				}
 
 				this.#deltaTimePreviousTime = currentTime;
+
 				if (this.#updateLoopLogic) {
 					this.#updateFrameId = requestAnimationFrame(this.#updateLoopLogic);
 				}
@@ -1242,6 +1258,56 @@ export class BrioGame {
 		this.ctx.strokeStyle = "#F00";
 		this.ctx.stroke();
 		this.ctx.closePath();
+	}
+
+	public useShowFPS(
+		FPSPosition: CanvasFPSPosition,
+		offset: number,
+		size: number,
+		backgroundColor: string,
+		textColor: string,
+	) {
+		if (!this.ctx) return;
+
+		const off = offset;
+		let position: Vector2 = { x: 0, y: 0 };
+
+		const containerHeight = size * 1.5;
+		const containerWidth = containerHeight * 2.25;
+
+		const centerX = this.#width / 2 - containerHeight;
+		const centerY = this.#height / 2 - containerHeight;
+		const bottomY = this.#height - (containerHeight + off);
+		const rightX = this.#width - (containerWidth + off);
+
+		// prettier-ignore
+		switch (FPSPosition) {
+			case "left-top": position = { x: off, y: off }; break;
+			case "left-center": position = { x: off, y: centerY }; break;
+			case "left-bottom": position = { x: off, y: bottomY }; break;
+			
+			case "center-top": position = { x: centerX, y: off }; break;
+			case "center-center": position = { x: centerX, y: centerY }; break;
+			case "center-bottom": position = { x: centerX, y: bottomY }; break;
+		
+			case "right-top": position = { x: rightX, y: off }; break;
+			case "right-center": position = { x: rightX, y: centerY }; break;
+			case "right-bottom": position = { x: rightX, y: bottomY }; break;
+		}
+
+		// draws the background
+		this.ctx.fillStyle = backgroundColor;
+		this.ctx.fillRect(position.x, position.y, containerWidth, containerHeight);
+
+		// draws the text
+		this.ctx.textRendering = "optimizeLegibility";
+		this.ctx.font = `${size}px monospace`;
+		this.ctx.fillStyle = textColor;
+		this.ctx.fillText(
+			this.#gameLastFPS.toFixed(1),
+			position.x + size / 2,
+			position.y + size * 1.1,
+		);
 	}
 
 	public useKeyboard() {
