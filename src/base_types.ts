@@ -1,0 +1,26 @@
+export type AnyCSSString = string & {};
+
+export type CSSPosition = "center" | "top" | "right" | "bottom" | "left";
+export type CSSLength = `${number}px` | `${number}%` | `${number}em` | `${number}rem`;
+export type CSSVec2Length = `${CSSLength} ${CSSLength}`;
+
+export type CSSBackgroundPosition =
+	| CSSPosition
+	| CSSVec2Length
+	| `${CSSPosition} ${CSSLength} ${CSSPosition}`
+	| `${CSSPosition} ${CSSLength} ${CSSPosition} ${CSSLength}`
+	| AnyCSSString;
+
+export type CSSBackgroundSize = "contain" | "cover" | CSSLength | CSSVec2Length | AnyCSSString;
+
+export type CSSBackgroundBlendMode = "normal" | "multiply" | "hard-light" | "difference";
+
+export type CSSBackgroundRepeat =
+	| "repeat"
+	| "space"
+	| "round"
+	| "no-repeat"
+	| "repeat-x"
+	| "repeat-y";
+
+export type CSSBackgroundRendering = "smooth" | "crisp-edges" | "pixelated";

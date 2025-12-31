@@ -6,6 +6,15 @@ import { BrioCamera } from "./BrioCamera";
 import { BrioAudio } from "./assets/BrioAudio";
 import { BrioLogger } from "./logging/BrioLogger";
 import { BrioSpriteSheet } from "./assets/BrioSpriteSheet";
+import {
+	CSSBackgroundBlendMode,
+	CSSBackgroundPosition,
+	CSSBackgroundRendering,
+	CSSBackgroundRepeat,
+	CSSBackgroundSize,
+	CSSLength,
+} from "./base_types";
+import { Vector2 } from "./BrioVector2";
 
 /** Used for managing the game-state step process */
 enum GameState {
@@ -16,13 +25,15 @@ enum GameState {
 	ERROR = 4,
 }
 
-export interface CanvasBackgroundParam {
+// TODO: Check the color and image for types
+export interface CanvasBackground {
 	color?: string;
 	image?: string;
-	repeat?: "no-repeat" | "repeat-x" | "repeat-y";
-	position?: { x: string; y: string };
-	size?: string;
-	blendMode?: "normal" | "multiply" | "hard-light" | "difference";
+	repeat?: CSSBackgroundRepeat;
+	position?: CSSBackgroundPosition;
+	size?: CSSBackgroundSize;
+	blendMode?: CSSBackgroundBlendMode;
+	rendering?: CSSBackgroundRendering;
 }
 
 // -> Used in the "load" step method, in the param of the callbackFn
@@ -79,10 +90,6 @@ export interface UpdaterObjectParam {
 	endgame: () => void;
 }
 
-// -> Literal types for image rendering in the canvas context
-export type CanvasImageRenderingOptions = "smooth" | "pixelated";
-export type CanvasImageSmoothingOptions = "low" | "medium" | "high";
-
 // -> Log related types
 type UseLogsParam = {
 	/** If true, enables stack traces for archives that are calling logs */
@@ -90,6 +97,22 @@ type UseLogsParam = {
 	/** If true, enables stack traces in the BrioClasses */
 	showStackInGameClasses?: boolean;
 };
+
+interface CanvasRendering {
+	mode: "smooth" | "pixelated";
+	smoothness: ImageSmoothingQuality;
+}
+
+export type CanvasFPSPosition =
+	| "left-top"
+	| "left-center"
+	| "left-bottom"
+	| "center-top"
+	| "center-center"
+	| "center-bottom"
+	| "right-top"
+	| "right-center"
+	| "right-bottom";
 
 export class BrioGame {
 	// CANVAS
@@ -103,13 +126,12 @@ export class BrioGame {
 	#width: number;
 	/** Height of the Canvas element */
 	#height: number;
-	/** The type of rendering that the canvas will use */
-	#renderingType: CanvasImageRenderingOptions = "smooth";
-	/** The quality of smoothing that will be used if using the "smooth" type */
-	#renderingSmoothValue: CanvasImageSmoothingOptions = "low";
+	/** A configuration module for canvas rendering options */
+	#rendering: CanvasRendering = { mode: "smooth", smoothness: "medium" };
 	/** Global scale multiplier for all sprites in-game */
 	#scale: number = 1;
-	#background: CanvasBackgroundParam = {};
+	/** An object containing configuration the canvas background using CSS logic */
+	#background: CanvasBackground = {};
 
 	// STORED OBJECTS
 	/** A map that stores loaded sprites (returned in the preload state) */
@@ -145,6 +167,8 @@ export class BrioGame {
 	#deltaTimePreviousTime: number = 0;
 	#updateIsRunning: boolean = false;
 	#updateLoopLogic?: (currentTime: number) => void;
+
+	#gameLastFPS: number = 0;
 
 	// KEYBOARD
 	#keyboardEnabled: boolean = false;
@@ -195,6 +219,7 @@ export class BrioGame {
 
 		this.#canvas = document.createElement("canvas");
 		this.ctx = this.#canvas.getContext("2d", this.#ctxSettings);
+		this.#canvas.style.background = "transparent";
 
 		this.#canvas.width = this.#width;
 		this.#canvas.height = this.#height;
@@ -234,21 +259,82 @@ export class BrioGame {
 	 * Sets the background of the game screen using CSS logic
 	 * @param value
 	 */
-	public set background(value: CanvasBackgroundParam) {
+	public set background(value: CanvasBackground) {
 		if (value.image) this.#canvas.style.backgroundImage = `url('${value.image}')`;
 		if (value.color) this.#canvas.style.background = value.color;
-		if (value.position && value.position.x && value.position.y) {
-			this.#canvas.style.backgroundPositionX = value.position.x;
-			this.#canvas.style.backgroundPositionY = value.position.y;
+		if (value.position) {
+			this.#canvas.style.backgroundPosition = value.position;
 		}
 		if (value.repeat) this.#canvas.style.backgroundRepeat = value.repeat;
 		if (value.size) this.#canvas.style.backgroundSize = value.size;
 		if (value.blendMode) this.#canvas.style.backgroundBlendMode = value.blendMode;
+		if (value.rendering) this.#canvas.style.imageRendering = value.rendering;
 
 		this.#background = value;
 	}
+
+	/**
+	 * Sets the background, as a object, of the game screen using CSS logic
+	 */
 	public get background() {
-		return this.#background;
+		const canvas = this.#canvas;
+		const self = this.#background;
+
+		return {
+			set color(CSSColorLike: CanvasBackground["color"]) {
+				canvas.style.background = CSSColorLike as string;
+				self.color = CSSColorLike;
+			},
+			get color() {
+				return self.color;
+			},
+			set blendMode(blendMode: CanvasBackground["blendMode"]) {
+				canvas.style.backgroundBlendMode = blendMode as string;
+				self.blendMode = blendMode;
+			},
+			get blendMode() {
+				return self.blendMode;
+			},
+			set image(imageSrc: CanvasBackground["image"]) {
+				const image = `url('${imageSrc}')`;
+				const color = self.color || null;
+				const result = color ? `${image}, ${color}` : image;
+
+				canvas.style.backgroundImage = result;
+				self.image = imageSrc;
+			},
+			get image() {
+				return self.image;
+			},
+			set position(imagePosition: NonNullable<CanvasBackground["position"]>) {
+				canvas.style.backgroundPosition = imagePosition as string;
+				self.position = imagePosition;
+			},
+			get position() {
+				return self.position!;
+			},
+			set repeat(imageRepeat: CanvasBackground["repeat"]) {
+				canvas.style.backgroundRepeat = imageRepeat as string;
+				self.repeat = imageRepeat;
+			},
+			get repeat() {
+				return self.repeat;
+			},
+			set size(imageSize: CanvasBackground["size"]) {
+				canvas.style.backgroundSize = imageSize as string;
+				self.size = imageSize;
+			},
+			get size() {
+				return self.size;
+			},
+			set rendering(renderingMode: CanvasBackground["rendering"]) {
+				canvas.style.imageRendering = renderingMode as string;
+				self.rendering = renderingMode;
+			},
+			get rendering() {
+				return self.rendering;
+			},
+		};
 	}
 
 	/** The global scale of the canvas object. All objects are scaled according to this property
@@ -262,36 +348,23 @@ export class BrioGame {
 		this.#scale = Math.abs(scaleValue);
 	}
 
-	/** The rendering type used in the game
-	 * @example const game = new BrioGame(600, 400, document.body);
-	 * game.renderingType = "pixelated"; // makes the sprites crispy looking
-	 * @default "smooth"
-	 */
-	public get renderingType() {
-		return this.#renderingType;
-	}
-	/** @param renderingType */
-	public set renderingType(renderingType: CanvasImageRenderingOptions) {
-		this.#renderingType = renderingType;
-	}
+	public get rendering() {
+		const self = this.#rendering;
 
-	/** The quality of the smoothness of game sprites. Only works when renderingType is set to "smooth"
-	 * @example const game = new BrioGame(600, 400, document.body);
-	 * game.renderingType = "smooth";
-	 * game.smoothingQuality = "high"; // makes the sprites more smooth
-	 * @default "low"
-	 */
-	public get smoothingQuality() {
-		return this.#renderingSmoothValue;
-	}
-	/** @param smoothingQuality */
-	public set smoothingQuality(smoothingQuality: CanvasImageSmoothingOptions) {
-		if (this.#renderingType !== "smooth") {
-			throw new Error(
-				`The current rendering type is set to '${this.renderingType}', set it to 'smooth' to use the 'smoothingQuality' attribute`,
-			);
-		}
-		this.#renderingSmoothValue = smoothingQuality;
+		return {
+			set mode(renderingMode) {
+				self.mode = renderingMode;
+			},
+			get mode() {
+				return self.mode;
+			},
+			set smoothness(smoothModeSmoothnessValue) {
+				self.smoothness = smoothModeSmoothnessValue;
+			},
+			get smoothness() {
+				return self.smoothness;
+			},
+		};
 	}
 
 	public get gameObjects() {
@@ -672,15 +745,19 @@ export class BrioGame {
 
 				const deltaTime = (currentTime - this.#deltaTimePreviousTime) / 1000;
 
-				// storing the keyboard prev state before it changes
+				// -> debug PFS
+				this.#gameLastFPS = 1 / deltaTime;
 
 				callbackFn(updater, deltaTime);
+
+				// storing the keyboard prev state before it changes
 				this.#keyboardPrevState.clear();
 				for (const state of this.#keyboardState) {
 					this.#keyboardPrevState.set(state[0], state[1]);
 				}
 
 				this.#deltaTimePreviousTime = currentTime;
+
 				if (this.#updateLoopLogic) {
 					this.#updateFrameId = requestAnimationFrame(this.#updateLoopLogic);
 				}
@@ -701,10 +778,10 @@ export class BrioGame {
 			return;
 		}
 
-		if (this.#renderingType === "smooth") {
+		if (this.#rendering.mode === "smooth") {
 			this.ctx.imageSmoothingEnabled = true;
-			this.ctx.imageSmoothingQuality = this.#renderingSmoothValue;
-		} else if (this.#renderingType === "pixelated") {
+			this.ctx.imageSmoothingQuality = this.#rendering.smoothness;
+		} else if (this.#rendering.mode === "pixelated") {
 			this.ctx.imageSmoothingEnabled = false;
 		}
 
@@ -1181,6 +1258,56 @@ export class BrioGame {
 		this.ctx.strokeStyle = "#F00";
 		this.ctx.stroke();
 		this.ctx.closePath();
+	}
+
+	public useShowFPS(
+		FPSPosition: CanvasFPSPosition,
+		offset: number,
+		size: number,
+		backgroundColor: string,
+		textColor: string,
+	) {
+		if (!this.ctx) return;
+
+		const off = offset;
+		let position: Vector2 = { x: 0, y: 0 };
+
+		const containerHeight = size * 1.5;
+		const containerWidth = containerHeight * 2.25;
+
+		const centerX = this.#width / 2 - containerHeight;
+		const centerY = this.#height / 2 - containerHeight;
+		const bottomY = this.#height - (containerHeight + off);
+		const rightX = this.#width - (containerWidth + off);
+
+		// prettier-ignore
+		switch (FPSPosition) {
+			case "left-top": position = { x: off, y: off }; break;
+			case "left-center": position = { x: off, y: centerY }; break;
+			case "left-bottom": position = { x: off, y: bottomY }; break;
+			
+			case "center-top": position = { x: centerX, y: off }; break;
+			case "center-center": position = { x: centerX, y: centerY }; break;
+			case "center-bottom": position = { x: centerX, y: bottomY }; break;
+		
+			case "right-top": position = { x: rightX, y: off }; break;
+			case "right-center": position = { x: rightX, y: centerY }; break;
+			case "right-bottom": position = { x: rightX, y: bottomY }; break;
+		}
+
+		// draws the background
+		this.ctx.fillStyle = backgroundColor;
+		this.ctx.fillRect(position.x, position.y, containerWidth, containerHeight);
+
+		// draws the text
+		this.ctx.textRendering = "optimizeLegibility";
+		this.ctx.font = `${size}px monospace`;
+		this.ctx.fillStyle = textColor;
+		this.ctx.fillText(
+			this.#gameLastFPS.toFixed(1),
+			position.x + size / 2,
+			position.y + size * 1.1,
+		);
 	}
 
 	public useKeyboard() {
