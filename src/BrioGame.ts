@@ -89,10 +89,6 @@ export interface UpdaterObjectParam {
 	endgame: () => void;
 }
 
-// -> Literal types for image rendering in the canvas context
-export type CanvasImageRenderingOptions = "smooth" | "pixelated";
-export type CanvasImageSmoothingOptions = "low" | "medium" | "high";
-
 // -> Log related types
 type UseLogsParam = {
 	/** If true, enables stack traces for archives that are calling logs */
@@ -100,6 +96,11 @@ type UseLogsParam = {
 	/** If true, enables stack traces in the BrioClasses */
 	showStackInGameClasses?: boolean;
 };
+
+interface CanvasRendering {
+	mode: "smooth" | "pixelated";
+	smoothness: ImageSmoothingQuality;
+}
 
 export class BrioGame {
 	// CANVAS
@@ -113,10 +114,8 @@ export class BrioGame {
 	#width: number;
 	/** Height of the Canvas element */
 	#height: number;
-	/** The type of rendering that the canvas will use */
-	#renderingType: CanvasImageRenderingOptions = "smooth";
-	/** The quality of smoothing that will be used if using the "smooth" type */
-	#renderingSmoothValue: CanvasImageSmoothingOptions = "low";
+	/** A configuration module for canvas rendering options */
+	#rendering: CanvasRendering = { mode: "smooth", smoothness: "medium" };
 	/** Global scale multiplier for all sprites in-game */
 	#scale: number = 1;
 	/** An object containing configuration the canvas background using CSS logic */
@@ -337,36 +336,23 @@ export class BrioGame {
 		this.#scale = Math.abs(scaleValue);
 	}
 
-	/** The rendering type used in the game
-	 * @example const game = new BrioGame(600, 400, document.body);
-	 * game.renderingType = "pixelated"; // makes the sprites crispy looking
-	 * @default "smooth"
-	 */
-	public get renderingType() {
-		return this.#renderingType;
-	}
-	/** @param renderingType */
-	public set renderingType(renderingType: CanvasImageRenderingOptions) {
-		this.#renderingType = renderingType;
-	}
+	public get rendering() {
+		const self = this.#rendering;
 
-	/** The quality of the smoothness of game sprites. Only works when renderingType is set to "smooth"
-	 * @example const game = new BrioGame(600, 400, document.body);
-	 * game.renderingType = "smooth";
-	 * game.smoothingQuality = "high"; // makes the sprites more smooth
-	 * @default "low"
-	 */
-	public get smoothingQuality() {
-		return this.#renderingSmoothValue;
-	}
-	/** @param smoothingQuality */
-	public set smoothingQuality(smoothingQuality: CanvasImageSmoothingOptions) {
-		if (this.#renderingType !== "smooth") {
-			throw new Error(
-				`The current rendering type is set to '${this.renderingType}', set it to 'smooth' to use the 'smoothingQuality' attribute`,
-			);
-		}
-		this.#renderingSmoothValue = smoothingQuality;
+		return {
+			set mode(renderingMode) {
+				self.mode = renderingMode;
+			},
+			get mode() {
+				return self.mode;
+			},
+			set smoothness(smoothModeSmoothnessValue) {
+				self.smoothness = smoothModeSmoothnessValue;
+			},
+			get smoothness() {
+				return self.smoothness;
+			},
+		};
 	}
 
 	public get gameObjects() {
@@ -776,10 +762,10 @@ export class BrioGame {
 			return;
 		}
 
-		if (this.#renderingType === "smooth") {
+		if (this.#rendering.mode === "smooth") {
 			this.ctx.imageSmoothingEnabled = true;
-			this.ctx.imageSmoothingQuality = this.#renderingSmoothValue;
-		} else if (this.#renderingType === "pixelated") {
+			this.ctx.imageSmoothingQuality = this.#rendering.smoothness;
+		} else if (this.#rendering.mode === "pixelated") {
 			this.ctx.imageSmoothingEnabled = false;
 		}
 
