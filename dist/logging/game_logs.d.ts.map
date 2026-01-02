@@ -1,0 +1,1 @@
+{"version":3,"file":"game_logs.d.ts","sourceRoot":"","sources":["../../src/logging/game_logs.ts"],"names":[],"mappings":"AAAA,MAAM,MAAM,aAAa,GAAG;IAC3B,EAAE,EAAE,MAAM,CAAC;IACX,KAAK,EAAE,MAAM,CAAC;IACd,OAAO,EAAE,MAAM,CAAC;CAChB,CAAC;AAEF,eAAO,MAAM,MAAM,EAAE,aAAa,EAajC,CAAC;AAEF,eAAO,MAAM,UAAU,EAAE,aAAa,EAOrC,CAAC"}

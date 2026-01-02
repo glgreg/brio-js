@@ -12,19 +12,20 @@ import { BrioCollision as Collision } from "./BrioCollision.js";
 import { BrioLogger as Logger } from "./logging/BrioLogger.js";
 import { BrioVector2 as Vector2 } from "./BrioVector2.js";
 export { Game as BrioGame, Map as BrioMap, Scene as BrioScene, Sprite as BrioSprite, SpriteSheet, Object as BrioObject, Utils as BrioUtils, Keyboard as BrioKeyboard, Camera as BrioCamera, Audio as BrioAudio, Collision as BrioCollision, Logger as BrioLogger, Vector2 as BrioVector2, };
-const Brio = {
-    Game,
-    Map,
-    Scene,
-    Sprite,
-    SpriteSheet,
-    Object,
-    Utils,
-    Keyboard,
-    Camera,
-    Audio,
-    Collision,
-    Logger,
-    Vector2,
+declare const Brio: {
+    Game: typeof Game;
+    Map: typeof Map;
+    Scene: typeof Scene;
+    Sprite: typeof Sprite;
+    SpriteSheet: typeof SpriteSheet;
+    Object: typeof Object;
+    Utils: typeof Utils;
+    Keyboard: typeof Keyboard;
+    Camera: typeof Camera;
+    Audio: typeof Audio;
+    Collision: typeof Collision;
+    Logger: typeof Logger;
+    Vector2: typeof Vector2;
 };
 export default Brio;
+//# sourceMappingURL=index.d.ts.map

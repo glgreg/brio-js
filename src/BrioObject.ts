@@ -1,5 +1,6 @@
 import { BrioSprite, SpriteManipulation } from "./assets/BrioSprite";
 import { BrioCollision } from "./BrioCollision";
+import { BrioGame } from "./BrioGame";
 import { Vector2 } from "./BrioVector2";
 import { BrioLogger } from "./logging/BrioLogger";
 

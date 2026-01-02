@@ -1,4 +1,4 @@
-/** @classdesc A class used to instantiate BrioAudio objects that can
+/** A class used to instantiate BrioAudio objects that can
  * be played, paused, resumed, loooped through and linked to BrioObject objects
  * and more */
 export class BrioAudio {
