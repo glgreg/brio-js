@@ -1,4 +1,3 @@
-import { BrioLogger } from "../logging/BrioLogger.js";
 export class BrioKeyboard {
     /** A map storing keys that were pressed */
     #keyboardState;
@@ -6,8 +5,10 @@ export class BrioKeyboard {
     #keyboardPrevState;
     #keyDownListenerId;
     #keyUpListenerId;
+    #console;
     #customEventMaps = new Map();
-    constructor(keyboardStateMap, keyboardPrevStateMap) {
+    constructor(keyboardStateMap, keyboardPrevStateMap, console) {
+        this.#console = console;
         this.#keyboardState = keyboardStateMap;
         this.#keyboardPrevState = keyboardPrevStateMap;
         this.#addListener();
@@ -35,7 +36,7 @@ export class BrioKeyboard {
         };
         window.addEventListener("keydown", this.#keyDownListenerId);
         window.addEventListener("keyup", this.#keyUpListenerId);
-        BrioLogger.out("info", "Keyboard Event Listener sucessfuly created.");
+        this.#console.out("info", "Keyboard Event Listener sucessfuly created.");
     }
     /**
      * Removes the EventListener created when using the keyboard.
@@ -46,7 +47,7 @@ export class BrioKeyboard {
         if (this.#keyDownListenerId !== undefined && this.#keyUpListenerId !== undefined) {
             window.removeEventListener("keydown", this.#keyDownListenerId);
             window.removeEventListener("keyup", this.#keyUpListenerId);
-            BrioLogger.out("info", "Keyboard Event Listener sucessfuly removed.");
+            this.#console.out("info", "Keyboard Event Listener sucessfuly removed.");
         }
     }
     /**

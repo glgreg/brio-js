@@ -52,17 +52,17 @@ export class BrioUtils {
         }, timInMiliseconds);
     }
     static mapRestrainOffbound(game, target) {
-        if (target.pos.x >= 0) {
-            target.pos.x = 0;
+        if (target.transform.position.x >= 0) {
+            target.transform.position.x = 0;
         }
-        else if (target.pos.x <= -(target.size.x * game.scale - game.width)) {
-            target.pos.x = -(target.size.x * game.scale - game.width);
+        else if (target.transform.position.x <= -(target.transform.size.x * game.scale - game.width)) {
+            target.transform.position.x = -(target.transform.size.x * game.scale - game.width);
         }
-        if (target.pos.y >= 0) {
-            target.pos.y = 0;
+        if (target.transform.position.y >= 0) {
+            target.transform.position.y = 0;
         }
-        else if (target.pos.y <= -(target.size.y * game.scale - game.height)) {
-            target.pos.y = -(target.size.y * game.scale - game.height);
+        else if (target.transform.position.y <= -(target.transform.size.y * game.scale - game.height)) {
+            target.transform.position.y = -(target.transform.size.y * game.scale - game.height);
         }
     }
 }

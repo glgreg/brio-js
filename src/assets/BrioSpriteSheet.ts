@@ -1,26 +1,26 @@
-import { Vector2 } from "../BrioVector2";
+import { Vector2 } from "../math/BrioVector2";
 import { BrioSprite, SpriteProperties } from "./BrioSprite";
 
 interface SpriteSheetProps extends SpriteProperties {
-	slicing: Vector2;
+	slicing: Vector2<number>;
 }
 interface KeyframeAnimation {
 	name: string;
-	grid: Vector2;
+	grid: Vector2<number>;
 }
 
 export class BrioSpriteSheet {
 	#sprite: BrioSprite;
-	#slicing: Vector2;
-	#grid: Vector2;
+	#slicing: Vector2<number>;
+	#grid: Vector2<number>;
 	#animations: Map<string, BrioSprite> = new Map();
 
 	constructor(sprite: BrioSprite, sliceX: number, sliceY: number) {
 		this.#sprite = sprite;
 		this.#slicing = { x: sliceX, y: sliceY };
 		this.#grid = {
-			x: sprite.size.x / this.#slicing.x,
-			y: sprite.size.y / this.#slicing.y,
+			x: sprite.transform.size.x / this.#slicing.x,
+			y: sprite.transform.size.y / this.#slicing.y,
 		};
 	}
 
@@ -39,8 +39,11 @@ export class BrioSpriteSheet {
 				new BrioSprite({
 					name: `${this.#sprite.name}_${name}`,
 					src: this.#sprite.src,
-					pos: this.#sprite.pos,
-					size: { x: this.#sprite.size.x / this.#grid.x, y: this.#sprite.size.y },
+					position: this.#sprite.transform.position,
+					size: {
+						x: this.#sprite.transform.size.x / this.#grid.x,
+						y: this.#sprite.transform.size.y,
+					},
 					type: "img",
 				}),
 			);

@@ -1,6 +1,6 @@
 import { BrioSprite } from "./assets/BrioSprite.js";
 import { BrioCollision } from "./BrioCollision.js";
-import { BrioLogger } from "./logging/BrioLogger.js";
+import { BrioLogger } from "./debugging/BrioLogger.js";
 export class BrioObject {
     // Basic properites
     /** The name of the game object */
@@ -45,51 +45,8 @@ export class BrioObject {
     /**
      * GETTER AND SETTERS ---------------------------------------------------------------
      */
-    get flip() {
-        const self = this;
-        return {
-            set x(value) {
-                self.#sprite.flip.x = value;
-            },
-            get x() {
-                return self.#sprite.flip.x;
-            },
-            set y(value) {
-                self.#sprite.flip.y = value;
-            },
-            get y() {
-                return self.#sprite.flip.y;
-            },
-        };
-    }
-    get skew() {
-        const self = this;
-        return {
-            set x(value) {
-                self.#sprite.skew.x = value;
-            },
-            get x() {
-                return self.#sprite.skew.x;
-            },
-            set y(value) {
-                self.#sprite.skew.y = value;
-            },
-            get y() {
-                return self.#sprite.skew.y;
-            },
-        };
-    }
-    set scale(value) {
-        this.#sprite.scale = value;
-    }
-    get scale() {
-        return this.#sprite.scale;
-    }
-    set rotate(value) {
-        this.#sprite.rotate = value;
-    }
-    get rotate() {
-        return this.#sprite.rotate;
+    get transform() {
+        return this.#sprite.transform;
     }
     set layer(layerLevel) {
         layerLevel = Math.round(Math.abs(layerLevel));
@@ -108,55 +65,9 @@ export class BrioObject {
     set sprite(newSprite) {
         this.#sprite = newSprite;
     }
-    /** Sets and returns the size of the game object Width and Height
-     * @example const player = new BrioObject("player", spr_player);
-     * player.size.w = 128;
-     * player.size.h = 128;
-     * console.log(player.size.w, player.size.h); // 128, 128 (attention: it will be multiplied by the game "scale" property)
-     */
-    get size() {
-        const self = this;
-        return {
-            get x() {
-                return self.#sprite.size.x;
-            },
-            set x(value) {
-                self.#sprite.size.x = value;
-            },
-            get y() {
-                return self.#sprite.size.y;
-            },
-            set y(value) {
-                self.#sprite.size.y = value;
-            },
-        };
-    }
     /** Returns the name of the game object */
     get name() {
         return this.#name;
-    }
-    /** Sets and returns the position of the game object in the X and Y axis
-     * @example const player = new BrioObject("player", spr_player);
-     * player.pos.x = 0;
-     * player.pos.y = 0;
-     * console.log(player.pos.x, player.pos.y); // 0, 0
-     */
-    get pos() {
-        const self = this;
-        return {
-            get x() {
-                return self.#sprite.pos.x;
-            },
-            set x(value) {
-                self.#sprite.pos.x = value;
-            },
-            get y() {
-                return self.#sprite.pos.y;
-            },
-            set y(value) {
-                self.#sprite.pos.y = value;
-            },
-        };
     }
     set clonesInstantiatedValue(value) {
         if (!BrioObject.instanceOfObject) {

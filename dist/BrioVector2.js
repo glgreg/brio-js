@@ -1,4 +1,4 @@
-import { BrioLogger } from "./logging/BrioLogger.js";
+import { BrioLogger } from "./debugging/BrioLogger.js";
 export class BrioVector2 {
     x;
     y;

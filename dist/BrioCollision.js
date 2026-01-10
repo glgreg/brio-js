@@ -7,13 +7,13 @@ export class BrioCollision {
         if (oneShape === "circle" || twoShape === "circle") {
             if (oneShape !== "circle" || twoShape !== "circle") {
                 // Posição do círculo (dinâmica) e raio
-                const cx = two.pos.x + two.collision.pos.x;
-                const cy = two.pos.y + two.collision.pos.y;
+                const cx = two.transform.position.x + two.collision.pos.x;
+                const cy = two.transform.position.y + two.collision.pos.y;
                 const radius = Math.min(two.collision.size.x, two.collision.size.y) / 2;
                 // Limites do quadrado
-                const minX = one.pos.x + one.collision.pos.x;
+                const minX = one.transform.position.x + one.collision.pos.x;
                 const maxX = minX + one.collision.size.x;
-                const minY = one.pos.y + one.collision.pos.y;
+                const minY = one.transform.position.y + one.collision.pos.y;
                 const maxY = minY + one.collision.size.y;
                 // Verificação AABB inicial
                 const aabbCircleMinX = cx - radius;
@@ -36,10 +36,10 @@ export class BrioCollision {
                 // Colisão ocorre se a distância for menor que o raio
                 return distance < radius;
             }
-            const oneCenterX = one.pos.x + one.collision.pos.x;
-            const oneCenterY = one.pos.y + one.collision.pos.y;
-            const twoCenterX = two.pos.x + two.collision.pos.x;
-            const twoCenterY = two.pos.y + two.collision.pos.y;
+            const oneCenterX = one.transform.position.x + one.collision.pos.x;
+            const oneCenterY = one.transform.position.y + one.collision.pos.y;
+            const twoCenterX = two.transform.position.x + two.collision.pos.x;
+            const twoCenterY = two.transform.position.y + two.collision.pos.y;
             const oneRadius = Math.min(one.collision.size.x, one.collision.size.y) / 2;
             const twoRadius = Math.min(two.collision.size.x, two.collision.size.y) / 2;
             const oneAabbMinX = oneCenterX - oneRadius;
@@ -63,14 +63,14 @@ export class BrioCollision {
         }
         else {
             const rect1 = {
-                x: one.pos.x + one.collision.pos.x,
-                y: one.pos.y + one.collision.pos.y,
+                x: one.transform.position.x + one.collision.pos.x,
+                y: one.transform.position.y + one.collision.pos.y,
                 w: one.collision.size.x,
                 h: one.collision.size.y,
             };
             const rect2 = {
-                x: two.pos.x + two.collision.pos.x,
-                y: two.pos.y + two.collision.pos.y,
+                x: two.transform.position.x + two.collision.pos.x,
+                y: two.transform.position.y + two.collision.pos.y,
                 w: two.collision.size.x,
                 h: two.collision.size.y,
             };
