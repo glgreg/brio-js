@@ -1,29 +1,29 @@
-import { BrioObject } from "./BrioObject.js";
-import { CollisionColliderType } from "./BrioObject.js";
+import { BrioObject } from "./base/BrioObject.js";
+import { CollisionColliderType } from "./base/BrioObject.js";
 import { Vector2 } from "./BrioVector2.js";
 type RectangleCollisionType = {
-    object: BrioObject;
-    colliderType: CollisionColliderType;
-    pos: Vector2;
-    size: Vector2;
+	object: BrioObject;
+	colliderType: CollisionColliderType;
+	pos: Vector2<number>;
+	size: Vector2<number>;
 };
 type SquareCollisionType = {
-    object: BrioObject;
-    colliderType: CollisionColliderType;
-    pos: Vector2;
-    size: number;
+	object: BrioObject;
+	colliderType: CollisionColliderType;
+	pos: Vector2<number>;
+	size: number;
 };
 type CircleCollisionType = {
-    object: BrioObject;
-    colliderType: CollisionColliderType;
-    pos: Vector2;
-    size: number;
+	object: BrioObject;
+	colliderType: CollisionColliderType;
+	pos: Vector2<number>;
+	size: number;
 };
 export declare class BrioCollision {
-    static isColliding(one: BrioObject, two: BrioObject): boolean;
-    static addSquare(configurationObject: SquareCollisionType): void;
-    static addRectangle(configurationObject: RectangleCollisionType): void;
-    static addCircle(configurationObject: CircleCollisionType): void;
+	static isColliding(one: BrioObject, two: BrioObject): boolean;
+	static addSquare(configurationObject: SquareCollisionType): void;
+	static addRectangle(configurationObject: RectangleCollisionType): void;
+	static addCircle(configurationObject: CircleCollisionType): void;
 }
 export {};
 //# sourceMappingURL=BrioCollision.d.ts.map

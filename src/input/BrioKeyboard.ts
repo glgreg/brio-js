@@ -1,4 +1,4 @@
-import { BrioLogger } from "../logging/BrioLogger";
+import { BrioConsole } from "../debugging/BrioConsole";
 
 export class BrioKeyboard {
 	/** A map storing keys that were pressed */
@@ -7,10 +7,16 @@ export class BrioKeyboard {
 	#keyboardPrevState: Map<string, boolean>;
 	#keyDownListenerId?: (event: KeyboardEvent) => void;
 	#keyUpListenerId?: (event: KeyboardEvent) => void;
+	#console: BrioConsole;
 
 	#customEventMaps: Map<string, Function> = new Map();
 
-	constructor(keyboardStateMap: Map<string, boolean>, keyboardPrevStateMap: Map<string, boolean>) {
+	constructor(
+		keyboardStateMap: Map<string, boolean>,
+		keyboardPrevStateMap: Map<string, boolean>,
+		console: BrioConsole,
+	) {
+		this.#console = console;
 		this.#keyboardState = keyboardStateMap;
 		this.#keyboardPrevState = keyboardPrevStateMap;
 		this.#addListener();
@@ -44,7 +50,7 @@ export class BrioKeyboard {
 
 		window.addEventListener("keydown", this.#keyDownListenerId);
 		window.addEventListener("keyup", this.#keyUpListenerId);
-		BrioLogger.out("info", "Keyboard Event Listener sucessfuly created.");
+		this.#console.out("info", "Keyboard Event Listener sucessfuly created.");
 	}
 
 	/**
@@ -56,7 +62,7 @@ export class BrioKeyboard {
 		if (this.#keyDownListenerId !== undefined && this.#keyUpListenerId !== undefined) {
 			window.removeEventListener("keydown", this.#keyDownListenerId);
 			window.removeEventListener("keyup", this.#keyUpListenerId);
-			BrioLogger.out("info", "Keyboard Event Listener sucessfuly removed.");
+			this.#console.out("info", "Keyboard Event Listener sucessfuly removed.");
 		}
 	}
 

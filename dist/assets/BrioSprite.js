@@ -1,3 +1,4 @@
+import BrioTransform from "../base/BrioTransform.js";
 export class BrioSprite {
     /** The name of the sprite asset */
     #name;
@@ -5,15 +6,10 @@ export class BrioSprite {
     #element;
     /** The source URL used in the sprite */
     #src;
-    /** The Sprite position in the x and y axis */
-    #pos;
-    #initialSize;
-    #size;
+    #transform;
     #type;
-    #rotation = 0;
-    #skew = { x: 0, y: 0 };
-    #scale = 1;
-    #flip = { x: false, y: false };
+    /** Checks if the sprite is a clone or the original. BrioObject clones sprites when created. */
+    #isClone = false;
     static #emptyInstance;
     /**
      * @example game.preload(() => {
@@ -21,13 +17,11 @@ export class BrioSprite {
      * return [spr_player]; // now the "spr_player" GameSprite can be used in the 'load' step
      * });
      */
-    constructor(props) {
-        this.#name = props.name;
-        this.#src = props.src;
-        this.#pos = props.pos;
-        this.#size = props.size;
-        this.#initialSize = props.size;
-        this.#type = props.type;
+    constructor(properties) {
+        this.#name = properties.name;
+        this.#src = properties.src;
+        this.#type = properties.type;
+        this.#transform = new BrioTransform(properties.position, properties.size);
         this.#element = new Image();
         this.#element.src = this.#src;
         // TODO: Add svg type logic
@@ -59,101 +53,8 @@ export class BrioSprite {
     get src() {
         return this.#src;
     }
-    get size() {
-        const self = this;
-        return {
-            get x() {
-                return self.#size.x;
-            },
-            set x(value) {
-                self.#flipSprite("x", value);
-                self.#size.x = Math.abs(value);
-            },
-            get y() {
-                return self.#size.y;
-            },
-            set y(value) {
-                self.#flipSprite("y", value);
-                self.#size.y = Math.abs(value);
-            },
-        };
-    }
-    get pos() {
-        const self = this;
-        return {
-            get x() {
-                return self.#pos.x;
-            },
-            set x(value) {
-                self.#pos.x = Number(value.toFixed(2));
-            },
-            get y() {
-                return self.#pos.y;
-            },
-            set y(value) {
-                self.#pos.y = Number(value.toFixed(2));
-            },
-        };
-    }
-    get scale() {
-        return this.#scale;
-    }
-    set scale(value) {
-        this.#scale = value;
-        this.#flipSprite("x", value);
-        this.#size.x *= Math.abs(this.#scale);
-        this.#size.y *= Math.abs(this.#scale);
-    }
     get type() {
         return this.#type;
-    }
-    set rotate(value) {
-        this.#rotation = value;
-        this.#element.style.transform = `rotate(${this.#rotation}deg)`;
-    }
-    get rotate() {
-        return this.#rotation;
-    }
-    get skew() {
-        const self = this;
-        return {
-            get x() {
-                return self.#skew.x;
-            },
-            set x(value) {
-                self.#skew.x = value;
-                self.#element.style.transform = `skewX(${self.#skew.x}deg)`;
-            },
-            get y() {
-                return self.#skew.y;
-            },
-            set y(value) {
-                self.#skew.y = value;
-                self.#element.style.transform = `skewX(${self.#skew.y}deg)`;
-            },
-        };
-    }
-    /**
-     * Flips the Sprite in the x or y axis
-     * @example const player = new GLS.GameSprite("spr_player", "./spr_player.png");
-     * player.src = "./spr_player_jump.png";
-     */
-    get flip() {
-        const self = this;
-        return {
-            set x(value) {
-                self.#flip.x = value;
-            },
-            get x() {
-                return self.#flip.x;
-            },
-            set y(value) {
-                self.#flip.y = value;
-            },
-            get y() {
-                return self.#flip.y;
-            },
-        };
     }
     /**
      * Set the source URL of the GameSprite object
@@ -163,30 +64,18 @@ export class BrioSprite {
     set src(value) {
         this.#src = value;
     }
-    #flipSprite(axis, value) {
-        switch (axis) {
-            case "x":
-                if (value < 0 && this.#flip.x === false)
-                    this.#flip.x = true;
-                else
-                    this.#flip.x = false;
-                break;
-            case "y":
-                if (value < 0 && this.#flip.y === false)
-                    this.#flip.y = true;
-                else
-                    this.#flip.y = false;
-                break;
-            default:
-                throw new Error("Only x and y can be used to flip a sprite");
-        }
+    get transform() {
+        return this.#transform;
+    }
+    get isClone() {
+        return this.#isClone;
     }
     static getEmptyInstance() {
         if (this.#emptyInstance === undefined) {
             const instance = new BrioSprite({
                 name: "",
                 src: "",
-                pos: { x: 0, y: 0 },
+                position: { x: 0, y: 0 },
                 size: { x: 32, y: 32 },
                 type: "img",
             });
@@ -198,12 +87,17 @@ export class BrioSprite {
         }
     }
     static clone(targetGameSprite) {
-        return new BrioSprite({
+        const sprite = new BrioSprite({
             name: targetGameSprite.#name,
             src: targetGameSprite.#src,
-            pos: { x: targetGameSprite.#pos.x, y: targetGameSprite.#pos.y },
-            size: { x: targetGameSprite.#size.x, y: targetGameSprite.#size.y },
+            position: {
+                x: targetGameSprite.#transform.position.x,
+                y: targetGameSprite.#transform.position.y,
+            },
+            size: { x: targetGameSprite.#transform.size.x, y: targetGameSprite.#transform.size.y },
             type: targetGameSprite.type,
         });
+        sprite.#isClone = true;
+        return sprite;
     }
 }

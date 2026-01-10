@@ -2,11 +2,11 @@
 node_modules/
 
 #dev
-TODO.md
+# TODO.md
 
 # arquives used in tests
 # demo/
-dist/
+# dist/
 
 # trash
 *.tgz

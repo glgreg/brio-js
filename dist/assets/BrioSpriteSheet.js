@@ -8,8 +8,8 @@ export class BrioSpriteSheet {
         this.#sprite = sprite;
         this.#slicing = { x: sliceX, y: sliceY };
         this.#grid = {
-            x: sprite.size.x / this.#slicing.x,
-            y: sprite.size.y / this.#slicing.y,
+            x: sprite.transform.size.x / this.#slicing.x,
+            y: sprite.transform.size.y / this.#slicing.y,
         };
     }
     log() {
@@ -23,8 +23,11 @@ export class BrioSpriteSheet {
             this.#animations.set(name, new BrioSprite({
                 name: `${this.#sprite.name}_${name}`,
                 src: this.#sprite.src,
-                pos: this.#sprite.pos,
-                size: { x: this.#sprite.size.x / this.#grid.x, y: this.#sprite.size.y },
+                position: this.#sprite.transform.position,
+                size: {
+                    x: this.#sprite.transform.size.x / this.#grid.x,
+                    y: this.#sprite.transform.size.y,
+                },
                 type: "img",
             }));
         }

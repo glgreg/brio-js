@@ -1,6 +1,7 @@
+import { BrioConsole } from "../debugging/BrioConsole.js";
 export declare class BrioKeyboard {
     #private;
-    constructor(keyboardStateMap: Map<string, boolean>, keyboardPrevStateMap: Map<string, boolean>);
+    constructor(keyboardStateMap: Map<string, boolean>, keyboardPrevStateMap: Map<string, boolean>, console: BrioConsole);
     /**
      * Removes the EventListener created when using the keyboard.
      * @example game.useKeyboard(); // creating the keyboard logic
