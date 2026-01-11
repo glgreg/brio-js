@@ -38,9 +38,5 @@
 		"./types": {
 			"types": "./dist/types.d.ts"
 		}
-	},
-	"dependencies": {
-		"brio-js": "file:brio-js-0.0.1.tgz",
-		"die-statement": "^1.0.0"
 	}
 }
