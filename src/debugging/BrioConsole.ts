@@ -8,10 +8,17 @@ export class BrioConsole {
     /** If true, enables stack traces in the Brio classes */
     showInternalStackTrace: boolean = false;
 
+    // temp
+    #loggedErrors = new Set<string>();
+
     #storedErrors?: Set<number>;
     #storedExceptions?: Set<number>;
     #errors: LoggerLogType[] = errors;
     #exceptions: LoggerLogType[] = exceptions;
+
+    public get loggedErrors() {
+        return this.#loggedErrors;
+    }
 
     public get stackTrace(): string {
         const error = new Error();
