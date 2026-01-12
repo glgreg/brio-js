@@ -4,10 +4,9 @@ import {
     BrioSprite,
     BrioAudio,
     BrioUtils,
-    BrioVector2,
+    Vector2,
     BrioMath,
 } from "../dist/index.js";
-import { die } from "../node_modules/die-statement/index.js";
 import { Enemy } from "./Enemy.js";
 import { Player } from "./Player.js";
 import { Projectile } from "./Projectile.js";
@@ -15,7 +14,8 @@ import { Projectile } from "./Projectile.js";
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 480;
 
-const game_container = document.getElementById("game_container") || die();
+const game_container = document.getElementById("game_container");
+if (!game_container) throw new Error("Game container doesn't exist.");
 
 const game = new BrioGame(GAME_WIDTH, GAME_HEIGHT, game_container);
 
@@ -23,11 +23,15 @@ game.debugging.console.enabled = true;
 // game.debugging.console.showStackTrace = true;
 // game.debugging.console.showInternalStackTrace = true;
 // game.debugging.render.showCollisionBounds = true;
-game.debugging.render.showRenderBounds = true;
+// game.debugging.render.showRenderBounds = true;
 // game.debugging.render.grid.enabled = true;
 game.debugging.render.grid.width = 32;
 game.debugging.render.grid.height = 32;
 // game.debugging.render.grid.showAxisRulers = true;
+// game.debugging.render.fpsOverlay.enabled = true;
+game.debugging.render.fpsOverlay.position = "right-top";
+game.debugging.render.fpsOverlay.size = 32;
+game.debugging.render.fpsOverlay.offset = 4;
 
 game.background.color = "linear-gradient(to bottom, hsla(200, 100%, 60%, 1) 78%, #020319 22%)";
 // game.background.image = "./assets/sprites/background.png";
@@ -78,9 +82,8 @@ game.load((assets) => {
     );
     const obj_background = new BrioObject("obj_background", assets.getSprite("spr_background"), 0);
     const obj_enemy = new Enemy("obj_enemy", assets.getSprite("spr_player"), 2);
-    const test = new BrioObject("obj_test", assets.getSprite("spr_player"), 5);
-    test.transform.position = { x: GAME_WIDTH / 2, y: 0 };
     obj_projectile.transform.visibility = false;
+    obj_enemy.transform.position.x = GAME_WIDTH / 2 - obj_enemy.transform.size.x / 2;
 
     return [obj_player, obj_enemy, obj_projectile, obj_background];
 });
@@ -96,22 +99,15 @@ game.update((updater, dt) => {
 
     if (game.keyboard.isDown("ArrowLeft")) player.moveLeft(player.movSpeed * dt);
     if (game.keyboard.isDown("ArrowRight")) player.moveRight(player.movSpeed * dt);
-    if (game.keyboard.isUp("z")) player.shoot(projectile, 500 * dt);
+    if (game.keyboard.isDown("z")) player.shoot(projectile, 500 * dt);
 });
 
 /**
  * @param {BrioGame} game
- * @param {Enemy} enemy
- * @param {number} genTime
- * @param {number} speed
+ * @param {BrioObject} object
  */
-function spawnEnemy(game, enemy, genTime, speed) {
-    if (Math.random() < 0.97) return;
-
-    const newEnemy = game.instantiate(enemy);
-    newEnemy.transform.position.x = Math.random() * GAME_WIDTH;
-
-    BrioUtils.timedAnimation(() => {
-        newEnemy.transform.position.y += speed;
-    }, 10_000);
+function spawnRandom(game, object) {
+    const obj = game.instantiate(object);
+    obj.transform.position.x = Math.round(Math.random() * GAME_WIDTH);
+    obj.transform.position.y = Math.round(Math.random() * GAME_HEIGHT);
 }
