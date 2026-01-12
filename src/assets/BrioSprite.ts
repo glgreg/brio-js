@@ -1,4 +1,4 @@
-import { Vector2 } from "../math/BrioVector2";
+import { Vec2 } from "../math/index";
 import BrioTransform from "../base/BrioTransform";
 
 export type SpriteType = "img" | "svg";
@@ -9,9 +9,9 @@ export interface SpriteProperties {
     /** The source URI for the targeted image */
     src: string;
     /** A Vec2 of a Sprite position */
-    position: Vector2<number>;
+    position: Vec2;
     /** A Vec2 of a Sprite size */
-    size: Vector2<number>;
+    size: Vec2;
     /** The type of the image (img | svg */
     type: SpriteType;
 }

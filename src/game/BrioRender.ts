@@ -1,7 +1,7 @@
 import { BrioSprite } from "../assets/BrioSprite";
 import { BrioGame } from "./BrioGame";
 import { BrioObject } from "../objects/BrioObject";
-import { Vector2 } from "../math/BrioVector2";
+import { Vec2 } from "../math/index";
 
 export type CanvasFPSPosition =
     | "left-top"
@@ -257,7 +257,7 @@ export class BrioRender {
     ) {
         if (!this.#ctx) return;
 
-        let pos: Vector2<number> = { x: 0, y: 0 };
+        let pos: Vec2 = { x: 0, y: 0 };
         const off = offset;
 
         const containerHeight = size * 1.5;

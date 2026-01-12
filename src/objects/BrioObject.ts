@@ -1,6 +1,6 @@
 import { BrioSprite } from "../assets/BrioSprite";
 import { BrioCollision } from "../math/BrioCollision";
-import { Vector2 } from "../math/BrioVector2";
+import { Vec2 } from "../math/index";
 
 export type KeyActions = {
     [key: string]: () => void;
@@ -10,8 +10,8 @@ export interface CollisionType {
     enabled: boolean;
     colliderType: CollisionColliderType;
     shape: CollisionShapeType;
-    pos: Vector2<number>;
-    size: Vector2<number>;
+    pos: Vec2;
+    size: Vec2;
 }
 export type CollisionColliderType = "solid" | "intangible";
 export type CollisionShapeType = "square" | "circle" | "rectangle";
