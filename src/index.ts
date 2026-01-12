@@ -10,7 +10,7 @@ import { BrioCamera as Camera } from "./not-implemented/BrioCamera";
 import { BrioAudio as Audio } from "./assets/BrioAudio";
 import { BrioCollision as Collision } from "./math/BrioCollision";
 import { BrioConsole as Logger } from "./debugging/BrioConsole";
-import { BrioVector2 as Vector2 } from "./math/BrioVector2";
+import { Vector2 } from "./math/index";
 import * as Math from "./math/BrioMath";
 
 export {
@@ -26,7 +26,7 @@ export {
     Audio as BrioAudio,
     Collision as BrioCollision,
     Logger as BrioLogger,
-    Vector2 as BrioVector2,
+    Vector2,
     Math as BrioMath,
 };
 
