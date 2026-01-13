@@ -34,3 +34,4 @@
 - [] Check incorrect modularized objects creating closures and copies (BrioDebugger, )
 - [] Create atomic classes for instantiating correctly object properties such as position, size, scale (part of the "Fix object transform not working with individual setter")
 - [] Create a better multi-layer object rendering system (current one is just array creation and sorting of layer in each loop frame)
+- [] Refactors the Sprite cloning to use a SpriteRegistry approach 
