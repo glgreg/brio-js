@@ -30,8 +30,8 @@
 - [] Use ECS in some places
 - [] Add BrioMath to refactor basic math operations (deg to rad, dot products, etc)
 - [] Change input logic so it only exists a single event listener for each input type and a global BrioKeyboard.globalIsUp and BrioKeyboard.globalIsDown methods
-- [] Change BrioLogger name to BrioConsole
+- [x] Change BrioLogger name to BrioConsole
 - [] Check incorrect modularized objects creating closures and copies (BrioDebugger, )
 - [] Create atomic classes for instantiating correctly object properties such as position, size, scale (part of the "Fix object transform not working with individual setter")
 - [] Create a better multi-layer object rendering system (current one is just array creation and sorting of layer in each loop frame)
-- [] Refactors the Sprite cloning to use a SpriteRegistry approach 
+- [x] Refactors the Sprite cloning to use a SpriteRegistry approach
