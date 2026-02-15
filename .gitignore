@@ -10,3 +10,6 @@ dist/
 
 # trash
 *.tgz
+
+# docs
+docs/
