@@ -2,6 +2,7 @@ import { BrioSprite } from "../assets/BrioSprite";
 import { BrioGame } from "./BrioGame";
 import { BrioObject } from "../objects/BrioObject";
 import { Vec2 } from "../math/index";
+import { BrioAssetManager } from "./BrioAssetManager";
 
 export type CanvasFPSPosition =
     | "left-top"
@@ -17,7 +18,7 @@ export type CanvasFPSPosition =
 export class BrioRender {
     #game: BrioGame;
     #ctx: CanvasRenderingContext2D;
-    #gameLoadedObjects: Map<string, BrioObject>;
+    #assets: BrioAssetManager;
     #gameScale: number;
     #gameWidth: number;
     #gameHeight: number;
@@ -25,7 +26,7 @@ export class BrioRender {
 
     constructor(
         game: BrioGame,
-        gameLoadedObjects: Map<string, BrioObject>,
+        assets: BrioAssetManager,
         canvasContext: CanvasRenderingContext2D,
         gameScale: number,
         width: number,
@@ -33,7 +34,7 @@ export class BrioRender {
         gameLastFPS: number,
     ) {
         this.#game = game;
-        this.#gameLoadedObjects = gameLoadedObjects;
+        this.#assets = assets;
         this.#ctx = canvasContext;
         this.#gameScale = gameScale;
         this.#gameWidth = width;
@@ -97,9 +98,10 @@ export class BrioRender {
 
         // sprite opacity
         this.#ctx.globalAlpha = object.transform.opacity;
+        const sprite = this.#assets.sprites.get(object.sprite) ?? BrioSprite.getEmptyInstance();
 
         this.#ctx.drawImage(
-            object.sprite.element,
+            sprite.element,
             translated ? -object.transform.size.x * object.transform.pivot.x : 0,
             translated ? -object.transform.size.y * object.transform.pivot.y : 0,
             object.transform.size.x,
@@ -109,7 +111,7 @@ export class BrioRender {
         this.#ctx.restore();
     }
 
-    public clearObject<T extends BrioSprite | BrioObject>(gameObject: T) {
+    public clearObject<T extends BrioObject>(gameObject: T) {
         if (!this.#ctx || !gameObject) {
             return;
         }
@@ -128,7 +130,7 @@ export class BrioRender {
     }
 
     public renderCollisions() {
-        this.#gameLoadedObjects.forEach((gameObject, key) => {
+        this.#assets.objects.forEach((gameObject, key) => {
             if (this.#ctx && gameObject.collision && gameObject.collision.colliderType) {
                 this.#ctx.save();
                 this.#ctx.scale(this.#gameScale, this.#gameScale);
@@ -168,7 +170,7 @@ export class BrioRender {
     }
 
     public renderBounds() {
-        this.#gameLoadedObjects.forEach((gameObject, key) => {
+        this.#assets.objects.forEach((gameObject, key) => {
             if (this.#ctx) {
                 this.#ctx.save();
 

@@ -10,6 +10,7 @@ import { BrioDebugger } from "../debugging/BrioDebugger";
 import { BrioCanvasBackground, CanvasBackground } from "./BrioCanvasBackground";
 import { BrioUpdater } from "./BrioUpdater";
 import { BrioAssetManager } from "./BrioAssetManager";
+import { create } from "../math/vec2";
 
 // #region --> TYPES-INTERFACES
 
@@ -178,7 +179,7 @@ export class BrioGame {
         this.#canvasBackground = new BrioCanvasBackground(this.#canvas);
         this.#render = new BrioRender(
             this,
-            this.#assets.objects,
+            this.#assets,
             this.ctx!,
             this.#scale,
             this.#width,
@@ -299,6 +300,8 @@ export class BrioGame {
             const spriteLoadPromises = sprites.map((sprite) => {
                 return new Promise<void>((resolve, reject) => {
                     sprite.element.onload = () => {
+                        sprite.size = create(sprite.element.width, sprite.element.height);
+                        console.log(sprite);
                         this.#assets.sprites.set(sprite.name, sprite);
                         this.#console.out("log", `Sprite: ${sprite.name} sucessfully preloaded.`);
                         resolve();
@@ -388,6 +391,14 @@ export class BrioGame {
             const gameCameras = objects.filter((object) => object instanceof BrioCamera);
 
             gameObjects.forEach((gameObject) => {
+                // prettier-ignore
+                if (gameObject.transform.size.x <= 0 && gameObject.transform.size.y <= 0) {
+                    const sprite = this.#assets.sprites.get(gameObject.sprite) ?? BrioSprite.getEmptyInstance();
+
+                    gameObject.transform.size.x = sprite.size.x;
+                    gameObject.transform.size.y = sprite.size.y;
+                }
+
                 this.#assets.objects.set(gameObject.name, gameObject);
             });
 
@@ -627,7 +638,7 @@ export class BrioGame {
         // restart logic
     }
 
-    public removeObject<T extends BrioSprite | BrioObject>(targetObject: T) {
+    public removeObject<T extends BrioObject>(targetObject: T) {
         let objectExists: boolean = false;
 
         if (targetObject instanceof BrioSprite && this.#assets.sprites.has(targetObject.name)) {
@@ -681,24 +692,30 @@ export class BrioGame {
     public instantiate(targetObject: BrioObject): BrioObject {
         BrioObject.instanceOfObject = true;
 
+        // prettier-ignore
+        const registeredObject = this.#assets.objects.get(targetObject.name) ?? BrioObject.getEmptyInstance();
+
         // cloning object
         const newObject = new BrioObject(
-            `${targetObject.name}-${targetObject.clonesInstantiatedValue + 1}`,
-            targetObject.sprite,
-            targetObject.transform.layer,
+            `${registeredObject.name}-${registeredObject.clonesInstantiatedValue + 1}`,
+            registeredObject.sprite,
+            registeredObject.transform.layer,
         );
+        newObject.transform.size.x = registeredObject.transform.size.x;
+        newObject.transform.size.y = registeredObject.transform.size.y;
+
         // increasing the amount of clones created
-        targetObject.clonesInstantiatedValue = 1;
+        registeredObject.clonesInstantiatedValue = 1;
 
         // cloning collider
-        if (targetObject.collision) {
+        if (registeredObject.collision) {
             newObject.addCollisionMask(
-                targetObject.collision.shape,
-                targetObject.collision.colliderType,
-                targetObject.collision.pos.x,
-                targetObject.collision.pos.y,
-                targetObject.collision.size.x,
-                targetObject.collision.size.y,
+                registeredObject.collision.shape,
+                registeredObject.collision.colliderType,
+                registeredObject.collision.pos.x,
+                registeredObject.collision.pos.y,
+                registeredObject.collision.size.x,
+                registeredObject.collision.size.y,
             );
         }
 
@@ -715,55 +732,11 @@ export class BrioGame {
         return newObject;
     }
 
-    public instantiateMany(targetObject: BrioObject, quantity: number = 1): BrioObject[] {
-        const instances: BrioObject[] = [];
-        BrioObject.instanceOfObject = true;
-
-        for (let i = 0; i < quantity; i++) {
-            // cloning object
-            const newObject = new BrioObject(
-                `${targetObject.name}-${targetObject.clonesInstantiatedValue + 1}`,
-                targetObject.sprite,
-                targetObject.transform.layer,
-            );
-            // increasing the amount of clones created
-            targetObject.clonesInstantiatedValue = 1;
-
-            // cloning collider
-            if (targetObject.collision) {
-                newObject.addCollisionMask(
-                    targetObject.collision.shape,
-                    targetObject.collision.colliderType,
-                    targetObject.collision.pos.x,
-                    targetObject.collision.pos.y,
-                    targetObject.collision.size.x,
-                    targetObject.collision.size.y,
-                );
-            }
-
-            // setting an id
-            newObject.instanceId = targetObject.clonesInstantiatedValue;
-
-            // add instantiated object to map
-            if (!this.#assets.objects.has(newObject.name)) {
-                this.#assets.objects.set(newObject.name, newObject);
-            }
-
-            if (this.#assets.objects.has(newObject.name)) {
-                instances.push(newObject);
-            }
-        }
-
-        BrioObject.instanceOfObject = false;
-
-        return instances;
-    }
-
     public destroy(targetObject: BrioObject) {
         if (this.#assets.objects.has(targetObject.name)) {
             this.#assets.objects.delete(targetObject.name);
         }
-        if (this.#assets.sprites.has(targetObject.sprite.name)) {
+        if (this.#assets.sprites.has(targetObject.sprite)) {
             this.#render.clearObject(targetObject);
             this.#assets.sprites.delete(targetObject.name);
         }

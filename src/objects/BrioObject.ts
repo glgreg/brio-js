@@ -1,6 +1,8 @@
 import { BrioSprite } from "../assets/BrioSprite";
+import BrioTransform from "../base/BrioTransform";
 import { BrioCollision } from "../math/BrioCollision";
 import { Vec2 } from "../math/index";
+import { create } from "../math/vec2";
 
 export type KeyActions = {
     [key: string]: () => void;
@@ -18,10 +20,11 @@ export type CollisionShapeType = "square" | "circle" | "rectangle";
 
 export class BrioObject {
     // Basic properites
+    #transform: BrioTransform = new BrioTransform(create(0, 0), create(0, 0));
     /** The name of the game object */
     #name: string;
     /** The sprite attached to the game object */
-    #sprite: BrioSprite;
+    #sprite: BrioSprite["name"];
     /** The layer level the object is located */
 
     // Cloning and identification logic
@@ -48,7 +51,7 @@ export class BrioObject {
      * return [player]; // now the "player" BrioObject can be used in the 'update' step
      * });
      */
-    constructor(name: string, sprite: BrioSprite, layer: number) {
+    constructor(name: string, sprite: BrioSprite["name"], layer: number) {
         // Checks if the given name have -[0-9] at the end (so it doesn't conflict with instances of the same game object)
         if (/-[0-9]+$/.test(name) && !BrioObject.instanceOfObject) {
             throw new Error(
@@ -58,8 +61,7 @@ export class BrioObject {
 
         this.#name = name;
         // clones the Sprite so that more than one game object can have the same one
-        this.#sprite = BrioSprite.clone(sprite);
-        console.log(this.#sprite.name, this.#sprite.isClone);
+        this.#sprite = sprite;
         this.transform.layer = Math.round(Math.abs(layer));
         this.instanceId = 0;
     }
@@ -69,12 +71,12 @@ export class BrioObject {
      */
 
     public get transform() {
-        return this.#sprite.transform;
+        return this.#transform;
     }
 
     /** Returns the attached Sprite used in the game object
      */
-    public get sprite(): BrioSprite {
+    public get sprite(): string {
         return this.#sprite;
     }
     /** Returns the attached Sprite used in the game object
@@ -127,14 +129,13 @@ export class BrioObject {
     }
 
     static getEmptyInstance(): BrioObject {
-        if (this.#emptyInstance === undefined) {
-            const instance = new BrioObject("", BrioSprite.getEmptyInstance(), 1);
-            this.#emptyInstance = instance;
+        if (!this.#emptyInstance) {
+            const instance = new BrioObject("", "", 1);
 
-            return this.#emptyInstance;
-        } else {
-            return this.#emptyInstance;
+            this.#emptyInstance = instance;
         }
+
+        return this.#emptyInstance;
     }
 
     public static clone(gameObject: BrioObject) {

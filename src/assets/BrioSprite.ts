@@ -1,5 +1,7 @@
 import { Vec2 } from "../math/index";
 import BrioTransform from "../base/BrioTransform";
+import { create } from "../math/vec2";
+import { BrioConsole } from "../debugging/BrioConsole";
 
 export type SpriteType = "img" | "svg";
 
@@ -8,8 +10,6 @@ export interface SpriteProperties {
     name: string;
     /** The source URI for the targeted image */
     src: string;
-    /** A Vec2 of a Sprite position */
-    position: Vec2;
     /** A Vec2 of a Sprite size */
     size: Vec2;
     /** The type of the image (img | svg */
@@ -23,10 +23,10 @@ export class BrioSprite {
     #element: HTMLImageElement;
     /** The source URL used in the sprite */
     #src: string;
-    #transform: BrioTransform;
     #type: SpriteType;
     /** Checks if the sprite is a clone or the original. BrioObject clones sprites when created. */
     #isClone: boolean = false;
+    #size?: Vec2;
 
     static #emptyInstance?: BrioSprite;
 
@@ -36,12 +36,10 @@ export class BrioSprite {
      * return [spr_player]; // now the "spr_player" GameSprite can be used in the 'load' step
      * });
      */
-    constructor(properties: SpriteProperties) {
-        this.#name = properties.name;
-        this.#src = properties.src;
-        this.#type = properties.type;
-
-        this.#transform = new BrioTransform(properties.position, properties.size);
+    constructor(name: string, src: string, type: SpriteType) {
+        this.#name = name;
+        this.#src = src;
+        this.#type = type;
 
         this.#element = new Image();
         this.#element.src = this.#src;
@@ -84,6 +82,16 @@ export class BrioSprite {
         return this.#type;
     }
 
+    public set size(size: Vec2) {
+        if (!this.#size) this.#size = size;
+    }
+
+    public get size(): Vec2 {
+        if (!this.#size) throw new Error("Sprite size was not initialized");
+
+        return this.#size;
+    }
+
     /**
      * Set the source URL of the GameSprite object
      * @example const player = new BrioSprite("spr_player", "./spr_player.png");
@@ -93,42 +101,26 @@ export class BrioSprite {
         this.#src = value;
     }
 
-    public get transform() {
-        return this.#transform;
-    }
-
     public get isClone() {
         return this.#isClone;
     }
 
     public static getEmptyInstance(): BrioSprite {
-        if (this.#emptyInstance === undefined) {
-            const instance = new BrioSprite({
-                name: "",
-                src: "",
-                position: { x: 0, y: 0 },
-                size: { x: 32, y: 32 },
-                type: "img",
-            });
-            this.#emptyInstance = instance;
+        if (!this.#emptyInstance) {
+            const instance = new BrioSprite("", "", "img");
 
-            return this.#emptyInstance;
-        } else {
-            return this.#emptyInstance;
+            this.#emptyInstance = instance;
         }
+
+        return this.#emptyInstance;
     }
 
     public static clone(targetGameSprite: BrioSprite): BrioSprite {
-        const sprite = new BrioSprite({
-            name: targetGameSprite.#name,
-            src: targetGameSprite.#src,
-            position: {
-                x: targetGameSprite.#transform.position.x,
-                y: targetGameSprite.#transform.position.y,
-            },
-            size: { x: targetGameSprite.#transform.size.x, y: targetGameSprite.#transform.size.y },
-            type: targetGameSprite.type,
-        });
+        const sprite = new BrioSprite(
+            targetGameSprite.#name,
+            targetGameSprite.#src,
+            targetGameSprite.#type,
+        );
 
         sprite.#isClone = true;
 
