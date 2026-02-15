@@ -6,11 +6,11 @@ export class Entity extends BrioObject {
 
     /**
      * @param {string} name
-     * @param {BrioSprite} sprite
+     * @param {string} sprite
      * @param {number} health
      */
     constructor(name, sprite, health) {
-        super(name, sprite, 3);
+        super(name, sprite, 5);
         this.#health = health;
     }
 }

@@ -9,14 +9,14 @@ export class Player extends Entity {
 
     /**
      * @param {string} name
-     * @param {BrioSprite} sprite
+     * @param {string} sprite
      * @param {BrioGame} game
      */
     constructor(name, sprite, game) {
         super(name, sprite, 5);
         this.#game = game;
         this.transform.position.x = game.width / 2 - this.transform.size.x / 2;
-        this.transform.position.y = game.height - (this.transform.size.y + 16);
+        this.transform.position.y = game.height - (this.transform.size.y + 64);
     }
 
     /** @param {number} speed */

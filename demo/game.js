@@ -6,6 +6,7 @@ import {
     BrioUtils,
     Vector2,
     BrioMath,
+    BrioCollision,
 } from "../dist/index.js";
 import { Enemy } from "./Enemy.js";
 import { Player } from "./Player.js";
@@ -39,6 +40,7 @@ game.background.repeat = "no-repeat";
 game.background.size = "cover";
 game.background.position = "center center";
 game.background.rendering = "pixelated";
+game.debugging.render.fpsOverlay.enabled = true;
 
 game.rendering.mode = "pixelated";
 
@@ -46,27 +48,17 @@ game.useKeyboard();
 
 // -> PRELOAD STEP
 game.preload(() => {
-    const spr_player = new BrioSprite({
-        name: "spr_player",
-        src: "./assets/sprites/girl_front.png",
-        position: { x: 0, y: 0 },
-        size: { x: 64, y: 64 },
-        type: "img",
-    });
-    const spr_projectile = new BrioSprite({
-        name: "spr_projectile",
-        src: "./assets/sprites/projectile.png",
-        position: { x: 0, y: 0 },
-        size: { x: 32, y: 32 },
-        type: "img",
-    });
-    const spr_background = new BrioSprite({
-        name: "spr_background",
-        src: "./assets/sprites/background.png",
-        position: { x: 0, y: 0 },
-        size: { x: GAME_WIDTH, y: GAME_HEIGHT },
-        type: "img",
-    });
+    const spr_player = new BrioSprite("spr_player", "./assets/sprites/girl_front.png", "img");
+    const spr_projectile = new BrioSprite(
+        "spr_projectile",
+        "./assets/sprites/projectile.png",
+        "img",
+    );
+    const spr_background = new BrioSprite(
+        "spr_background",
+        "./assets/sprites/background.png",
+        "img",
+    );
     const aud_projectile = new BrioAudio("aud_projectile", "./assets/audios/laser.wav");
 
     return [spr_player, spr_projectile, spr_background, aud_projectile];
@@ -74,19 +66,28 @@ game.preload(() => {
 
 // -> LOAD STEP
 game.load((assets) => {
-    const obj_player = new Player("obj_player", assets.getSprite("spr_player"), game);
+    const obj_player = new Player("obj_player", assets.getSprite("spr_player").name, game);
     const obj_projectile = new Projectile(
         "obj_projectile",
-        assets.getSprite("spr_projectile"),
+        "spr_projectile",
         assets.getAudio("aud_projectile"),
     );
-    const obj_background = new BrioObject("obj_background", assets.getSprite("spr_background"), 0);
-    const obj_enemy = new Enemy("obj_enemy", assets.getSprite("spr_player"), 2);
+    const obj_background = new BrioObject(
+        "obj_background",
+        assets.getSprite("spr_background").name,
+        0,
+    );
+    const obj_enemy = new Enemy("obj_enemy", assets.getSprite("spr_player").name, 2);
     obj_projectile.transform.visibility = false;
     obj_enemy.transform.position.x = GAME_WIDTH / 2 - obj_enemy.transform.size.x / 2;
+    obj_background.transform.size.x = GAME_WIDTH;
+    obj_background.transform.size.y = GAME_HEIGHT;
 
     return [obj_player, obj_enemy, obj_projectile, obj_background];
 });
+
+/** @type {BrioObject[]} */
+const enemy_pool = [];
 
 // -> UPDATE STEP
 game.update((updater, dt) => {
@@ -97,17 +98,80 @@ game.update((updater, dt) => {
     /** @type {Enemy} */
     const enemy = updater.getObject("obj_enemy");
 
+    moveRandom(game, enemy, enemy_pool, 1000 * dt);
+
     if (game.keyboard.isDown("ArrowLeft")) player.moveLeft(player.movSpeed * dt);
     if (game.keyboard.isDown("ArrowRight")) player.moveRight(player.movSpeed * dt);
-    if (game.keyboard.isDown("z")) player.shoot(projectile, 500 * dt);
+    if (game.keyboard.isUp("z")) player.shoot(projectile, 500 * dt);
 });
 
 /**
  * @param {BrioGame} game
  * @param {BrioObject} object
+ * @param {BrioObject[]} pool
  */
-function spawnRandom(game, object) {
+function spawnRandom(game, object, pool) {
     const obj = game.instantiate(object);
     obj.transform.position.x = Math.round(Math.random() * GAME_WIDTH);
     obj.transform.position.y = Math.round(Math.random() * GAME_HEIGHT);
+    pool.push(obj);
+}
+
+/**
+ * @param {BrioGame} game
+ * @param {BrioObject} object
+ * @param {BrioObject[]} pool
+ * @param {number} mmf
+ */
+function moveRandom(game, object, pool, mmf) {
+    if (pool.length <= 500) spawnRandom(game, object, pool);
+
+    const randomSelected = Math.floor(Math.random() * pool.length + 1);
+    const randomMov = Math.round(Math.random() * mmf);
+    const randomStateMov = Math.round(Math.random() * 3);
+    const currentObj = pool[randomSelected];
+
+    if (!currentObj) return;
+
+    const randomAnimTime = Math.round(Math.random() * 2000);
+    /**
+     * @param {BrioObject} obj
+     * @param {() => void} callbackFn
+     */
+    const move = (obj, callbackFn) => {
+        const op = obj.transform.position;
+        const gw = game.width;
+        const gh = game.height;
+
+        if (op.x >= gw || op.x <= 0 || op.y >= gh || op.y <= 0) randomMov * -1;
+
+        BrioUtils.timedAnimation(() => {
+            callbackFn();
+        }, randomAnimTime);
+    };
+
+    switch (randomStateMov) {
+        case 0:
+            move(currentObj, () => {
+                currentObj.transform.position.x += randomMov;
+            });
+            break;
+        case 1:
+            move(currentObj, () => {
+                currentObj.transform.position.x -= randomMov;
+            });
+            break;
+        case 2:
+            move(currentObj, () => {
+                currentObj.transform.position.y += randomMov;
+            });
+            break;
+        case 3:
+            move(currentObj, () => {
+                currentObj.transform.position.y -= randomMov;
+            });
+            break;
+        default:
+            return;
+    }
 }

@@ -6,7 +6,7 @@ import { Entity } from "./Entity.js";
 export class Enemy extends Entity {
     /**
      * @param {string} name
-     * @param {BrioSprite} sprite
+     * @param {string} sprite
      * @param {number} health
      */
     constructor(name, sprite, health) {
