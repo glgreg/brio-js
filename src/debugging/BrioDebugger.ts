@@ -1,4 +1,4 @@
-import { CanvasFPSPosition } from "../game/BrioRender";
+import { CanvasFPSPosition } from "../game/BrioSpriteRenderer";
 import { BrioConsole } from "./BrioConsole";
 
 interface DebugConsoleProperties {

@@ -1,4 +1,5 @@
 import { BrioGame, BrioSprite, BrioUtils } from "../dist/index.js";
+import { BrioObject } from "../dist/index.js";
 import { Entity } from "./Entity.js";
 import { Projectile } from "./Projectile.js";
 
@@ -21,13 +22,13 @@ export class Player extends Entity {
 
     /** @param {number} speed */
     moveLeft(speed) {
-        this.transform.flip.x = false;
+        this.transform.flip.x = true;
         this.transform.position.x -= speed;
     }
 
     /** @param {number} speed */
     moveRight(speed) {
-        this.transform.flip.x = true;
+        this.transform.flip.x = false;
         this.transform.position.x += speed;
     }
 
@@ -35,8 +36,9 @@ export class Player extends Entity {
      *
      * @param {Projectile} object
      * @param {number} speed
+     * @param {BrioObject[]} [pool]
      */
-    shoot(object, speed) {
+    shoot(object, speed, pool) {
         const projectile = this.#game.instantiate(object);
         projectile.transform.position.x =
             this.transform.position.x + this.transform.size.x / 2 - projectile.transform.size.x / 2;
@@ -50,5 +52,7 @@ export class Player extends Entity {
                 if (projectile) this.#game.destroy(projectile);
             });
         }, 5_000);
+
+        if (pool) pool.push(projectile);
     }
 }

@@ -6,6 +6,7 @@
 - [] Add BrioCamera
 - [] Add BrioScene
 - [] Add BrioSerializer
+- [] Add BrioSpriteSheet as a factory maker for BrioSprite
 - [x] Add grid logic to the render and debugging render
 - [] Add "baseSize", "visibility", "opacity" and "layer" logic to BrioTransform
 - [] Add skew pivot logic
@@ -35,3 +36,4 @@
 - [] Create atomic classes for instantiating correctly object properties such as position, size, scale (part of the "Fix object transform not working with individual setter")
 - [] Create a better multi-layer object rendering system (current one is just array creation and sorting of layer in each loop frame)
 - [x] Refactors the Sprite cloning to use a SpriteRegistry approach
+- [] Refactors the BrioSprite class to use a universal BrioAtlas, BrioAtlasLoader, BrioSprite (public API) and BrioTexture approach

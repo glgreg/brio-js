@@ -15,7 +15,7 @@ export type CanvasFPSPosition =
     | "right-center"
     | "right-bottom";
 
-export class BrioRender {
+export class BrioSpriteRenderer {
     #game: BrioGame;
     #ctx: CanvasRenderingContext2D;
     #assets: BrioAssetManager;
@@ -100,6 +100,7 @@ export class BrioRender {
         this.#ctx.globalAlpha = object.transform.opacity;
         const sprite = this.#assets.sprites.get(object.sprite) ?? BrioSprite.getEmptyInstance();
 
+        // sprite rendering
         this.#ctx.drawImage(
             sprite.element,
             translated ? -object.transform.size.x * object.transform.pivot.x : 0,
@@ -107,6 +108,8 @@ export class BrioRender {
             object.transform.size.x,
             object.transform.size.y,
         );
+
+        // spritesheet sprite rendering
 
         this.#ctx.restore();
     }

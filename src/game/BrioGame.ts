@@ -5,12 +5,13 @@ import { BrioMap } from "../not-implemented/BrioMap";
 import { BrioCamera } from "../not-implemented/BrioCamera";
 import { BrioAudio } from "../assets/BrioAudio";
 import { BrioConsole } from "../debugging/BrioConsole";
-import { BrioRender } from "./BrioRender";
+import { BrioSpriteRenderer } from "./BrioSpriteRenderer";
 import { BrioDebugger } from "../debugging/BrioDebugger";
 import { BrioCanvasBackground, CanvasBackground } from "./BrioCanvasBackground";
 import { BrioUpdater } from "./BrioUpdater";
 import { BrioAssetManager } from "./BrioAssetManager";
 import { create } from "../math/vec2";
+import { BrioAtlas } from "../assets/BrioAtlas";
 
 // #region --> TYPES-INTERFACES
 
@@ -87,7 +88,7 @@ export class BrioGame {
     #lifecyclePromise: Promise<void> = Promise.resolve();
     // #endregion - GAME-STATE-LOGIC
     // #region - COMPOSITION-OBJECTS
-    #render: BrioRender;
+    #renderer: BrioSpriteRenderer;
     #debugger: BrioDebugger;
     #console: BrioConsole;
     #updater: BrioUpdater;
@@ -177,7 +178,7 @@ export class BrioGame {
 
         // composing game object modules
         this.#canvasBackground = new BrioCanvasBackground(this.#canvas);
-        this.#render = new BrioRender(
+        this.#renderer = new BrioSpriteRenderer(
             this,
             this.#assets,
             this.ctx!,
@@ -187,7 +188,7 @@ export class BrioGame {
             this.#gameLastFPS,
         );
 
-        this.#updater = new BrioUpdater(this.#assets, this.#render, this.#console);
+        this.#updater = new BrioUpdater(this.#assets, this.#renderer, this.#console);
 
         // game lifecicle promise
         this.#lifecyclePromise.catch((err) => {
@@ -296,6 +297,7 @@ export class BrioGame {
 
             const sprites = assets.filter((asset) => asset instanceof BrioSprite);
             const audios = assets.filter((asset) => asset instanceof BrioAudio);
+            const spriteAtlases = assets.filter((asset) => asset instanceof BrioAtlas);
 
             const spriteLoadPromises = sprites.map((sprite) => {
                 return new Promise<void>((resolve, reject) => {
@@ -311,6 +313,22 @@ export class BrioGame {
                     };
                 });
             });
+
+            // const spriteAtlasPromises = spriteAtlases.map((atlas) => {
+            //     return new Promise<void>((resolve, reject) => {
+            //         atlas.element.onload = () => {
+            //             atlas.sprite.size = create(atlas.sprite.element.width, atlas.sprite.element.height);
+            //             atlas.sheetWidth = atlas.element
+            //             console.log(atlas.sprite);
+            //             this.#assets.sprites.set(atlas.sprite.name, atlas.sprite);
+            //             this.#console.out("log", `AtlasSprite: ${atlas.sprite.name} sucessfully preloaded.`);
+            //             resolve();
+            //         };
+            //         atlas.element.onerror = (event, source, lineno, colno, err) => {
+            //             reject(`Error loading the Sprite '${atlas.name}': ${err?.message}`);
+            //         };
+            //     });
+            // });
 
             const audioLoadPromises = audios.map((audio) => {
                 return new Promise<void>((resolve, reject) => {
@@ -445,13 +463,13 @@ export class BrioGame {
                 }
 
                 this.#assets.objects.forEach((gameObject) => {
-                    this.#render.clearObject(gameObject);
+                    this.#renderer.clearObject(gameObject);
                 });
 
                 const deltaTime = (currentTime - this.#deltaTimePreviousTime) / 1000;
 
                 // -> debug PFS
-                this.#gameLastFPS = this.#render.gameLastFPS = 1 / deltaTime;
+                this.#gameLastFPS = this.#renderer.gameLastFPS = 1 / deltaTime;
 
                 this.#renderDebuggingGrid();
 
@@ -463,7 +481,7 @@ export class BrioGame {
                 objects.sort((a, b) => a.transform.layer - b.transform.layer);
 
                 for (let i = 0; i < objects.length; ++i) {
-                    this.#render.renderObject(objects[i]);
+                    this.#renderer.renderObject(objects[i]);
                 }
                 // #endregion PRIMITIVE-LAYER-RENDERING
 
@@ -492,7 +510,7 @@ export class BrioGame {
     // #region --> METHODS
 
     #renderDebuggingGrid() {
-        const render = this.#render;
+        const render = this.#renderer;
         const renderConfig = this.#debugger.render;
         const gridWidth = renderConfig.grid.width;
         const gridHeight = renderConfig.grid.height;
@@ -502,7 +520,7 @@ export class BrioGame {
     }
 
     #renderDebuggingHelpers() {
-        const render = this.#render;
+        const render = this.#renderer;
         const renderConfig = this.#debugger.render;
 
         if (renderConfig.showRenderBounds) render.renderBounds();
@@ -652,7 +670,7 @@ export class BrioGame {
             this.#assets.objects.delete(targetObject.name);
         }
         if (this.ctx && objectExists && targetObject) {
-            this.#render.clearObject(targetObject);
+            this.#renderer.clearObject(targetObject);
         }
 
         if (objectExists) {
@@ -737,7 +755,7 @@ export class BrioGame {
             this.#assets.objects.delete(targetObject.name);
         }
         if (this.#assets.sprites.has(targetObject.sprite)) {
-            this.#render.clearObject(targetObject);
+            this.#renderer.clearObject(targetObject);
             this.#assets.sprites.delete(targetObject.name);
         }
     }

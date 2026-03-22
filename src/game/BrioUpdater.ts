@@ -8,7 +8,7 @@ import { BrioMap } from "../not-implemented/BrioMap";
 import { BrioObject } from "../objects/BrioObject";
 import { BrioAssetManager } from "./BrioAssetManager";
 import { GameState } from "./BrioGame";
-import { BrioRender } from "./BrioRender";
+import { BrioSpriteRenderer } from "./BrioSpriteRenderer";
 
 /** An interface for the updater object used as a parameter for callbackFn in the update step */
 export interface UpdaterObjectParam {
@@ -51,11 +51,11 @@ export interface UpdaterObjectParam {
 export class BrioUpdater implements UpdaterObjectParam {
     #assets: BrioAssetManager;
     #console: BrioConsole;
-    #render: BrioRender;
+    #render: BrioSpriteRenderer;
 
     #isUpdating: boolean = true;
 
-    constructor(assets: BrioAssetManager, render: BrioRender, console: BrioConsole) {
+    constructor(assets: BrioAssetManager, render: BrioSpriteRenderer, console: BrioConsole) {
         this.#assets = assets;
         this.#render = render;
         this.#console = console;

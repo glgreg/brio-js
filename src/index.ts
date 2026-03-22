@@ -2,7 +2,7 @@ import { BrioGame as Game } from "./game/BrioGame";
 import { BrioScene as Scene } from "./not-implemented/BrioScene";
 import { BrioMap as Map } from "./not-implemented/BrioMap";
 import { BrioSprite as Sprite } from "./assets/BrioSprite";
-import { BrioSpriteSheet as SpriteSheet } from "./assets/BrioSpriteSheet";
+import { BrioAtlas as SpriteAtlas } from "./assets/BrioAtlas";
 import { BrioObject as Object } from "./objects/BrioObject";
 import { BrioKeyboard as Keyboard } from "./input/BrioKeyboard";
 import { BrioUtils as Utils } from "./tools/BrioUtils";
@@ -18,7 +18,7 @@ export {
     Map as BrioMap,
     Scene as BrioScene,
     Sprite as BrioSprite,
-    SpriteSheet,
+    SpriteAtlas as BrioSpriteAtlas,
     Object as BrioObject,
     Utils as BrioUtils,
     Keyboard as BrioKeyboard,
@@ -35,7 +35,7 @@ const Brio = {
     Map,
     Scene,
     Sprite,
-    SpriteSheet,
+    SpriteAtlas,
     Object,
     Utils,
     Keyboard,

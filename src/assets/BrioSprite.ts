@@ -23,7 +23,7 @@ export class BrioSprite {
     #element: HTMLImageElement;
     /** The source URL used in the sprite */
     #src: string;
-    #type: SpriteType;
+    // #type: SpriteType;
     /** Checks if the sprite is a clone or the original. BrioObject clones sprites when created. */
     #isClone: boolean = false;
     #size?: Vec2;
@@ -36,10 +36,10 @@ export class BrioSprite {
      * return [spr_player]; // now the "spr_player" GameSprite can be used in the 'load' step
      * });
      */
-    constructor(name: string, src: string, type: SpriteType) {
+    constructor(name: string, src: string) {
         this.#name = name;
         this.#src = src;
-        this.#type = type;
+        // this.#type = type;
 
         this.#element = new Image();
         this.#element.src = this.#src;
@@ -78,9 +78,9 @@ export class BrioSprite {
         return this.#src;
     }
 
-    public get type() {
-        return this.#type;
-    }
+    // public get type() {
+    //     return this.#type;
+    // }
 
     public set size(size: Vec2) {
         if (!this.#size) this.#size = size;
@@ -107,7 +107,7 @@ export class BrioSprite {
 
     public static getEmptyInstance(): BrioSprite {
         if (!this.#emptyInstance) {
-            const instance = new BrioSprite("", "", "img");
+            const instance = new BrioSprite("", "");
 
             this.#emptyInstance = instance;
         }
@@ -119,7 +119,7 @@ export class BrioSprite {
         const sprite = new BrioSprite(
             targetGameSprite.#name,
             targetGameSprite.#src,
-            targetGameSprite.#type,
+            // targetGameSprite.#type,
         );
 
         sprite.#isClone = true;

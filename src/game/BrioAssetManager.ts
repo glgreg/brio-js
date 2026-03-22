@@ -1,6 +1,6 @@
 import { BrioAudio } from "../assets/BrioAudio";
 import { BrioSprite } from "../assets/BrioSprite";
-import { BrioSpriteSheet } from "../assets/BrioSpriteSheet";
+import { BrioAtlas } from "../assets/BrioAtlas";
 import { BrioCamera } from "../not-implemented/BrioCamera";
 import { BrioMap } from "../not-implemented/BrioMap";
 import { BrioScene } from "../not-implemented/BrioScene";
@@ -13,7 +13,7 @@ interface BrioAssets {
     maps: Map<string, BrioMap>;
     cameras: Map<string, BrioCamera>;
     scenes: Map<string, BrioScene>;
-    spritesheets: Map<string, BrioSpriteSheet>;
+    spritesheets: Map<string, BrioAtlas>;
 }
 
 export class BrioAssetManager implements BrioAssets {
@@ -24,7 +24,7 @@ export class BrioAssetManager implements BrioAssets {
     #maps = new Map<string, BrioMap>();
     #cameras = new Map<string, BrioCamera>();
     #scenes = new Map<string, BrioScene>();
-    #spritesheet = new Map<string, BrioSpriteSheet>();
+    #spritesheet = new Map<string, BrioAtlas>();
 
     public get objects() {
         return this.#objects;
