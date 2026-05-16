@@ -13,3 +13,6 @@ dist/
 
 # docs
 docs/
+
+# agent slot
+!brio-agent/
