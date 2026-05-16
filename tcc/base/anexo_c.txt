@@ -1,0 +1,96 @@
+INSTITUTO FEDERAL 
+Paraná 
+ANEXO C 
+Ministério da Educação 
+PLANO DE TRABALHO 
+BrioJS: Uma Plataforma Intermediária para Ensino de Desenvolvimento de Jogos na Web- Turma 2024 
+Gustavo Luiz Gregório - gustavo.l.gregorio@gmail.com 
+Lucas Bigliardi Vicente - lucasbigliardivicente@gmail.com 
+Orientador: Carine Azevedo Dantas - carine.dantas@ifpr.edu.br 
+Resumo: Este trabalho propõe o desenvolvimento do BrioJS, uma engine de jogos voltada à web que busca reduzir a lacuna entre ferramentas introdutórias de aprendizado e engines profissionais de produção. A proposta visa facilitar o ensino de programação e desenvolvimento de jogos, ao mesmo tempo em que oferece um ambiente acessível para prototipação rápida de ideias e projetos, incluindo fluxos assistidos por inteligência artificial. Por ser baseada em tecnologias web, a ferramenta pode ser executada diretamente no navegador, ampliando sua acessibilidade. O sistema é desenvolvido em TypeScript e executado no ambiente web por meio de HTML, CSS, JavaScript e Canvas 2D API. 
+1. Introdução e Justificativa 
+ com conceitos de programação e pensamento computacional, contribuindo para o desA indústria de jogos digitais consolidou-se como um dos setores mais relevantes do entretenimento contemporâneo, superando em faturamento as indústrias cinematográfica e musical combinadas em escala global (PWC, 2025). Apesar desse crescimento, países como o Brasil permanecem sub-representados na produção internacional de jogos, mesmo possuindo um grande mercado consumidor. Entre os fatores associados a esse cenário estão limitações estruturais da indústria nacional, como dificuldades de financiamento, formação técnica e acesso a recursos tecnológicos adequados (ABRAGAMES, 2022). 
+No contexto educacional, a formação de novos desenvolvedores também enfrenta desafios relacionados à continuidade do aprendizado. Ambientes educacionais como Scratch facilitam o primeiro contatoenvolvimento inicial de habilidades em lógica e resolução de problemas (MALONEY et al., 2010; RESNICK et al., 2009). Entretanto, tais ferramentas apresentam limitações quando o objetivo passa a ser o desenvolvimento de aplicações mais complexas, especialmente no contexto de jogos digitais. 
+Por outro lado, engines amplamente utilizadas na indústria, como Unity, apresentam maior complexidade técnica e estrutural, o que pode dificultar sua adoção por iniciantes ou em ambientes educacionais. No ecossistema web, bibliotecas voltadas ao desenvolvimento de jogos também enfrentam desafios relacionados à manutenção, mudanças de modelo de licenciamento ou limitações funcionais, fatores que podem afetar sua adoção e continuidade de uso. 
+1 
+INSTITUTO FEDERAL Paraná 
+Ministério da Educação 
+Diante desse contexto, este trabalho propõe o desenvolvimento do BrioJS, uma engine de jogos baseada em tecnologias web que busca atuar como uma camada intermediária entre ferramentas educacionais e engines profissionais. Desenvolvida em TypeScript e executada no ambiente web por meio de HTML, CSS, JavaScript e Canvas 2D API (FULTON; FULTON, 2011), a ferramenta visa facilitar o aprendizado progressivo, a prototipação rápida de ideias e a experimentação de projetos, inclusive em fluxos de desenvolvimento assistidos por inteligência artificial. 
+Como delimitação, o projeto concentra-se no desenvolvimento de jogos 2D executados em navegador, com foco educacional e de prototipação, não tendo como objetivo substituir engines profissionais completas ou suportar funcionalidades avançadas de produção em larga escala. 
+2. Objetivos 
+Objetivo Geral: 
+Desenvolver e avaliar o BrioJS, uma engine de jogos 2D baseada em tecnologias web, com foco educacional e de prototipação, capaz de atuar como uma ferramenta intermediária entre ambientes de aprendizado introdutórios e engines profissionais, facilitando o aprendizado progressivo de programação e desenvolvimento de jogos. 
+Objetivos Específicos: 
+Projetar e implementar a arquitetura da engine BrioJS utilizando TypeScript e tecnologias web como HTML, CSS, JavaScript e Canvas 2D API. 
+Desenvolver sistemas básicos da engine, incluindo gerenciamento de assets, renderização de sprites, atualização de objetos e controle do loop de execução do jogo. 
+Criar exemplos e protótipos de jogos simples para demonstrar o funcionamento e as possibilidades da ferramenta. 
+Explorar o potencial da engine para prototipação rápida de ideias e projetos, incluindo fluxos de desenvolvimento assistidos por inteligência artificial. 
+Realizar testes comparativos com usuários utilizando o BrioJS e engines consolidadas, analisando aspectos como facilidade de aprendizado, tempo de desenvolvimento e acessibilidade. 
+Avaliar o potencial da ferramenta como recurso educacional para introdução ao desenvolvimento de jogos e programação. 
+3. Metodologia 
+A pesquisa seguirá uma abordagem de Design Science Research, voltada ao desenvolvimento e avaliação de artefatos computacionais. Inicialmente será realizada a implementação da engine BrioJS. Em seguida, serão conduzidos testes comparativos com usuários, utilizando tarefas de 
+2 
+INSTITUTO FEDERAL 
+Paraná 
+Ministério da Educação 
+prototipação em BrioJS e em engines consolidadas, avaliando métricas como facilidade de aprendizado, tempo de desenvolvimento e acessibilidade. 
+4. Cronograma Proposto 
+Etapa 1: Levantamento bibliográfico e definição do escopo do projeto 
+Etapa 2: Estudo de engines educacionais e tecnologias web aplicáveis ao projeto 
+Etapa 3: Definição da arquitetura da engine BrioJS 
+Etapa 4: Desenvolvimento inicial da engine (estrutura básica e sistemas principais) Etapa 5: Implementação de funcionalidades da engine e criação de exemplos de uso Etapa 6: Desenvolvimento de protótipos e documentação técnica 
+Etapa 7: Planejamento e execução de testes com usuários Etapa 8: Análise dos resultados e avaliação da ferramenta Etapa 9: Redação do relatório final do TCC 
+Etapa 10: Revisões, ajustes finais e preparação para defesa Etapa 11: Apresentação e defesa do TCC 
+ANO 
+Etapas 
+Jan Fev Mar Abr 
+Mai Jun Jul Ago Set Out Nov Dez 
+1 
+X 
+X 
+2 
+X 
+X 
+3 
+X 
+4 
+X 
+X 
+5 
+6 
+X 
+X 
+X 
+X 
+7 
+X 
+X 
+8 
+X 
+9 
+10 
+X 
+X 
+X 
+X 
+11 
+X 
+3 
+INSTITUTO FEDERAL Paraná 
+5. Forma de Acompanhamento/Orientação 
+Ministério da Educação 
+O acompanhamento será realizado por meio de reuniões periódicas entre orientador e aluno, com frequência quinzenal durante as etapas iniciais e semanal nas fases finais do projeto. O progresso será registrado por meio de relatórios de atividades e registros das reuniões, contemplando discussões, orientações recebidas e metas definidas para as etapas seguintes. 
+6. Referências Bibliográficas 
+ASSOCIAÇÃO BRASILEIRA DAS 
+DESENVOLVEDORAS DE JOGOS DIGITAIS 
+(ABRAGAMES). Brazil Games Industry Report 2022. São Paulo: Abragames, 2022. 
+FULTON, Steve; FULTON, Jeff. HTML5 Canvas: native interactivity and animation for the web. Sebastopol: O'Reilly Media, 2011. 
+MALONEY, John et al. The Scratch Programming Language and Environment. ACM Transactions on Computing Education, v. 10, n. 4, 2010. 
+PRICEWATERHOUSECOOPERS (PWC). Global Entertainment & Media Outlook 2025-2029. London: PwC, 2025. 
+RESNICK, Mitchel et al. Scratch: Programming for All. Communications of the ACM, v. 52, n. 11, p. 60-67, nov. 2009. 
+Colombo, 25 de março de 2026. 
+Carine Azevedo Dantas 
+Gustare Lung Gregors 
+Gustavo Luiz Gregorio 
+Lucas Bigliardi Vicente 
+4 

@@ -1,0 +1,279 @@
+Plano de negócios
+
+BrioJS: Uma Plataforma Intermediária para Ensino de Desenvolvimento de Jogos na Web
+
+Gustavo Luiz Gregorio
+Lucas Bigliardi Vicente
+
+
+Sumário executivo  
+Visão Geral
+O BrioJS é uma game engine 2D open source desenvolvida com foco educativo, utilizando tecnologias web como HTML, CSS, JavaScript, TypeScript e Canvas 2D API. O projeto busca atuar como uma solução intermediária entre ferramentas introdutórias de programação visual e engines profissionais de desenvolvimento de jogos.
+A proposta do BrioJS é permitir que iniciantes em desenvolvimento, como alunos ou auto-ditadas em estágio inicial de aprendizado, tenham contato com desenvolvimento de jogos utilizando código real, porém em um ambiente mais acessível e simplificado do que engines tradicionais como Unity, Unreal e Godot.
+Por ser executado diretamente no navegador, o BrioJS elimina barreiras relacionadas à instalação e configuração de ambientes complexos, permitindo aprendizado rápido, acessível e progressivo.
+Público-Alvo
+Estudantes de programação e ou desenvolvimento de jogos;
+Desenvolvedores iniciantes;
+Instituições de ensino;
+Professores de programação;
+Projetos educacionais e acadêmicos.
+Diferencial
+Os principais diferenciais do BrioJS são:
+Utilização de código real ao invés de programação por blocos;
+Menor complexidade em relação às engines profissionais;
+Execução diretamente no navegador;
+Código aberto (open source);
+Abstração de conceitos complexos (atlas, prefabs, assincronia…);
+Facilidade de aprendizado;
+Estrutura simplificada para prototipação rápida, incluindo prototipagem voltada para agentes de Inteligência Artificial (Agent Context Optimization).
+Projeção Básica de Resultados
+Espera-se que o BrioJS contribua para:
+Facilitar a transição entre programação visual e engines profissionais;
+Reduzir barreiras no aprendizado de desenvolvimento de jogos;
+Auxiliar instituições de ensino em disciplinas relacionadas à programação;
+Incentivar o aprendizado de lógica e programação orientada a objetos;
+Possibilitar criação de projetos acadêmicos e protótipos.
+ 
+Descrição do Negócio 
+
+Nome
+BrioJS
+Missão
+Facilitar o aprendizado de programação e desenvolvimento de jogos por meio de uma engine acessível, open source e baseada em tecnologias web.
+Visão
+Tornar-se uma referência educativa no ensino introdutório de desenvolvimento de jogos utilizando código real.
+Valores
+Acessibilidade;
+Educação;
+Compartilhamento de conhecimento;
+Tecnologia aberta;
+Inovação;
+Simplicidade;
+Aprendizado progressivo.
+
+Negócio
+O BrioJS é uma ferramenta open source voltada ao desenvolvimento de jogos 2D utilizando tecnologias web. O projeto possui foco acadêmico e educativo, buscando reduzir a lacuna entre ferramentas de programação visual e engines profissionais.
+A solução oferece uma estrutura simplificada para desenvolvimento de jogos, permitindo que estudantes aprendam conceitos reais de programação de maneira mais acessível.
+ 
+Análise de Mercado
+
+Persona
+Persona Principal
+Nome: Alexandre
+Idade: 17 a 24 anos
+Perfil: Estudante do ensino médio técnico ou graduação na área de tecnologia que deseja aprender programação e desenvolvimento de jogos, mas encontra dificuldades na complexidade de engines profissionais.
+Necessidades:
+Aprender programação prática;
+Desenvolver jogos simples;
+Entender conceitos reais de desenvolvimento;
+Utilizar ferramentas acessíveis;
+Evitar ambientes complexos.
+Dores:
+Dificuldade com engines profissionais;
+Curva de aprendizado elevada;
+Excesso de funcionalidades;
+Excesso de conceitos e padrões complexos de desenvolvimento;
+Dependência de instalação e configuração.
+
+Concorrentes
+Concorrentes Diretos
+Scratch
+Plataforma extremamente acessível;
+Utiliza programação em blocos;
+Excelente para introdução lógica;
+Limitação para projetos mais complexos;
+Não trabalha diretamente com código textual.
+GDevelop
+Engine simplificada;
+Foco em acessibilidade;
+Possui recursos visuais;
+Menor foco em aprendizado de programação textual.
+Construct 3
+Plataforma voltada ao desenvolvimento rápido de jogos;
+Forte utilização de interface visual;
+Menor foco educacional.
+Concorrentes Indiretos
+Unity
+Engine profissional amplamente utilizada;
+Grande quantidade de recursos;
+Alta complexidade para iniciantes.
+Godot
+Engine open source;
+Forte comunidade;
+Estrutura mais técnica e avançada.
+Tendências
+Crescimento da indústria de jogos digitais;
+Expansão do ensino de programação;
+Crescente utilização de tecnologias web;
+Popularização do ensino baseado em projetos;
+Uso de inteligência artificial no desenvolvimento de software.
+Fornecedores
+Por se tratar de um projeto open source e baseado em tecnologias web gratuitas, os principais recursos utilizados são:
+Repositórios Git;
+Ferramentas de desenvolvimento open source;
+Navegadores web;
+Ambientes locais de desenvolvimento.
+Análise SWOT
+Forças
+Open source;
+Fácil acesso;
+Execução no navegador;
+Foco educativo;
+Menor complexidade.
+Fraquezas
+Projeto em estágio inicial;
+Menor quantidade de recursos;
+Comunidade reduzida;
+Dependência de manutenção contínua.
+Oportunidades
+Crescimento do ensino de programação;
+Expansão do mercado de jogos;
+Utilização em escolas e universidades;
+Incentivo a projetos acadêmicos.
+Ameaças
+Engines profissionais consolidadas;
+Evolução rápida da tecnologia;
+Concorrência com plataformas já estabelecidas.
+
+
+
+Plano de Marketing
+
+Produto
+O BrioJS é uma engine 2D open source desenvolvida para facilitar o aprendizado de programação e desenvolvimento de jogos utilizando tecnologias web.
+Preço
+O projeto será disponibilizado gratuitamente, por possuir caráter educativo e open source.
+Praça
+A distribuição será realizada digitalmente por meio de:
+GitHub;
+Documentação online;
+Sites institucionais;
+Plataformas acadêmicas;
+Comunidades de programação.
+Promoção
+As estratégias de divulgação incluem:
+Publicação em comunidades acadêmicas;
+Divulgação em redes sociais;
+Demonstrações práticas;
+Workshops e minicursos;
+Participação em eventos de tecnologia e educação.
+ 
+ 
+Plano Operacional
+
+Processo de Produção / Atendimento
+O desenvolvimento do BrioJS ocorre de forma incremental, envolvendo:
+
+
+Planejamento das funcionalidades;
+Desenvolvimento dos módulos;
+Testes;
+Correção de erros;
+Publicação da documentação;
+Disponibilização para usuários.
+
+Funcionamento no Dia a Dia
+
+
+Desenvolvimento contínuo da engine;
+Correção de bugs;
+Atualização da documentação;
+Criação de exemplos e projetos;
+Realização de testes.
+
+Fluxograma
+Identificação do problema → Planejamento → Desenvolvimento → Testes → Publicação → Feedback → Melhorias
+
+Estrutura Física
+Por se tratar de um projeto digital, a estrutura necessária é reduzida:
+
+
+Computadores;
+Acesso à internet;
+Ambiente de desenvolvimento;
+Repositórios e ambientes locais de desenvolvimento.
+
+Equipe
+
+
+Desenvolvedores
+Responsáveis pela implementação da engine.
+
+
+Documentação
+Responsáveis pela produção de tutoriais e exemplos.
+
+
+Testes
+Responsáveis pela validação das funcionalidades.
+ 
+Plano Financeiro
+
+Investimento Inicial
+Item
+Valor Aproximado
+Equipamentos
+Já disponíveis
+Ferramentas
+Gratuitas
+Repositório Git
+Gratuito
+Total inicial
+Baixíssimo custo operacional
+
+
+
+ 
+ 
+ 
+ 
+
+
+Custos Fixos
+Item
+Valor Aproximado
+Internet
+Já disponíveis
+Manutenção
+Variável
+Ferramentas
+Gratuitas
+
+
+
+
+Custos Variáveis
+Atualizações;
+Expansão da infraestrutura;
+Produção de materiais educacionais.
+Previsão de Faturamento
+O projeto não possui foco comercial direto, portanto não há previsão de faturamento inicial.
+O retorno esperado está relacionado a:
+Impacto educativo;
+Crescimento da comunidade;
+Utilização acadêmica;
+Produção científica.
+
+Fluxo de Caixa
+Como o projeto possui baixo custo operacional e não visa lucro direto, o fluxo de caixa permanece estável, dependendo principalmente de manutenção e evolução contínua da ferramenta.
+TIR
+Por não possuir objetivo comercial imediato, a Taxa Interna de Retorno (TIR) não se aplica diretamente ao projeto.
+
+VPL
+O Valor Presente Líquido (VPL) não é utilizado como principal indicador, considerando o caráter acadêmico e educacional da proposta.
+
+Payback
+O investimento inicial é reduzido e pode ser recuperado indiretamente por meio de apoio institucional, utilização acadêmica e reaproveitamento da ferramenta em projetos educacionais.
+Análise de Viabilidade
+
+Há lucro?
+O projeto não possui foco principal em lucro financeiro, mas sim em impacto educativo e acessibilidade ao ensino de programação.
+
+Em quanto tempo?
+A implementação inicial pode ser realizada durante o desenvolvimento acadêmico do TCC, com evolução contínua após a conclusão do projeto.
+Riscos
+Baixa adesão da comunidade;
+Falta de continuidade no desenvolvimento;
+Concorrência com ferramentas consolidadas;
+Evolução tecnológica acelerada.
+Apesar disso, o baixo custo operacional reduz significativamente os riscos financeiros.
