@@ -1,0 +1,637 @@
+import { BrioSprite } from "../assets/BrioSprite.js";
+import { BrioObject } from "../objects/BrioObject.js";
+import { BrioKeyboard } from "../input/BrioKeyboard.js";
+import { BrioMap } from "../not-implemented/BrioMap.js";
+import { BrioCamera } from "../not-implemented/BrioCamera.js";
+import { BrioAudio } from "../assets/BrioAudio.js";
+import { BrioConsole } from "../debugging/BrioConsole.js";
+import { BrioSpriteRenderer } from "./BrioSpriteRenderer.js";
+import { BrioDebugger } from "../debugging/BrioDebugger.js";
+import { BrioCanvasBackground } from "./BrioCanvasBackground.js";
+import { BrioUpdater } from "./BrioUpdater.js";
+import { BrioAssetManager } from "./BrioAssetManager.js";
+import { create } from "../math/vec2.js";
+import { BrioAtlas } from "../assets/BrioAtlas.js";
+// #region --> TYPES-INTERFACES
+/** Used for managing the game-state step process */
+export var GameState;
+(function (GameState) {
+    GameState[GameState["UNSET"] = 0] = "UNSET";
+    GameState[GameState["PRELOAD"] = 1] = "PRELOAD";
+    GameState[GameState["LOAD"] = 2] = "LOAD";
+    GameState[GameState["UPDATE"] = 3] = "UPDATE";
+    GameState[GameState["ERROR"] = 4] = "ERROR";
+})(GameState || (GameState = {}));
+// #endregion --> TYPES-INTERFACES
+export class BrioGame {
+    // #region --> PROPERTIES
+    // #region - CANVAS
+    /** Canvas element that serves as the game sandbox */
+    #canvas;
+    /** Context of the Canvas element */
+    ctx = null;
+    /** Settings of the Context from the Canvas element */
+    #ctxSettings = {};
+    /** Width of the Canvas element */
+    #width;
+    /** Height of the Canvas element */
+    #height;
+    /** A configuration module for canvas rendering options */
+    #rendering = { mode: "smooth", smoothness: "medium" };
+    /** Global scale multiplier for all sprites in-game */
+    #scale = 1;
+    // #endregion - CANVAS
+    // #region - STORED-OBJECTS
+    /** A map that stores loaded sprites (returned in the preload state) */
+    // #assets.sprites: Map<string, BrioSprite> = new Map<string, BrioSprite>();
+    /** A map that stores loaded gameobjects (returned in the load state) */
+    // #assets.objects: Map<string, BrioObject> = new Map<string, BrioObject>();
+    /** A map that stores loaded game audios (returned in the preload state) */
+    // #assets.audios: Map<string, BrioAudio> = new Map();
+    /** A map that stores loaded game maps (returned in the preload state) */
+    // #assets.maps: Map<string, BrioMap> = new Map<string, BrioMap>();
+    /** A map that stores loaded game maps (returned in the preload state) */
+    // #assets.cameras: Map<string, BrioCamera> = new Map<string, BrioCamera>();
+    // #endregion - STORED-OBJECTS
+    // #region - LOGS
+    // LOGS
+    /** A set that holds the logged erros so they don't appear multiple times in the console when using the update loop */
+    #loggedErros = new Set();
+    #storedErrors = new Set();
+    #storedExceptions = new Set();
+    // #endregion - LOGS
+    // #region - GAME-STATE-LOGIC
+    /** States in which the game will run throught the development process (unset->preload->load->update->error) */
+    #currentState = GameState.UNSET;
+    /** A promise that resolves the lyfecicle of the game, going to preload -> load -> update */
+    #lifecyclePromise = Promise.resolve();
+    // #endregion - GAME-STATE-LOGIC
+    // #region - COMPOSITION-OBJECTS
+    #renderer;
+    #debugger;
+    #console;
+    #updater;
+    #assets = new BrioAssetManager();
+    /** An object containing configuration the canvas background using CSS logic */
+    #canvasBackground;
+    // #endregion - COMPOSITION-OBJECTS
+    // #region - UPDATE-LOGIC
+    /** Id created in the update step, used for stoping the update loop */
+    #updateFrameId = 0;
+    /** A set that holds keys for events that run only once in the update step */
+    #updaterRunOnceKeys = new Set();
+    /** A variable that holds the previous time of a animation frame, used to get the deltaTime in the update step */
+    #deltaTimePreviousTime = 0;
+    #updateIsRunning = false;
+    #updateLoopLogic;
+    #gameLastFPS = 0;
+    // #endregion - UPDATE-LOGIC
+    // #region - INPUT-LOGIC
+    #keyboardEnabled = false;
+    #keyboardState = new Map();
+    #keyboardPrevState = new Map();
+    #keyboardInstance;
+    // #endregion - INPUT-LOGIC
+    // #region - STORAGE-LOGIC
+    // RESTART
+    // CHECKPOINT LOGIC
+    cachedObjects = new Map();
+    #cacheExists = false;
+    // TEMPORARY CACHING LOGIC
+    #cachedSprites = new Map();
+    #cachedAudios = new Map();
+    #cachedObjects = new Map();
+    // #endregion - STORAGE-LOGIC
+    // #endregion --> PROPERTIES
+    // #region - MISC-PROPERTIES
+    #objectsMaxLayer = 0;
+    // #endregion - MISC-PROPERTIES
+    // #region --> CONSTRUCTOR
+    /**
+     * @param width The game screen width size
+     * @param height The game screen height size
+     * @param appendToElement The elements whom the game will be appended
+     * @param canvasContextSettings An object for canvas context configurations
+     */
+    constructor(width, height, appendToElement, canvasContextSettings = {}) {
+        // initializing necessary debugging tools
+        this.#console = new BrioConsole();
+        this.#debugger = new BrioDebugger(this.#console);
+        if (width < 0 || height < 0) {
+            this.#console.out("warn", "BrioGame constructor: Negative values converted to positive.");
+        }
+        if (!(appendToElement instanceof HTMLElement)) {
+            throw this.#console.fatalError("BrioGame constructor: A BrioGame should be appended to a working HTMLElement.");
+        }
+        // game POD properties
+        this.#width = Math.abs(width);
+        this.#height = Math.abs(height);
+        // canvas configuration
+        this.#canvas = document.createElement("canvas");
+        this.#canvas.style.background = "transparent";
+        this.#canvas.width = this.#width;
+        this.#canvas.height = this.#height;
+        // canvas context configuration
+        this.#ctxSettings = canvasContextSettings;
+        this.ctx = this.#canvas.getContext("2d", this.#ctxSettings);
+        appendToElement.appendChild(this.#canvas);
+        // composing game object modules
+        this.#canvasBackground = new BrioCanvasBackground(this.#canvas);
+        this.#renderer = new BrioSpriteRenderer(this, this.#assets, this.ctx, this.#scale, this.#width, this.#height, this.#gameLastFPS);
+        this.#updater = new BrioUpdater(this.#assets, this.#renderer, this.#console);
+        // game lifecicle promise
+        this.#lifecyclePromise.catch((err) => {
+            this.#currentState = GameState.ERROR;
+            this.#console.out("error", `An error occurred during the game object creation: ${err}.`);
+        });
+    }
+    // #endregion --> CONSTRUCTOR
+    // #region --> GETTERS-SETTERS
+    /** Returns the loaded sprites that were returned in the preload step
+     * @example game.load(() => {
+     * return new BrioSprite("spr_player", "./spr_player.png", "img");
+     * })
+     * console.log(game.loadedGameSprites); // Map(spr_player -> {})
+     */
+    get loadedGameSprites() {
+        return this.#assets.sprites;
+    }
+    /** Returns the width size of the game screen */
+    get width() {
+        return this.#width;
+    }
+    /** Returns the height size of the game screen */
+    get height() {
+        return this.#height;
+    }
+    /**
+     * Sets the background of the game screen using CSS logic
+     * @param backgroundValue
+     */
+    set background(backgroundValue) {
+        this.#canvasBackground = backgroundValue;
+    }
+    get background() {
+        return this.#canvasBackground;
+    }
+    /** The global scale of the canvas object. All objects are scaled according to this property
+     * @example const game = new BrioGame(600, 400, document.body);
+     * game.scale = 2; // 128px sprites are now 256px
+     */
+    set scale(scaleValue) {
+        this.#scale = Math.abs(scaleValue);
+    }
+    get scale() {
+        return this.#scale;
+    }
+    get gameObjects() {
+        return this.#assets.objects;
+    }
+    get isRunning() {
+        return this.#updateIsRunning;
+    }
+    get rendering() {
+        return this.#rendering;
+    }
+    get debugging() {
+        return this.#debugger;
+    }
+    /**
+     * An object that contains logic related to keyboard input
+     */
+    get keyboard() {
+        if (!this.#keyboardInstance) {
+            throw this.#console.fatalError("Keyboard instance doesn't exist. Try using the useKeyboard() method in the game object.");
+        }
+        return this.#keyboardInstance;
+    }
+    // #endregion --> GETTERS-SETTERS
+    // #region --> GAME-STATES
+    /**
+     * The first step into the game logic responsible for preloading assets
+     * such as GameSprites, Audios and Videos. Those assets are loaded in an
+     * assyncronous manner, that's why this step in needed
+     * @param callbackFn
+     */
+    preload(callbackFn) {
+        this.#lifecyclePromise = this.#lifecyclePromise.then(async () => {
+            this.#currentState = GameState.PRELOAD;
+            const assets = callbackFn();
+            if (assets.length === 0) {
+                throw new Error("Zero assets returned. You must return at least one asset.");
+            }
+            const sprites = assets.filter((asset) => asset instanceof BrioSprite);
+            const audios = assets.filter((asset) => asset instanceof BrioAudio);
+            const spriteAtlases = assets.filter((asset) => asset instanceof BrioAtlas);
+            const spriteLoadPromises = sprites.map((sprite) => {
+                return new Promise((resolve, reject) => {
+                    sprite.element.onload = () => {
+                        sprite.size = create(sprite.element.width, sprite.element.height);
+                        console.log(sprite);
+                        this.#assets.sprites.set(sprite.name, sprite);
+                        this.#console.out("log", `Sprite: ${sprite.name} sucessfully preloaded.`);
+                        resolve();
+                    };
+                    sprite.element.onerror = (event, source, lineno, colno, err) => {
+                        reject(`Error loading the Sprite '${sprite.name}': ${err?.message}`);
+                    };
+                });
+            });
+            // const spriteAtlasPromises = spriteAtlases.map((atlas) => {
+            //     return new Promise<void>((resolve, reject) => {
+            //         atlas.element.onload = () => {
+            //             atlas.sprite.size = create(atlas.sprite.element.width, atlas.sprite.element.height);
+            //             atlas.sheetWidth = atlas.element
+            //             console.log(atlas.sprite);
+            //             this.#assets.sprites.set(atlas.sprite.name, atlas.sprite);
+            //             this.#console.out("log", `AtlasSprite: ${atlas.sprite.name} sucessfully preloaded.`);
+            //             resolve();
+            //         };
+            //         atlas.element.onerror = (event, source, lineno, colno, err) => {
+            //             reject(`Error loading the Sprite '${atlas.name}': ${err?.message}`);
+            //         };
+            //     });
+            // });
+            const audioLoadPromises = audios.map((audio) => {
+                return new Promise((resolve, reject) => {
+                    const onCanPlayThrough = () => {
+                        this.#assets.audios.set(audio.name, audio);
+                        this.#console.out("log", `Audio: ${audio.name} sucessfully preloaded.`);
+                        resolve();
+                        audio.element.removeEventListener("canplaythrough", onCanPlayThrough);
+                    };
+                    const onErrorPlay = (e) => {
+                        reject(`Error loading the audio '${audio.name}': ${e.message}`);
+                        audio.element.removeEventListener("error", onErrorPlay);
+                    };
+                    audio.element.addEventListener("canplaythrough", onCanPlayThrough);
+                    audio.element.addEventListener("error", onErrorPlay);
+                });
+            });
+            await Promise.all(spriteLoadPromises);
+            await Promise.all(audioLoadPromises);
+            this.#console.out("info", "Preload step complete!");
+        });
+        return this;
+    }
+    /** @param callbackFn A callback function that passes, by param, an object for assets manipulation */
+    load(callbackFn) {
+        this.#lifecyclePromise = this.#lifecyclePromise.then(() => {
+            this.#currentState = GameState.LOAD;
+            const assetsManipulationObject = {
+                logAssets: () => {
+                    this.#console.out("log", `Currently loaded sprites: ${this.#assets.sprites}.`);
+                    this.#console.out("log", `Currently loaded audios: ${this.#assets.audios}.`);
+                },
+                getSprite: (spriteName) => {
+                    if (!this.#assets.sprites.has(spriteName)) {
+                        this.#console.out("error", `Named sprite asset '${spriteName}' was not found in the preloaded resources, check if you preloaded it correctly and gave it the right name.`);
+                    }
+                    if (this.#assets.sprites.has(spriteName)) {
+                        const spr = this.#assets.sprites.get(spriteName);
+                        if (spr !== undefined) {
+                            return spr;
+                        }
+                    }
+                    return BrioSprite.getEmptyInstance();
+                },
+                getAudio: (audioName) => {
+                    if (!this.#assets.audios.has(audioName)) {
+                        this.#console.out("error", `Named audio asset '${audioName}' was not found in the preloaded resources, check if you preloaded it correctly and gave it the right name.`);
+                    }
+                    if (this.#assets.audios.has(audioName)) {
+                        const aud = this.#assets.audios.get(audioName);
+                        if (aud !== undefined) {
+                            return aud;
+                        }
+                    }
+                    return BrioAudio.getEmptyInstance();
+                },
+            };
+            const objects = callbackFn(assetsManipulationObject);
+            const gameObjects = objects.filter((object) => object instanceof BrioObject);
+            const gameMaps = objects.filter((object) => object instanceof BrioMap);
+            const gameCameras = objects.filter((object) => object instanceof BrioCamera);
+            gameObjects.forEach((gameObject) => {
+                // prettier-ignore
+                if (gameObject.transform.size.x <= 0 && gameObject.transform.size.y <= 0) {
+                    const sprite = this.#assets.sprites.get(gameObject.sprite) ?? BrioSprite.getEmptyInstance();
+                    gameObject.transform.size.x = sprite.size.x;
+                    gameObject.transform.size.y = sprite.size.y;
+                }
+                this.#assets.objects.set(gameObject.name, gameObject);
+            });
+            gameMaps.forEach((gameMap) => {
+                this.#assets.maps.set(gameMap.name, gameMap);
+            });
+            gameCameras.forEach((gameCamera) => {
+                this.#assets.cameras.set(gameCamera.name, gameCamera);
+            });
+            this.createSnapshot();
+            this.#console.out("info", "Load step complete!");
+        });
+        return this;
+    }
+    /**
+     * A method that loops through given logic inside it many times per second, be it for
+     * changing BrioObject coordinates or checking if a key was pressed.
+     * @param callbackFn A callback function that passes, by param, an object for game objects manipulation and the time elapsed since the last frame (delta time)
+     * @param callbackFn.updater An object providing methods to manipulate game objects and work around the update loop
+     * @param callbackFn.deltaTime The time elapsed since the last frame, in seconds, used for frame-rate independent updates
+     *
+     * @example game.update((updater, dt) => {
+     * const obj_player = updater.loaded("obj_player"); // returns the BrioObject for Player
+     *
+     * if(game.keyboard.isDown("ArrowUp")) {
+     * obj_player.pos.y += -300 * dt; // makes the player go up (multiplying it by DeltaTime for FPS consistency)
+     * }});
+     */
+    update(callbackFn) {
+        this.#lifecyclePromise = this.#lifecyclePromise.then(() => {
+            this.#currentState = GameState.UPDATE;
+            this.#updateIsRunning = true;
+            this.#console.out("info", "Update step started!");
+            // runs the update loop for the first time (so it can be paused and resumed after that)
+            this.#updateLoopLogic = (currentTime) => {
+                if (this.#currentState !== GameState.UPDATE) {
+                    return;
+                }
+                if (this.ctx) {
+                    this.ctx.clearRect(0, 0, this.#width, this.#height);
+                }
+                this.#assets.objects.forEach((gameObject) => {
+                    this.#renderer.clearObject(gameObject);
+                });
+                const deltaTime = (currentTime - this.#deltaTimePreviousTime) / 1000;
+                // -> debug PFS
+                this.#gameLastFPS = this.#renderer.gameLastFPS = 1 / deltaTime;
+                this.#renderDebuggingGrid();
+                // main callback call
+                callbackFn(this.#updater, deltaTime);
+                // #region PRIMITIVE-LAYER-RENDERING
+                const objects = Array.from(this.#assets.objects.values());
+                objects.sort((a, b) => a.transform.layer - b.transform.layer);
+                for (let i = 0; i < objects.length; ++i) {
+                    this.#renderer.renderObject(objects[i]);
+                }
+                // #endregion PRIMITIVE-LAYER-RENDERING
+                this.#renderDebuggingHelpers();
+                // storing the keyboard prev state before it changes
+                this.#keyboardPrevState.clear();
+                for (const state of this.#keyboardState) {
+                    this.#keyboardPrevState.set(state[0], state[1]);
+                }
+                this.#deltaTimePreviousTime = currentTime;
+                if (this.#updateLoopLogic) {
+                    this.#updateFrameId = requestAnimationFrame(this.#updateLoopLogic);
+                }
+            };
+            requestAnimationFrame(this.#updateLoopLogic);
+        });
+        return this;
+    }
+    // #endregion --> GAME-STATES
+    // #region --> METHODS
+    #renderDebuggingGrid() {
+        const render = this.#renderer;
+        const renderConfig = this.#debugger.render;
+        const gridWidth = renderConfig.grid.width;
+        const gridHeight = renderConfig.grid.height;
+        if (renderConfig.grid.enabled)
+            render.renderGrid(gridWidth ?? 32, gridHeight ?? 32);
+        if (renderConfig.grid.showAxisRulers)
+            render.renderAxisRulers();
+    }
+    #renderDebuggingHelpers() {
+        const render = this.#renderer;
+        const renderConfig = this.#debugger.render;
+        if (renderConfig.showRenderBounds)
+            render.renderBounds();
+        if (renderConfig.showCollisionBounds)
+            render.renderCollisions();
+        if (renderConfig.fpsOverlay.enabled) {
+            const overlay = renderConfig.fpsOverlay;
+            render.renderFPSOverlay(overlay.position, overlay.offset, overlay.size, overlay.backgroundColor, overlay.textColor);
+        }
+    }
+    /**
+     * INTERNAL METHODS -----------------------------------------------------------------
+     */
+    createSnapshot() {
+        this.#assets.objects.forEach((object, key) => {
+            this.#cachedObjects.set(key, JSON.stringify(object));
+        });
+        this.#assets.sprites.forEach((sprite, key) => {
+            this.#cachedSprites.set(key, JSON.stringify(sprite));
+        });
+    }
+    useSnapshot() {
+        for (const [key, object] of this.#cachedObjects) {
+            if (!this.#assets.objects.has(key)) {
+                //this.#assets.objects.delete(key);
+                break;
+            }
+            this.#assets.objects.set(key, JSON.parse(object));
+        }
+    }
+    /**
+     * EXTERNAL METHODS -----------------------------------------------------------------
+     */
+    createCheckPoint() {
+        this.cachedObjects.set("objects", new Map());
+        this.#assets.objects.forEach((object, id) => {
+            this.cachedObjects.get("objects")?.set(id, object);
+        });
+        this.cachedObjects.set("sprites", this.#assets.sprites);
+        this.cachedObjects.set("audios", this.#assets.audios);
+        this.cachedObjects.set("cameras", this.#assets.cameras);
+        this.cachedObjects.set("maps", this.#assets.maps);
+        if (!this.#cacheExists)
+            this.#cacheExists = true;
+    }
+    /**
+     * Pauses the game.
+     *
+     * @example game.useKeyboard(); // enables the keyboard
+     * game.keyboard.globalCustomEvents.set("Escape", () => {
+     *
+     * if(game.isRunning) game.pause(); // pausing the game
+     * else game.resume(); // resuming the game
+     * });
+     */
+    pause() {
+        if (this.#updateIsRunning) {
+            this.#currentState = GameState.UNSET;
+            this.#updateIsRunning = false;
+            cancelAnimationFrame(this.#updateFrameId);
+            this.#console.out("info", "Game stopped!");
+        }
+    }
+    /**
+     * Resumes the game.
+     *
+     * @example game.useKeyboard(); // enables the keyboard
+     * game.keyboard.globalCustomEvents.set("Escape", () => {
+     *
+     * if(game.isRunning) game.pause(); // pausing the game
+     * else game.resume(); // resuming the game
+     * });
+     */
+    resume() {
+        if (!this.#updateIsRunning) {
+            this.#currentState = GameState.UPDATE;
+            this.#updateIsRunning = true;
+            if (this.#updateLoopLogic) {
+                requestAnimationFrame(this.#updateLoopLogic);
+            }
+            this.#console.out("info", "Game resumed!");
+        }
+    }
+    /**
+     * Ends the game, cleaning listeners and game data in the current run.
+     * @example game.update((updater, dt) => {
+     * // game logic
+     *
+     * if(gameReachedEndGoal) game.end();
+     * });
+     */
+    end() {
+        // disabling logs to prevent error messages
+        this.#console.enabled = false;
+        // pausing the game update loop
+        this.pause();
+        // removing listener
+        if (this.#keyboardInstance) {
+            this.#keyboardInstance?.removeListener();
+        }
+        // clearing data
+        this.#assets.audios.clear();
+        this.#assets.cameras.clear();
+        this.#assets.maps.clear();
+        this.#assets.objects.clear();
+        this.#assets.sprites.clear();
+        this.#keyboardState.clear();
+        this.#loggedErros.clear();
+        this.#console.out("info", "Game ended!");
+    }
+    restart() {
+        // restart logic
+    }
+    removeObject(targetObject) {
+        let objectExists = false;
+        if (targetObject instanceof BrioSprite && this.#assets.sprites.has(targetObject.name)) {
+            objectExists = true;
+            this.#assets.sprites.delete(targetObject.name);
+        }
+        else if (targetObject instanceof BrioObject &&
+            this.#assets.objects.has(targetObject.name)) {
+            objectExists = true;
+            this.#assets.objects.delete(targetObject.name);
+        }
+        if (this.ctx && objectExists && targetObject) {
+            this.#renderer.clearObject(targetObject);
+        }
+        if (objectExists) {
+            this.#console.out("warn", `${targetObject.name} was removed from the scene!`);
+        }
+    }
+    outbound(targetObject, screenThreshold = 1, callbackFn) {
+        if (!targetObject) {
+            return;
+        }
+        let auxWidth = screenThreshold !== 1 ? this.#width : 0;
+        let auxHeight = screenThreshold !== 1 ? this.#width : 0;
+        if (targetObject.transform.position.x > this.#width * screenThreshold ||
+            targetObject.transform.position.x + targetObject.transform.size.x * this.#scale <
+                0 * auxWidth * screenThreshold ||
+            targetObject.transform.position.y > this.#height * screenThreshold ||
+            targetObject.transform.position.y + targetObject.transform.size.y * this.#scale <
+                0 * auxHeight * screenThreshold) {
+            // this.stopGame();
+            // this.removeObject(targetObject);
+            if (callbackFn) {
+                callbackFn();
+            }
+            else {
+                this.pause();
+            }
+        }
+    }
+    instantiate(targetObject) {
+        BrioObject.instanceOfObject = true;
+        // prettier-ignore
+        const registeredObject = this.#assets.objects.get(targetObject.name) ?? BrioObject.getEmptyInstance();
+        // cloning object
+        const newObject = new BrioObject(`${registeredObject.name}-${registeredObject.clonesInstantiatedValue + 1}`, registeredObject.sprite, registeredObject.transform.layer);
+        newObject.transform.size.x = registeredObject.transform.size.x;
+        newObject.transform.size.y = registeredObject.transform.size.y;
+        // increasing the amount of clones created
+        registeredObject.clonesInstantiatedValue = 1;
+        // cloning collider
+        if (registeredObject.collision) {
+            newObject.addCollisionMask(registeredObject.collision.shape, registeredObject.collision.colliderType, registeredObject.collision.pos.x, registeredObject.collision.pos.y, registeredObject.collision.size.x, registeredObject.collision.size.y);
+        }
+        // setting an id
+        newObject.instanceId = targetObject.clonesInstantiatedValue;
+        // add instantiated object to map
+        if (!this.#assets.objects.has(newObject.name)) {
+            this.#assets.objects.set(newObject.name, newObject);
+        }
+        BrioObject.instanceOfObject = false;
+        return newObject;
+    }
+    destroy(targetObject) {
+        if (this.#assets.objects.has(targetObject.name)) {
+            this.#assets.objects.delete(targetObject.name);
+        }
+        if (this.#assets.sprites.has(targetObject.sprite)) {
+            this.#renderer.clearObject(targetObject);
+            this.#assets.sprites.delete(targetObject.name);
+        }
+    }
+    isColliding(obj1, obj2) {
+        let result = false;
+        if (!obj1.collision || !obj2.collision) {
+            console.info("not");
+            return false;
+        }
+        if (obj1.transform.position.x <= obj2.transform.position.x + obj2.collision.size.x &&
+            obj1.transform.position.x + obj1.collision.size.x >= obj2.transform.position.x &&
+            obj1.transform.position.y <= obj2.transform.position.y + obj2.collision.size.y &&
+            obj1.transform.position.y + obj1.collision.size.y >= obj2.transform.position.y) {
+            result = true;
+        }
+        return result;
+    }
+    translate(px, py) {
+        if (this.ctx) {
+            this.ctx.setTransform(1, 0, 0, 1, px, py);
+        }
+    }
+    // -> GAME UTILITIES
+    /** Automatically resizes the game screen into Fullscreen Mode using an EventListener */
+    useFullScreen() {
+        window.addEventListener("load", () => {
+            this.#canvas.width = window.innerWidth;
+            this.#canvas.height = window.innerHeight;
+        });
+    }
+    /** Clears the entire canvas context. Beware of things that you don't want to clear! */
+    useClearScreen() {
+        if (this.ctx) {
+            this.ctx.reset();
+        }
+    }
+    useKeyboard() {
+        this.#keyboardInstance = new BrioKeyboard(this.#keyboardState, this.#keyboardPrevState, this.#console);
+        this.#keyboardEnabled = true;
+    }
+    useGamepad() {
+        window.addEventListener("gamepadconnected", (event) => {
+            this.#console.out("log", `gamepadconnected ${event}.`);
+        });
+        window.addEventListener("gamepaddisconnected", (event) => {
+            this.#console.out("log", `gamepadisconnnected ${event}.`);
+        });
+    }
+}
