@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrioJS - Apresentação Plano de Negócios (IFPR)</title>
+    <meta name="description" content="Slide deck interativo sobre o Plano de Negócios do BrioJS para o IFPR Campus Colombo.">
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Background grid & glow effects -->
+    <div class="bg-glow-container">
+        <div class="glow glow-1"></div>
+        <div class="glow glow-2"></div>
+        <div class="glow glow-3"></div>
+    </div>
+    <div class="grid-overlay"></div>
+
+    <!-- Main Slides Container (Strict 16:9 Aspect Ratio) -->
+    <main class="presentation-container">
+        <!-- Progress bar -->
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <!-- Slide Navigation Controls -->
+        <div class="nav-controls">
+            <button class="nav-btn" id="prevBtn" aria-label="Slide Anterior">
+                <i data-lucide="chevron-left"></i>
+            </button>
+            <span class="slide-counter"><span id="currentSlideNum">1</span> / <span id="totalSlidesNum">7</span></span>
+            <button class="nav-btn" id="nextBtn" aria-label="Próximo Slide">
+                <i data-lucide="chevron-right"></i>
+            </button>
+        </div>
+
+        <!-- Slide 1: Cover -->
+        <section class="slide active" id="slide-1" data-slide-index="1">
+            <div class="slide-content cover-slide">
+                <div class="brand-badge">
+                    <span class="badge-dot"></span>
+                    TCC - TADS IFPR COLOMBO
+                </div>
+                
+                <div class="cover-hero">
+                    <img src="assets/mascot.png" alt="Mascote BrioJS Capivara" class="mascot-img">
+                    <div class="cover-title-group">
+                        <h1 class="main-title">BrioJS</h1>
+                        <p class="subtitle">Uma Plataforma Intermediária para o Aprendizado de Desenvolvimento de Jogos</p>
+                    </div>
+                </div>
+
+                <div class="cover-details">
+                    <div class="students-card">
+                        <h3>Acadêmicos</h3>
+                        <p>Gustavo Luiz Gregorio</p>
+                        <p>Lucas Bigliardi Vicente</p>
+                    </div>
+                    <div class="advisor-card">
+                        <h3>Orientadora</h3>
+                        <p>Profª. Carine Azevedo Dantas</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 2: O Problema (A Lacuna) -->
+        <section class="slide" id="slide-2" data-slide-index="2">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2>O Problema: O Vácuo Educacional</h2>
+                    <p>A transição complexa que desmotiva novos desenvolvedores</p>
+                </div>
+
+                <!-- Native HTML/CSS/JS Flowchart of Learning Path -->
+                <div class="learning-path-flow">
+                    <!-- Column 1: Scratch -->
+                    <div class="flow-node-card scratch-theme">
+                        <div class="node-header">
+                            <i data-lucide="blocks"></i>
+                            <h3>Visual Coding (Scratch)</h3>
+                        </div>
+                        <ul class="node-bullets">
+                            <li>Facilidade extrema (no-code)</li>
+                            <li>Lógica de blocos e drag & drop</li>
+                            <li>Ausência de sintaxe real</li>
+                        </ul>
+                        <div class="node-badge">Foco: Lógica Inicial</div>
+                    </div>
+
+                    <!-- Arrow 1 -->
+                    <div class="flow-connector">
+                        <i data-lucide="arrow-right" class="connector-arrow"></i>
+                        <span class="connector-label red-glow">VÁCUO</span>
+                    </div>
+
+                    <!-- Column 2: BrioJS -->
+                    <div class="flow-node-card brio-theme active-node">
+                        <div class="node-header">
+                            <i data-lucide="terminal"></i>
+                            <h3>BrioJS Engine</h3>
+                        </div>
+                        <ul class="node-bullets">
+                            <li>Código Real (TS/JS Vanilla)</li>
+                            <li>Renderização Canvas 2D nativa</li>
+                            <li>Abstração didática direta</li>
+                        </ul>
+                        <div class="node-badge highlight">Foco: Ponte de Transição</div>
+                    </div>
+
+                    <!-- Arrow 2 -->
+                    <div class="flow-connector">
+                        <i data-lucide="arrow-right" class="connector-arrow"></i>
+                        <span class="connector-label text-muted">TRANSIÇÃO</span>
+                    </div>
+
+                    <!-- Column 3: Unity -->
+                    <div class="flow-node-card professional-theme">
+                        <div class="node-header">
+                            <i data-lucide="cpu"></i>
+                            <h3>Engines Comerciais</h3>
+                        </div>
+                        <ul class="node-bullets">
+                            <li>Unity, Godot e Unreal</li>
+                            <li>Complexidade estrutural alta</li>
+                            <li>Sintaxe pesada (C# / C++)</li>
+                        </ul>
+                        <div class="node-badge">Foco: Mercado Real</div>
+                    </div>
+                </div>
+
+                <div class="persona-highlight">
+                    <div class="persona-avatar"><i data-lucide="user"></i></div>
+                    <div class="persona-text">
+                        <strong>Persona "Alexandre" (17-24 anos):</strong> Desmotiva-se com a barreira técnica de setups pesados. O BrioJS atua como a ponte ideal de código livre e in-browser.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 3: A Solução (BrioJS) -->
+        <section class="slide" id="slide-3" data-slide-index="3">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2>A Solução: BrioJS</h2>
+                    <p>Facilidade, acessibilidade e foco didático direto no navegador</p>
+                </div>
+
+                <!-- Splitted grid layout with larger preview browser -->
+                <div class="solution-split-grid">
+                    <!-- Left features list stack -->
+                    <div class="solution-cards-stack">
+                        <div class="glass-card solution-card-item">
+                            <div class="solution-card-header">
+                                <i data-lucide="globe" class="icon-cyan"></i>
+                                <h3>Roda 100% no Navegador</h3>
+                            </div>
+                            <p>Sem processos de instalação ou setups complexos de compilação.</p>
+                        </div>
+                        <div class="glass-card solution-card-item">
+                            <div class="solution-card-header">
+                                <i data-lucide="code-2" class="icon-cyan"></i>
+                                <h3>Sintaxe Real</h3>
+                            </div>
+                            <p>Utilização nativa de JS e TypeScript para preparar o aluno para a web.</p>
+                        </div>
+                        <div class="glass-card solution-card-item">
+                            <div class="solution-card-header">
+                                <i data-lucide="award" class="icon-cyan"></i>
+                                <h3>Didática Direta</h3>
+                            </div>
+                            <p>Reforça boas práticas de orientação a objetos, pooling e loops.</p>
+                        </div>
+                    </div>
+
+                    <!-- Right big browser preview card -->
+                    <div class="preview-browser-card">
+                        <div class="preview-browser-header">
+                            <span class="dot red"></span>
+                            <span class="dot yellow"></span>
+                            <span class="dot green"></span>
+                            <span class="file-name">BrioJS Editor Mockup</span>
+                        </div>
+                        <div class="preview-browser-content">
+                            <img src="assets/solution.png" alt="Preview da Engine BrioJS" class="preview-browser-img">
+                        </div>
+                        <div class="preview-browser-footer">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 4: Arquitetura & Ciclo de Vida -->
+        <section class="slide" id="slide-4" data-slide-index="4">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2>Ciclo de Vida da Aplicação BrioJS</h2>
+                    <p>Do código escrito ao loop ativo de renderização no navegador</p>
+                </div>
+
+                <div class="lifecycle-flowchart-container">
+                    <div class="lifecycle-track">
+                        <!-- Step 1 -->
+                        <div class="lifecycle-node node-step-1">
+                            <div class="node-number">01</div>
+                            <div class="node-icon text-blue"><i data-lucide="code-2"></i></div>
+                            <h3>1. Setup & Inicialização</h3>
+                            <p>Instanciação do motor com <code>new BrioGame()</code>, vinculação do Canvas ao DOM e carregamento dos módulos de depuração.</p>
+                            <div class="node-code">new BrioGame()</div>
+                        </div>
+
+                        <!-- Arrow 1 -->
+                        <div class="flowchart-arrow">
+                            <i data-lucide="chevron-right"></i>
+                        </div>
+
+                        <!-- Step 2 -->
+                        <div class="lifecycle-node node-step-2">
+                            <div class="node-number">02</div>
+                            <div class="node-icon text-cyan"><i data-lucide="download-cloud"></i></div>
+                            <h3>2. Preload Assíncrono</h3>
+                            <p>Carregamento assíncrono de mídias (sprites, áudios e atlas) através de Promises para garantir integridade física.</p>
+                            <div class="node-code">game.preload()</div>
+                        </div>
+
+                        <!-- Arrow 2 -->
+                        <div class="flowchart-arrow">
+                            <i data-lucide="chevron-right"></i>
+                        </div>
+
+                        <!-- Step 3 -->
+                        <div class="lifecycle-node node-step-3">
+                            <div class="node-number">03</div>
+                            <div class="node-icon text-yellow"><i data-lucide="box"></i></div>
+                            <h3>3. Load & Entidades</h3>
+                            <p>Instanciação de entidades do jogo (<code>BrioObject</code>), carregamento de mapas e registro do estado inicial do loop.</p>
+                            <div class="node-code">game.load()</div>
+                        </div>
+
+                        <!-- Arrow 3 -->
+                        <div class="flowchart-arrow">
+                            <i data-lucide="chevron-right"></i>
+                        </div>
+
+                        <!-- Step 4 -->
+                        <div class="lifecycle-node node-step-4">
+                            <div class="node-number">04</div>
+                            <div class="node-icon text-purple"><i data-lucide="refresh-cw" class="spin-slow"></i></div>
+                            <h3>4. Game Loop (60 FPS)</h3>
+                            <p>Execução lógica controlada via <code>requestAnimationFrame</code>. Atualização de deltaTime, inputs de teclado e colisões AABB.</p>
+                            <div class="node-code">game.update()</div>
+                        </div>
+
+                        <!-- Arrow 4 -->
+                        <div class="flowchart-arrow">
+                            <i data-lucide="chevron-right"></i>
+                        </div>
+
+                        <!-- Step 5 -->
+                        <div class="lifecycle-node node-step-5">
+                            <div class="node-number">05</div>
+                            <div class="node-icon text-green"><i data-lucide="monitor"></i></div>
+                            <h3>5. Render (Desenho)</h3>
+                            <p>Limpeza de buffers do Canvas Context 2D e desenho em tela ordenado por camadas (layering de profundidade).</p>
+                            <div class="node-code">renderer.clearObject() / renderObject()</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 5: Análise SWOT do Projeto -->
+        <section class="slide" id="slide-5" data-slide-index="5">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2>Análise SWOT Educacional</h2>
+                    <p>Posicionamento do BrioJS frente ao cenário acadêmico</p>
+                </div>
+
+                <div class="swot-grid">
+                    <!-- Strengths -->
+                    <div class="swot-card s">
+                        <div class="swot-letter">S</div>
+                        <div class="swot-info">
+                            <h4>Forças (Strengths)</h4>
+                            <ul>
+                                <li>Código aberto (Open Source)</li>
+                                <li>Execução leve in-browser</li>
+                                <li>Baixa barreira técnica inicial</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Weaknesses -->
+                    <div class="swot-card w">
+                        <div class="swot-letter">W</div>
+                        <div class="swot-info">
+                            <h4>Fraquezas (Weaknesses)</h4>
+                            <ul>
+                                <li>Estágio inicial de maturidade</li>
+                                <li>Comunidade pequena em formação</li>
+                                <li>Módulos 3D não implementados</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Opportunities -->
+                    <div class="swot-card o">
+                        <div class="swot-letter">O</div>
+                        <div class="swot-info">
+                            <h4>Oportunidades (Opportunities)</h4>
+                            <ul>
+                                <li>Adoção em Escolas e IFs</li>
+                                <li>Parcerias para laboratórios básicos</li>
+                                <li>Minicursos de capacitação didática</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Threats -->
+                    <div class="swot-card t">
+                        <div class="swot-letter">T</div>
+                        <div class="swot-info">
+                            <h4>Ameaças (Threats)</h4>
+                            <ul>
+                                <li>Monopólio de engines comerciais (Unity, Unreal, Godot)</li>
+                                <li>Evolução de ferramentas no-code</li>
+                                <li>Velocidade de novas APIs web</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 6: Sustentabilidade e Futuro -->
+        <section class="slide" id="slide-6" data-slide-index="6">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2>Sustentabilidade e Modelo Futuro</h2>
+                    <p>Foco social inicial e expansão sustentável pós-penetração de mercado</p>
+                </div>
+
+                <div class="slide-6-body-container">
+                    <!-- Full-width layout: top text and bottom flowchart -->
+                    <div class="slide-6-top-info">
+                        <div class="model-left-panel">
+                            <div class="focus-badge">FILOSOFIA DO NEGÓCIO</div>
+                            <h3>Impacto Social e Científico</h3>
+                            <p class="highlight-text">O BrioJS é open-source e gratuito. O foco inicial e a médio prazo é puramente didático e acadêmico, resolvendo problemas de hardware e licenças em laboratórios de informática de salas de aula públicas.</p>
+                        </div>
+                        
+                        <div class="opportunity-flow-box">
+                            <div class="opp-box-header">
+                                <i data-lucide="trending-up"></i>
+                                <span>Potencial de Ecossistema</span>
+                            </div>
+                            <p>Havendo penetração na rede de ensino, o motor atua como fundação para a criação de serviços de valor agregado baseados na comunidade.</p>
+                        </div>
+                    </div>
+
+                    <!-- Native HTML/CSS Tree diagram of Sustainable Business Model (horizontal/below) -->
+                    <div class="slide-6-bottom-tree">
+                        <div class="business-flow-tree">
+                            <!-- Root Level -->
+                            <div class="tree-root-node">
+                                <div class="tree-card root-card">
+                                    <i data-lucide="package-open"></i>
+                                    <div>
+                                        <h4>Plataforma Core</h4>
+                                        <p>Gratuito & Open-Source</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Main Vertical Trunk -->
+                            <div class="tree-trunk-line"></div>
+
+                            <!-- Branches Level -->
+                            <div class="tree-branches-row">
+                                <!-- Branch 1 (Left) -->
+                                <div class="tree-branch-column branch-left">
+                                    <div class="branch-connector"></div>
+                                    <div class="tree-card branch-card cyan-border">
+                                        <i data-lucide="cloud" class="text-cyan"></i>
+                                        <h5>SaaS de Editores de Código</h5>
+                                        <p>Visual workspace escolar para gerenciamento e exportação de turmas.</p>
+                                    </div>
+                                </div>
+                                <!-- Branch 2 (Middle) -->
+                                <div class="tree-branch-column branch-middle">
+                                    <div class="branch-connector"></div>
+                                    <div class="tree-card branch-card purple-border">
+                                        <i data-lucide="bot" class="text-purple"></i>
+                                        <h5>Assistentes Empresariais Baseado em IA</h5>
+                                        <p>Tutor inteligente de código baseado em inteligência artificial pedagógica.</p>
+                                    </div>
+                                </div>
+                                <!-- Branch 3 (Right) -->
+                                <div class="tree-branch-column branch-right">
+                                    <div class="branch-connector"></div>
+                                    <div class="tree-card branch-card yellow-border">
+                                        <i data-lucide="award" class="text-yellow"></i>
+                                        <h5>Cursos & Certificações</h5>
+                                        <p>Treinamentos especializados e planos de aula estruturados para docentes.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 7: Conclusão -->
+        <section class="slide" id="slide-7" data-slide-index="7">
+            <div class="slide-content cover-slide conclusion-slide">
+                <div class="brand-badge">
+                    <span class="badge-dot green"></span>
+                    CONCLUSÃO & CIÊNCIA
+                </div>
+
+                <h2 class="concl-title">Design Science Research (DSR)</h2>
+                <p class="concl-desc">O BrioJS consolida-se como um artefato prático de impacto educacional, buscando ser validado sob metodologia de pesquisa acadêmica.</p>
+
+                <!-- More detailed roadmap section -->
+                <div class="next-steps-container">
+                    <h3>Próximos Passos & Expansão de Produto:</h3>
+                    <div class="steps-row">
+                        <div class="glass-card step-card-detail">
+                            <div class="step-card-header text-green">
+                                <i data-lucide="beaker"></i>
+                                <h4>Validação Científica</h4>
+                            </div>
+                            <p>Testes comparativos de usabilidade com turmas de ensino técnico do IFPR Colombo para validar o aprendizado cognitivo.</p>
+                        </div>
+                        <div class="glass-card step-card-detail">
+                            <div class="step-card-header text-blue">
+                                <i data-lucide="box"></i>
+                                <h4>Expansão 3D Avançada</h4>
+                                <span class="hot-badge">WebGL/WebGPU</span>
+                            </div>
+                            <p>Portabilidade gráfica de renderização tridimensional de alta performance sem depender de motores comerciais pesados.</p>
+                        </div>
+                        <div class="glass-card step-card-detail">
+                            <div class="step-card-header text-purple">
+                                <i data-lucide="bot"></i>
+                                <h4>brio-agent Integrado</h4>
+                                <span class="new-badge">RAG / Skills</span>
+                            </div>
+                            <p>Evolução de copiloto autônomo baseado em manifestos locais do projeto e indexação semântica de memória vetorial.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="thanks-section">
+                    <h2>Obrigado!</h2>
+                    <p>Perguntas e Discussão</p>
+                    <div class="credits">Gustavo Luiz Gregorio & Lucas Bigliardi Vicente</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
