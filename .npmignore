@@ -12,3 +12,6 @@ tsconfig.json
 
 # test files
 demo/
+
+# temp folder
+temp/

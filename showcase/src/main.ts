@@ -569,11 +569,15 @@ function initUI() {
         <span class="logo-symbol">BrioJS</span>
       </a>
       <nav class="nav-links">
-        <span class="nav-link ${activeTab === 'landing' ? 'active' : ''}" id="nav-landing">Apresentação</span>
-        <span class="nav-link ${activeTab === 'playground' ? 'active' : ''}" id="nav-playground">Playground</span>
-        <button class="btn-primary" id="header-btn-action">
-          ${activeTab === 'landing' ? 'Testar Agora <i class="fa-solid fa-rocket"></i>' : 'Executar Jogo <i class="fa-solid fa-gamepad"></i>'}
-        </button>
+        ${activeTab === 'landing' ? `
+          <span class="nav-link active" id="nav-landing">Apresentação</span>
+          <span class="nav-link" id="nav-playground">Playground</span>
+          <button class="btn-primary" id="header-btn-action">Testar Agora <i class="fa-solid fa-rocket"></i></button>
+        ` : `
+          <button class="btn-secondary" id="nav-back-landing" style="padding: 0.35rem 0.85rem; font-size: 0.8rem; cursor: pointer;">
+            <i class="fa-solid fa-arrow-left"></i> Voltar
+          </button>
+        `}
       </nav>
     </header>
     
@@ -597,13 +601,8 @@ function initUI() {
 
   document.getElementById('nav-landing')?.addEventListener('click', () => switchView('landing'));
   document.getElementById('nav-playground')?.addEventListener('click', () => switchView('playground'));
-  document.getElementById('header-btn-action')?.addEventListener('click', () => {
-    if (activeTab === 'landing') {
-      switchView('playground');
-    } else {
-      runSandbox();
-    }
-  });
+  document.getElementById('nav-back-landing')?.addEventListener('click', () => switchView('landing'));
+  document.getElementById('header-btn-action')?.addEventListener('click', () => switchView('playground'));
 
   renderActiveView();
 }
@@ -633,9 +632,9 @@ function renderLandingView(container: HTMLElement) {
     <section class="container hero-section">
       <div class="hero-content">
         <div class="hero-badge">
-          <span><i class="fa-solid fa-graduation-cap"></i> Projeto Acadêmico de Conclusão - TADS IFPR</span>
+          <i class="fa-solid fa-graduation-cap"></i> Projeto Acadêmico de Conclusão • TADS IFPR
         </div>
-        <h1 class="hero-title">BrioJS: Uma <span class="text-gradient">Eficiente</span><br>Engine Gráfica 2D</h1>
+        <h1 class="hero-title">BrioJS: Uma Engine Gráfica 2D <span class="hero-title-highlight">Eficiente</span></h1>
         <p class="hero-description">
           Um motor de renderização 2D modular e didático desenvolvido em TypeScript puro sobre as APIs nativas do navegador. Projetado com zero dependências externas para oferecer alto desempenho estável a 60 FPS com excelente experiência de desenvolvimento.
         </p>
@@ -646,27 +645,39 @@ function renderLandingView(container: HTMLElement) {
       </div>
       <div class="hero-visual">
         <div class="mascot-hero-card">
-          <img class="mascot-img" src="/capibrio.png" alt="Mascote Capibrio">
-          <div class="mascot-caption">CAPIBRIO (Mascote Oficial)</div>
+          <div class="mascot-card-header">
+            <span>Mascote Oficial</span>
+            <div class="mascot-status-dot" title="Online"></div>
+          </div>
+          <div class="mascot-display-area">
+            <img class="mascot-img" src="/capibrio.png" alt="Mascote Capibrio">
+            <div class="mascot-caption">Capibrio</div>
+          </div>
+          <div class="mascot-tags">
+            <span>TypeScript</span> • <span>Canvas 2D</span> • <span>60 FPS</span>
+          </div>
         </div>
       </div>
     </section>
 
     <section class="container" id="features-section">
-      <h2 class="section-title">Engenharia e Arquitetura</h2>
+      <div class="section-header-block">
+        <div class="section-label">Estrutura Técnica</div>
+        <h2 class="section-title">Engenharia e Arquitetura</h2>
+      </div>
       <div class="features-grid">
         <div class="feature-card">
-          <div class="feature-icon"><i class="fa-solid fa-rocket"></i></div>
+          <div class="feature-icon-wrapper"><i class="fa-solid fa-rocket"></i></div>
           <h3>Arquitetura Vanilla</h3>
           <p>Construída de forma nativa em TypeScript utilizando a HTML5 Canvas 2D e Web Audio API, assegurando um runtime ultraleve e livre de dependências externas.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+          <div class="feature-icon-wrapper"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
           <h3>DX Estruturada</h3>
           <p>Documentação inline robusta (TSDoc) com exportação nativa de tipagens (.d.ts), garantindo suporte completo a autocomplete e IntelliSense estático.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon"><i class="fa-solid fa-ghost"></i></div>
+          <div class="feature-icon-wrapper"><i class="fa-solid fa-ghost"></i></div>
           <h3>Loop Determinístico</h3>
           <p>Gerenciamento de tempo via requestAnimationFrame (delta time independente de taxa de quadros), detecção de colisões AABB e utilitários de depuração.</p>
         </div>
@@ -674,12 +685,15 @@ function renderLandingView(container: HTMLElement) {
     </section>
 
     <section class="container" id="showcase-section">
-      <h2 class="section-title">Demonstrações e Casos de Uso</h2>
+      <div class="section-header-block">
+        <div class="section-label">Casos Práticos</div>
+        <h2 class="section-title">Demonstrações e Casos de Uso</h2>
+      </div>
       <div class="games-grid">
         <!-- Game 1 -->
         <div class="game-card" id="game-preset-capybounce">
           <div class="game-header">
-            <span class="game-preview-icon"><i class="fa-solid fa-table-tennis-paddle-ball"></i></span>
+            <div class="game-preview-icon"><i class="fa-solid fa-table-tennis-paddle-ball"></i></div>
           </div>
           <div class="game-card-content">
             <h3 class="game-title">CapyBounce (PONG)</h3>
@@ -693,7 +707,7 @@ function renderLandingView(container: HTMLElement) {
         <!-- Game 2 -->
         <div class="game-card" id="game-preset-invaders">
           <div class="game-header">
-            <span class="game-preview-icon"><i class="fa-solid fa-rocket"></i></span>
+            <div class="game-preview-icon"><i class="fa-solid fa-rocket"></i></div>
           </div>
           <div class="game-card-content">
             <h3 class="game-title">BrioInvaders</h3>
@@ -707,7 +721,7 @@ function renderLandingView(container: HTMLElement) {
         <!-- Game 3 -->
         <div class="game-card" id="game-preset-dash">
           <div class="game-header">
-            <span class="game-preview-icon"><i class="fa-solid fa-paw"></i></span>
+            <div class="game-preview-icon"><i class="fa-solid fa-paw"></i></div>
           </div>
           <div class="game-card-content">
             <h3 class="game-title">Barigui Dash</h3>

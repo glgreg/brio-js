@@ -1,0 +1,218 @@
+@font-face {
+    font-family: "PixelOperator";
+    src: url("./assets/fonts/PixelOperator8.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "PixelOperator";
+    src: url("./assets/fonts/PixelOperator8-Bold.ttf") format("truetype");
+    font-weight: bold;
+    font-style: normal;
+}
+
+:root {
+    --bg-color: #0b0c16;
+    --arcade-border: #444b6e;
+    --gold: #ffd700;
+    --heart-red: #ff3860;
+    --hud-bg: rgba(18, 20, 38, 0.85);
+    --btn-primary: #5c62d6;
+    --btn-primary-hover: #7b80ff;
+    --text-color: #f0f2f5;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: var(--bg-color);
+    font-family: "PixelOperator", monospace, sans-serif;
+    color: var(--text-color);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    user-select: none;
+    overflow: hidden;
+    padding: 12px;
+}
+
+.arcade_wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #161829;
+    padding: 14px;
+    border-radius: 12px;
+    border: 4px solid var(--arcade-border);
+    box-shadow:
+        0 10px 40px rgba(0, 0, 0, 0.8),
+        0 0 20px rgba(92, 98, 214, 0.2);
+    width: 100%;
+    max-width: 960px;
+}
+
+/* TOP ARCADE HUD */
+.hud_bar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--hud-bg);
+    border: 2px solid var(--arcade-border);
+    border-radius: 6px;
+    padding: 8px 16px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+
+.hud_section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.hud_label {
+    color: #9299b8;
+}
+
+.hud_value {
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.hud_value.gold {
+    color: var(--gold);
+}
+
+.hud_value.hearts {
+    color: var(--heart-red);
+}
+
+.btn_mute {
+    background: #252945;
+    color: var(--text-color);
+    border: 1px solid var(--arcade-border);
+    padding: 5px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn_mute:hover {
+    background: #373c66;
+    border-color: #7b80ff;
+}
+
+/* CANVAS CONTAINER */
+#game_container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.9);
+}
+
+#game_container canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* MODAL OVERLAY */
+.modal_overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(8, 10, 20, 0.88);
+    backdrop-filter: blur(4px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    transition: opacity 0.2s ease;
+}
+
+.modal_overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modal_card {
+    background: #1a1d33;
+    border: 3px solid var(--btn-primary);
+    border-radius: 8px;
+    padding: 24px 32px;
+    max-width: 500px;
+    text-align: center;
+    box-shadow:
+        0 12px 30px rgba(0, 0, 0, 0.9),
+        0 0 15px rgba(92, 98, 214, 0.4);
+}
+
+.modal_title {
+    font-size: 18px;
+    color: var(--gold);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.modal_message {
+    font-size: 11px;
+    line-height: 1.8;
+    color: #d1d5e6;
+    margin-bottom: 20px;
+    white-space: pre-line;
+}
+
+.modal_button {
+    background: var(--btn-primary);
+    color: #fff;
+    border: 2px solid #7b80ff;
+    padding: 10px 24px;
+    font-family: inherit;
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition:
+        transform 0.1s,
+        background 0.2s;
+}
+
+.modal_button:hover {
+    background: var(--btn-primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(92, 98, 214, 0.5);
+}
+
+.modal_button:active {
+    transform: translateY(0);
+}
+
+/* FOOTER INSTRUCTIONS */
+.footer_controls {
+    margin-top: 10px;
+    font-size: 10px;
+    color: #7b84a8;
+    letter-spacing: 0.5px;
+    text-align: center;
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Mepi - Knight's Platformer (BrioJS)</title>
+        <link rel="stylesheet" href="./index.css" />
+        <script type="module" src="./main.js" defer></script>
+    </head>
+    <body>
+        <div class="arcade_wrapper">
+            <!-- TOP ARCADE HUD -->
+            <div class="hud_bar">
+                <div class="hud_section">
+                    <span class="hud_label">SCORE:</span>
+                    <span id="hud_score" class="hud_value">000000</span>
+                </div>
+                <div class="hud_section">
+                    <span class="hud_label">COINS:</span>
+                    <span id="hud_coins" class="hud_value gold">00</span>
+                </div>
+                <div class="hud_section">
+                    <span class="hud_label">LIVES:</span>
+                    <span id="hud_hearts" class="hud_value hearts">[<3] [<3] [<3]</span>
+                </div>
+                <div class="hud_section">
+                    <span class="hud_label">STAGE:</span>
+                    <span id="hud_level" class="hud_value">Green Meadows</span>
+                </div>
+                <button id="btn_mute" class="btn_mute">Sound: ON</button>
+            </div>
+
+            <!-- CANVAS SCREEN SANDBOX -->
+            <div id="game_container">
+                <!-- MODAL DIALOGS (Start, Level Clear, Game Over, Pause) -->
+                <div id="modal_overlay" class="modal_overlay">
+                    <div class="modal_card">
+                        <h2 id="modal_title" class="modal_title">Mepi: Knight's Adventure</h2>
+                        <p id="modal_message" class="modal_message"></p>
+                        <button id="modal_button" class="modal_button">Start Adventure</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FOOTER CONTROLS HELPER -->
+            <div class="footer_controls">
+                <span
+                    >[A][D] / [ARROWS] Move &bull; [W] / [UP] / [SPACE] / [Z] Jump & Stomp &bull;
+                    [P] Pause &bull; [R] Restart</span
+                >
+            </div>
+        </div>
+    </body>
+</html>
