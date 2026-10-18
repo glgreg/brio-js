@@ -1,4 +1,4 @@
-import { BrioSprite, BrioUtils } from "../dist/index.js";
+import { BrioSprite, BrioUtils } from "../../dist/index.js";
 import { Entity } from "./Entity.js";
 
 /** @typedef {import("../src/math/index.ts").Vec2} Vec2 */

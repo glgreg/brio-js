@@ -12,3 +12,5 @@ export * as Quaternion from "./quat";
 
 export type { Mat4 } from "./mat4";
 export * as Matrix4 from "./mat4";
+
+export * as BrioMath from "./BrioMath";

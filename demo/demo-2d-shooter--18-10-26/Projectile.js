@@ -1,4 +1,4 @@
-import { BrioAudio, BrioObject, BrioSprite } from "../dist/index.js";
+import { BrioAudio, BrioObject, BrioSprite } from "../../dist/index.js";
 
 export class Projectile extends BrioObject {
     audio;

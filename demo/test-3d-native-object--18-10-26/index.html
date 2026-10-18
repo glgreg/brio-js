@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>BrioJS - 3D Native Objects, Snapshots and IndexedDB</title>
+        <link rel="stylesheet" href="./style.css" />
+        <script type="module" src="./app.js" defer></script>
+    </head>
+    <body>
+        <div id="app_root">
+            <header id="app_header">
+                <div class="header-left">
+                    <h1>BrioJS</h1>
+                    <span class="badge">3D Engine & Storage Demo</span>
+                    <span class="tag">Scope: test-3d-native-object</span>
+                    <span class="tag">Date: 18-10-26</span>
+                </div>
+                <div class="header-right">
+                    <span id="fps_display">FPS: --</span>
+                    <span id="delta_display">dt: --ms</span>
+                </div>
+            </header>
+
+            <main id="app_main">
+                <div id="viewport_panel">
+                    <div id="canvas_container">
+                        <canvas id="brio_3d_canvas" width="960" height="540"></canvas>
+                    </div>
+                    <div id="viewport_overlay">
+                        <div class="overlay-item">
+                            <span class="label">Camera:</span>
+                            <span id="cam_info">X: 0.0, Y: 4.0, Z: 12.0</span>
+                        </div>
+                        <div class="overlay-item">
+                            <span class="label">3D Objects:</span>
+                            <span id="obj_count_info">--</span>
+                        </div>
+                        <div class="overlay-item">
+                            <span class="label">ECS Entities:</span>
+                            <span id="ecs_info">Active: -- | HighWater: --</span>
+                        </div>
+                    </div>
+                </div>
+
+                <aside id="controls_sidebar">
+                    <section class="control-card">
+                        <h2>3D Scene Controls</h2>
+                        <div class="button-group">
+                            <button id="btn_spawn_cube" class="btn primary">Spawn Random 3D Cube</button>
+                            <button id="btn_toggle_wireframe" class="btn secondary">Toggle Wireframe</button>
+                            <button id="btn_reset_scene" class="btn danger">Reset 3D Scene</button>
+                        </div>
+                        <div class="control-row">
+                            <label for="slider_orbit_speed">Orbit Speed</label>
+                            <input type="range" id="slider_orbit_speed" min="0" max="200" value="50" />
+                            <span id="orbit_speed_val">50%</span>
+                        </div>
+                        <div class="control-row">
+                            <label for="slider_cam_distance">Camera Distance</label>
+                            <input type="range" id="slider_cam_distance" min="5" max="30" value="14" />
+                            <span id="cam_distance_val">14</span>
+                        </div>
+                        <div class="toggle-row">
+                            <label><input type="checkbox" id="chk_auto_rotate" checked /> Auto-Rotate Orbit</label>
+                            <label><input type="checkbox" id="chk_pulse_scale" checked /> BrioMath Smoothstep Pulse</label>
+                        </div>
+                    </section>
+
+                    <section class="control-card">
+                        <h2>BrioMath Telemetry (Real-time)</h2>
+                        <div class="telemetry-grid">
+                            <div class="telem-item">
+                                <span class="telem-name">smoothstep(sin, -1, 1)</span>
+                                <span class="telem-val" id="math_smoothstep">--</span>
+                            </div>
+                            <div class="telem-item">
+                                <span class="telem-name">wrap(angle, 0, 360)</span>
+                                <span class="telem-val" id="math_wrap">-- deg</span>
+                            </div>
+                            <div class="telem-item">
+                                <span class="telem-name">remap(cos, -1, 1, 0.4, 1.0)</span>
+                                <span class="telem-val" id="math_remap">--</span>
+                            </div>
+                            <div class="telem-item">
+                                <span class="telem-name">degToRad(wrapAngle)</span>
+                                <span class="telem-val" id="math_rad">-- rad</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="control-card">
+                        <h2>Snapshots & IndexedDB Persistence</h2>
+                        <div class="storage-actions">
+                            <div class="action-block">
+                                <h3>In-Memory Checkpoint</h3>
+                                <div class="button-group compact">
+                                    <button id="btn_mem_snapshot" class="btn action">Capture Snapshot</button>
+                                    <button id="btn_mem_restore" class="btn action">Restore Snapshot</button>
+                                </div>
+                            </div>
+
+                            <div class="action-block">
+                                <h3>IndexedDB Slot 1</h3>
+                                <div class="slot-info" id="slot1_info">Empty</div>
+                                <div class="button-group compact">
+                                    <button id="btn_idb_save_1" class="btn success">Save Slot 1</button>
+                                    <button id="btn_idb_load_1" class="btn secondary">Load Slot 1</button>
+                                </div>
+                            </div>
+
+                            <div class="action-block">
+                                <h3>IndexedDB Slot 2</h3>
+                                <div class="slot-info" id="slot2_info">Empty</div>
+                                <div class="button-group compact">
+                                    <button id="btn_idb_save_2" class="btn success">Save Slot 2</button>
+                                    <button id="btn_idb_load_2" class="btn secondary">Load Slot 2</button>
+                                </div>
+                            </div>
+
+                            <div class="action-block">
+                                <h3>Diagnostics & Export</h3>
+                                <div class="button-group compact">
+                                    <button id="btn_export_json" class="btn info">Inspect Snapshot JSON</button>
+                                    <button id="btn_idb_clear" class="btn danger">Clear All IndexedDB</button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="control-card log-card">
+                        <h2>Diagnostics & Operation Log</h2>
+                        <div id="log_output" class="log-console"></div>
+                    </section>
+                </aside>
+            </main>
+
+            <!-- Snapshot JSON Modal -->
+            <div id="modal_overlay" class="modal-overlay hidden">
+                <div class="modal-box">
+                    <div class="modal-header">
+                        <h3>ECS Snapshot JSON Export (BrioSerializer.toJSON)</h3>
+                        <button id="btn_close_modal" class="btn small">Close</button>
+                    </div>
+                    <pre id="modal_json_content" class="modal-body"></pre>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

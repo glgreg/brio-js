@@ -8,7 +8,7 @@ import {
     BrioMath,
     BrioAtlas,
     BrioCollision,
-} from "../dist/index.js";
+} from "../../dist/index.js";
 import { Enemy } from "./Enemy.js";
 import { Player } from "./Player.js";
 import { Projectile } from "./Projectile.js";

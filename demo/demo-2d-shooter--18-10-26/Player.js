@@ -1,5 +1,5 @@
-import { BrioGame, BrioSprite, BrioUtils } from "../dist/index.js";
-import { BrioObject } from "../dist/index.js";
+import { BrioGame, BrioSprite, BrioUtils } from "../../dist/index.js";
+import { BrioObject } from "../../dist/index.js";
 import { Entity } from "./Entity.js";
 import { Projectile } from "./Projectile.js";
 

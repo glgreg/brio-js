@@ -186,3 +186,19 @@ export function randomInt(min: number, max: number): number {
     return Math.floor(Math.random() * (floorMax - ceilMin + 1)) + ceilMin;
 }
 
+export const BrioMath = {
+    radToDeg,
+    degToRad,
+    clamp,
+    lerp,
+    inverseLerp,
+    remap,
+    smoothstep,
+    wrap,
+    approxEqual,
+    randomRange,
+    randomInt,
+};
+
+export default BrioMath;
+
