@@ -1,36 +1,80 @@
-import { BrioObject } from "../objects/BrioObject";
-import { CollisionColliderType, CollisionShapeType } from "../objects/BrioObject";
+import { BrioObject, CollisionColliderType } from "../objects/BrioObject";
 import { Vec2 } from "./index";
 
-type RectangleCollisionType = {
+/**
+ * Configuration object for attaching a rectangular AABB collider to a `BrioObject`.
+ */
+export type RectangleCollisionType = {
+    /** Target `BrioObject` that will receive the collider. */
     object: BrioObject;
+    /** Physical interaction mode (`"solid"` or `"trigger"`). */
     colliderType: CollisionColliderType;
+    /** Local offset `{ x, y }` relative to `object.transform.position`. */
     pos: Vec2;
+    /** Width (`x`) and height (`y`) of the rectangle in pixels. */
     size: Vec2;
 };
-type SquareCollisionType = {
+
+/**
+ * Configuration object for attaching a square AABB collider to a `BrioObject`.
+ */
+export type SquareCollisionType = {
+    /** Target `BrioObject` that will receive the collider. */
     object: BrioObject;
+    /** Physical interaction mode (`"solid"` or `"trigger"`). */
     colliderType: CollisionColliderType;
+    /** Local offset `{ x, y }` relative to `object.transform.position`. */
     pos: Vec2;
-    size: number;
-};
-type CircleCollisionType = {
-    object: BrioObject;
-    colliderType: CollisionColliderType;
-    pos: Vec2;
+    /** Side length of the square collider in pixels. */
     size: number;
 };
 
 /**
- * Provides 2D collision mask attachment and intersection testing (AABB and Circle).
+ * Configuration object for attaching a circular collider to a `BrioObject`.
+ */
+export type CircleCollisionType = {
+    /** Target `BrioObject` that will receive the collider. */
+    object: BrioObject;
+    /** Physical interaction mode (`"solid"` or `"trigger"`). */
+    colliderType: CollisionColliderType;
+    /** Local offset `{ x, y }` of the circle's top-left bounding box relative to `object.transform.position`. */
+    pos: Vec2;
+    /** Diameter of the circle collider in pixels (`radius = size / 2`). */
+    size: number;
+};
+
+/**
+ * Provides 2D collision mask attachment and narrow-phase intersection testing
+ * (Rectangle/Square vs Rectangle/Square, Circle vs Circle, and symmetric Circle vs Rectangle/Square).
+ *
+ * @example
+ * ```ts
+ * BrioCollision.addRectangle({
+ *     object: player,
+ *     colliderType: "solid",
+ *     pos: { x: 8, y: 4 },
+ *     size: { x: 48, y: 56 },
+ * });
+ *
+ * if (BrioCollision.isColliding(player, coin)) {
+ *     game.destroy(coin);
+ * }
+ * ```
  */
 export class BrioCollision {
     /**
-     * Tests whether two `BrioObject` instances with active collision masks are intersecting.
+     * Tests whether two `BrioObject` instances with active (`enabled: true`) collision masks are intersecting.
      * Supports Rectangle/Square vs Rectangle/Square, Circle vs Circle, and symmetric Circle vs Rectangle/Square.
+     *
      * @param one First game object
      * @param two Second game object
-     * @returns `true` if the two colliders intersect, otherwise `false`
+     * @returns `true` if the two colliders overlap, otherwise `false`
+     * @example
+     * ```ts
+     * if (BrioCollision.isColliding(enemy, projectile)) {
+     *     game.destroy(projectile);
+     * }
+     * ```
      */
     public static isColliding(one: BrioObject, two: BrioObject): boolean {
         if (!one.collision || !two.collision) return false;
@@ -44,11 +88,10 @@ export class BrioCollision {
                 const circleObj = oneShape === "circle" ? one : two;
                 const rectObj = oneShape === "circle" ? two : one;
 
-                const radius = Math.min(circleObj.collision!.size.x, circleObj.collision!.size.y) / 2;
-                const cx =
-                    circleObj.transform.position.x + circleObj.collision!.pos.x + radius;
-                const cy =
-                    circleObj.transform.position.y + circleObj.collision!.pos.y + radius;
+                const radius =
+                    Math.min(circleObj.collision!.size.x, circleObj.collision!.size.y) / 2;
+                const cx = circleObj.transform.position.x + circleObj.collision!.pos.x + radius;
+                const cy = circleObj.transform.position.y + circleObj.collision!.pos.y + radius;
 
                 const minX = rectObj.transform.position.x + rectObj.collision!.pos.x;
                 const maxX = minX + rectObj.collision!.size.x;
@@ -115,7 +158,21 @@ export class BrioCollision {
         }
     }
 
-    public static addSquare(configurationObject: SquareCollisionType) {
+    /**
+     * Attaches an enabled square AABB collider (`width === height === size`) to `configurationObject.object`.
+     *
+     * @param configurationObject Square collider configuration
+     * @example
+     * ```ts
+     * BrioCollision.addSquare({
+     *     object: crate,
+     *     colliderType: "solid",
+     *     pos: { x: 0, y: 0 },
+     *     size: 32,
+     * });
+     * ```
+     */
+    public static addSquare(configurationObject: SquareCollisionType): void {
         const config = configurationObject;
 
         config.object.collision = {
@@ -130,7 +187,21 @@ export class BrioCollision {
         };
     }
 
-    public static addRectangle(configurationObject: RectangleCollisionType) {
+    /**
+     * Attaches an enabled rectangular AABB collider to `configurationObject.object`.
+     *
+     * @param configurationObject Rectangle collider configuration
+     * @example
+     * ```ts
+     * BrioCollision.addRectangle({
+     *     object: enemy,
+     *     colliderType: "solid",
+     *     pos: { x: 6, y: 0 },
+     *     size: { x: 50, y: 64 },
+     * });
+     * ```
+     */
+    public static addRectangle(configurationObject: RectangleCollisionType): void {
         const config = configurationObject;
 
         config.object.collision = {
@@ -142,7 +213,21 @@ export class BrioCollision {
         };
     }
 
-    public static addCircle(configurationObject: CircleCollisionType) {
+    /**
+     * Attaches an enabled circular collider (`diameter = size`, `radius = size / 2`) to `configurationObject.object`.
+     *
+     * @param configurationObject Circle collider configuration
+     * @example
+     * ```ts
+     * BrioCollision.addCircle({
+     *     object: coin,
+     *     colliderType: "trigger",
+     *     pos: { x: 0, y: 0 },
+     *     size: 24,
+     * });
+     * ```
+     */
+    public static addCircle(configurationObject: CircleCollisionType): void {
         const config = configurationObject;
 
         config.object.collision = {
@@ -157,3 +242,4 @@ export class BrioCollision {
         };
     }
 }
+

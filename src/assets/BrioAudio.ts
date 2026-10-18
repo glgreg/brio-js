@@ -1,39 +1,64 @@
+/**
+ * Configures a custom starting timestamp (in seconds) for a named `BrioAudio` inside `BrioAudio.playTogether()`.
+ */
 export interface StartingTime {
+    /** Unique identifier (`audio.name`) of the target `BrioAudio`. */
     name: string;
+    /** Starting playback offset in seconds. */
     time: number;
 }
-type IterationTypes = "once" | "many" | "loop";
 
-interface PlayTogetherConfig {
-    /** The iteration type used ("once", "loop", "many") */
+/**
+ * Playback iteration modes supported by `BrioAudio.playTogether()`.
+ */
+export type IterationTypes = "once" | "many" | "loop";
+
+/**
+ * Configuration options for `BrioAudio.playTogether()`.
+ */
+export interface PlayTogetherConfig {
+    /** Playback iteration mode (`"once"`, `"loop"`, or `"many"`). Defaults to `"once"`. */
     iterationType?: IterationTypes;
-    /** The quantity of iterations when using iterationType: "many" */
+    /** Number of sequential repetitions when `iterationType` is `"many"`. */
     iterationQuantity?: number;
-    /** Chooses which audio should play at which time */
+    /** Optional list of starting offsets per audio name. */
     startingTime?: StartingTime[];
 }
 
-/** A class used to instantiate BrioAudio objects that can
- * be played, paused, resumed, loooped through and linked to BrioObject objects
- * and more */
+/**
+ * Represents an audio asset that can be preloaded, played (overlapping or single-instance),
+ * looped, paused, resumed, or orchestrated in groups (`playTogether`, `playInSequence`).
+ *
+ * @example
+ * ```ts
+ * game.preload(() => {
+ *     const audLaser = new BrioAudio("aud_laser", "./assets/audios/laser.wav");
+ *     return [audLaser];
+ * });
+ * ```
+ */
 export class BrioAudio {
-    /** The name of the audio asset */
+    /** Unique identifier of the audio asset. */
     #name: string;
-    /** The source URL used in the audio asset */
+    /** Source URL of the audio file. */
     #src: string;
-    /** Element created to receive the audio */
+    /** Underlying `HTMLAudioElement` instance. */
     #element: HTMLAudioElement;
 
     static #emptyInstance?: BrioAudio;
 
     /**
-     * @param name A name for the audio object
-     * @param src The source URL for the targeted audio
-     * @example game.preload(() => {
+     * Creates a new `BrioAudio` asset instance.
      *
-     * const aud_player_jump = new BrioAudio("aud_player_jump", "./audios/player_jump.mp3");
-     * return [aud_player_jump]; // now the "aud_player_jump" BrioAudio can be used in the 'load' step
+     * @param name Unique identifier for the audio asset
+     * @param src Relative or absolute URL to the audio file
+     * @example
+     * ```ts
+     * game.preload(() => {
+     *     const audJump = new BrioAudio("aud_player_jump", "./assets/audios/player_jump.mp3");
+     *     return [audJump];
      * });
+     * ```
      */
     constructor(name: string, src: string) {
         this.#name = name;
@@ -47,42 +72,68 @@ export class BrioAudio {
      */
 
     /**
-     * Returns the name of the BrioAudio object
-     * @example const aud = new BrioAudio("aud_player_jump", "./player_jump.mp3");
-     * console.log(aud.name); // aud_player_jump
+     * Returns the unique identifier name of this `BrioAudio`.
+     *
+     * @example
+     * ```ts
+     * const aud = new BrioAudio("aud_player_jump", "./assets/audios/player_jump.mp3");
+     * console.log(aud.name); // "aud_player_jump"
+     * ```
      */
-    public get name() {
+    public get name(): string {
         return this.#name;
     }
 
     /**
-     * Returns the source URL of the BrioAudio object
-     * @example const aud = new BrioAudio("aud_player_jump", "./player_jump.mp3");
-     * console.log(aud.src); // player_jump.mp3
+     * Returns the source URL of this `BrioAudio`.
+     *
+     * @example
+     * ```ts
+     * const aud = new BrioAudio("aud_player_jump", "./assets/audios/player_jump.mp3");
+     * console.log(aud.src); // "./assets/audios/player_jump.mp3"
+     * ```
      */
-    public get src() {
+    public get src(): string {
         return this.#src;
     }
 
     /**
-     * Returns the element of the BrioAudio object
-     * @example const aud = new BrioAudio("aud_player_jump", "./player_jump.mp3");
-     * console.log(aud.element); // <audio preload="auto" src="./player_jump.mp3">
+     * Returns the underlying `HTMLAudioElement` of this `BrioAudio`.
+     *
+     * @example
+     * ```ts
+     * const aud = new BrioAudio("aud_player_jump", "./assets/audios/player_jump.mp3");
+     * aud.element.volume = 0.5;
+     * ```
      */
-    public get element() {
+    public get element(): HTMLAudioElement {
         return this.#element;
     }
 
     /**
-     * Returns the duration of the audio, in seconds, used in the BrioAudio object
-     * @example const aud = new BrioAudio("aud_main_song", "./main_song.mp3");
-     * console.log(aud.duration); // 242.03 (duration of 2 minutes and 2 seconds)
+     * Returns the duration of the audio track in seconds, rounded to two decimal places.
+     *
+     * @example
+     * ```ts
+     * const aud = assets.getAudio("aud_main_song");
+     * console.log(aud.duration); // 122.03
+     * ```
      */
-    public get duration() {
+    public get duration(): number {
         return Math.round(this.#element.duration * 100) / 100;
     }
 
-    public get isPaused() {
+    /**
+     * Indicates whether the underlying audio element is currently paused.
+     *
+     * @example
+     * ```ts
+     * if (bgm.isPaused) {
+     *     bgm.resume();
+     * }
+     * ```
+     */
+    public get isPaused(): boolean {
         return this.#element.paused;
     }
 
@@ -91,14 +142,19 @@ export class BrioAudio {
      */
 
     /**
-     * When correctly preloaded, plays the audio once
-     * @example game.load((loader) => {
+     * Plays the audio immediately by cloning the underlying audio node, allowing multiple
+     * overlapping instances of the same sound effect (e.g. rapid gunfire) to play simultaneously.
      *
-     * const aud = loader.getAudio("aud_player_jump");
-     * aud.play(); // plays the audio once as soon as the audio is ready
-     * })
+     * @example
+     * ```ts
+     * game.load((assets) => {
+     *     const audLaser = assets.getAudio("aud_laser");
+     *     audLaser.play();
+     *     return [];
+     * });
+     * ```
      */
-    public play() {
+    public play(): void {
         const sound = this.#element.cloneNode(true) as HTMLAudioElement;
         sound.loop = false;
         sound.volume = this.#element.volume;
@@ -106,14 +162,19 @@ export class BrioAudio {
     }
 
     /**
-     * When correctly preloaded, plays the audio once and waits for it to be played again in the Audio Queue
-     * @example game.load((loader) => {
+     * Plays the audio once on the primary `HTMLAudioElement` only if it is currently paused.
+     * Prevents overlapping playback of the same audio instance until it finishes.
      *
-     * const aud = loader.getAudio("aud_player_jump");
-     * aud.playOnce(); // plays the audio once as soon as the audio is ready
-     * })
+     * @example
+     * ```ts
+     * game.load((assets) => {
+     *     const audJump = assets.getAudio("aud_player_jump");
+     *     audJump.playOnce();
+     *     return [];
+     * });
+     * ```
      */
-    public playOnce() {
+    public playOnce(): void {
         this.#element.loop = false;
         if (this.#element.paused) {
             this.#element.play();
@@ -121,16 +182,19 @@ export class BrioAudio {
     }
 
     /**
-     * When correctly preloaded, plays the audio from the second it was specified.
-     * Using this method does not change the sound, so in a playLoop method
-     * the second replay would just ignore the time that was specified.
-     * @example game.load((loader) => {
+     * Starts playing the audio from a specific timestamp (in seconds) if currently paused.
      *
-     * const aud = loader.getAudio("aud_main_song");
-     * aud.playFromTime(20.5); // skips the first 20 seconds and 500 miliseconds of the specified sound
-     * })
+     * @param timeInSeconds Playback start offset in seconds
+     * @example
+     * ```ts
+     * game.load((assets) => {
+     *     const audSong = assets.getAudio("aud_main_song");
+     *     audSong.playFromTime(20.5); // Skips the first 20.5 seconds
+     *     return [];
+     * });
+     * ```
      */
-    public playFromTime(timeInSeconds: number) {
+    public playFromTime(timeInSeconds: number): void {
         if (this.#element.paused) {
             this.#element.currentTime = timeInSeconds;
             this.#element.play();
@@ -138,14 +202,31 @@ export class BrioAudio {
     }
 
     /**
-     * Plays the audio the amount of times it was specified
-     * @example game.load((loader) => {
+     * Plays the audio `iterations` times in sequence, with an optional `delay` (in milliseconds) between plays.
+     * Automatically cleans up its `"ended"` event listener once the final iteration starts.
      *
-     * const aud = loader.getAudio("aud_player_punch");
-     * aud.playMany(5); // plays the audio 5 times in sequence
-     * })
+     * @param iterations Total number of times the audio should play (`>= 1`)
+     * @param delay Optional delay in milliseconds between sequential plays
+     * @example
+     * ```ts
+     * game.load((assets) => {
+     *     const audBeep = assets.getAudio("aud_alarm");
+     *     audBeep.playMany(3, 250); // Plays 3 times with a 250ms pause between each
+     *     return [];
+     * });
+     * ```
      */
-    public playMany(iterations: number, delay?: number) {
+    public playMany(iterations: number, delay?: number): void {
+        if (iterations <= 0) return;
+
+        this.#element.loop = false;
+        this.#element.currentTime = 0;
+
+        if (iterations === 1) {
+            this.#element.play();
+            return;
+        }
+
         let playCount = 0;
 
         const handleEnded = () => {
@@ -169,20 +250,23 @@ export class BrioAudio {
               }
             : handleEnded;
 
-        // plays the sound for the first time
         this.#element.play();
         this.#element.addEventListener("ended", onEndedListener);
     }
 
     /**
-     * When correctly preloaded, plays the audio on a loop
-     * @example game.load((loader) => {
+     * Plays the audio continuously on a loop if it is currently paused.
      *
-     * const aud = loader.getAudio("aud_player_punch");
-     * aud.playLoop(); // plays the audio indefinitely in sequence
-     * })
+     * @example
+     * ```ts
+     * game.load((assets) => {
+     *     const bgm = assets.getAudio("aud_bgm");
+     *     bgm.playLoop();
+     *     return [];
+     * });
+     * ```
      */
-    public playLoop() {
+    public playLoop(): void {
         if (this.#element.paused) {
             this.#element.loop = true;
             this.#element.play();
@@ -190,54 +274,48 @@ export class BrioAudio {
     }
 
     /**
-     * Pauses the audio if currently playing
-     * @example
-     * const aud = loader.getAudio("aud_background_ambience");
-     * aud.playLoop(); // plays the audio on a loop
+     * Pauses the audio if it is currently playing.
      *
-     * setTimeout(() => {
-     * aud.pause();
-     * }, 60 * 1000); // pauses the audio after 60 seconds
-     * })
+     * @example
+     * ```ts
+     * const bgm = updater.getAudio("aud_bgm");
+     * bgm.pause();
+     * ```
      */
-    public pause() {
+    public pause(): void {
         if (!this.#element.paused) {
             this.#element.pause();
         }
     }
 
     /**
-     * Resumes the audio if currently paused
+     * Resumes playback of the audio if it is currently paused.
+     *
      * @example
-     * const aud = loader.getAudio("aud_background_ambience");
-     * aud.playLoop(); // plays the audio on a loop
-     *
-     * setTimeout(() => {
-     * aud.pause();
-     * }, 60 * 1000); // pauses the audio after 60 seconds
-     *
-     * setTimeout(() => {
-     * aud.resume();
-     * }, 30 * 1000);}); // resumes after 30 seconds of being paused
+     * ```ts
+     * const bgm = updater.getAudio("aud_bgm");
+     * bgm.resume();
+     * ```
      */
-    public resume() {
+    public resume(): void {
         if (this.#element.paused) {
             this.#element.play();
         }
     }
 
     /**
-     * When correctly preloaded, plays the audio many times at the sime time
-     * @example game.load((loader) => {
+     * Plays `quantity` overlapping instances of the audio simultaneously.
      *
-     * const aud = loader.getAudio("aud_explosion");
-     * aud.playManyAtTime(3); // plays the audio indefinitely
-     * })
+     * @param quantity Number of simultaneous audio instances to trigger
+     * @example
+     * ```ts
+     * const audExplosion = updater.getAudio("aud_explosion");
+     * audExplosion.playManyAtTime(3);
+     * ```
      */
-    public playManyAtTime(quantity: number) {
+    public playManyAtTime(quantity: number): void {
         for (let i = 0; i < quantity; i++) {
-            this.#element.currentTime = 0;
-            this.#element.play();
+            this.play();
         }
     }
 
@@ -246,18 +324,25 @@ export class BrioAudio {
      */
 
     /**
-     * Play many audios at the same time
-     * @param audios An array of BrioAudio objects to iterate through at the same time
-     * @param configurationObject A configuration object for configuring iteration and timing of the audios
+     * Plays multiple `BrioAudio` instances simultaneously with shared iteration and start-time configuration.
      *
-     * @example game.load((loader) => {
-     *
-     * const aud_1 = loader.getAudio("aud_fire");
-     * const aud_2 = loader.getAudio("aud_explosion")
-     *
-     * BrioAudio.playTogether([aud_1, aud_2]); // plays the 2 audios (only once by default)
+     * @param audios Array of `BrioAudio` instances to play together
+     * @param configurationObject Optional configuration for iteration mode, count, and per-audio starting offsets
+     * @throws {Error} When `iterationType` is `"many"` without a valid `iterationQuantity >= 1`, or when `iterationType` is invalid
+     * @example
+     * ```ts
+     * const audFire = assets.getAudio("aud_fire");
+     * const audExplosion = assets.getAudio("aud_explosion");
+     * BrioAudio.playTogether([audFire, audExplosion], {
+     *     iterationType: "once",
+     *     startingTime: [{ name: "aud_explosion", time: 0.5 }],
+     * });
+     * ```
      */
-    public static playTogether(audios: BrioAudio[], configurationObject?: PlayTogetherConfig) {
+    public static playTogether(
+        audios: BrioAudio[],
+        configurationObject?: PlayTogetherConfig,
+    ): void {
         if (!configurationObject) {
             audios.forEach((audio) => {
                 audio.playOnce();
@@ -266,7 +351,18 @@ export class BrioAudio {
             return;
         }
 
-        switch (configurationObject.iterationType) {
+        if (configurationObject.startingTime && configurationObject.startingTime.length > 0) {
+            for (const entry of configurationObject.startingTime) {
+                const target = audios.find((a) => a.name === entry.name);
+                if (target) {
+                    target.element.currentTime = Math.max(0, entry.time);
+                }
+            }
+        }
+
+        const iterationType = configurationObject.iterationType ?? "once";
+
+        switch (iterationType) {
             case "once":
                 audios.forEach((audio) => {
                     audio.playOnce();
@@ -282,7 +378,7 @@ export class BrioAudio {
             case "many":
                 if (
                     !configurationObject.iterationQuantity ||
-                    typeof configurationObject.iterationQuantity != "number" ||
+                    typeof configurationObject.iterationQuantity !== "number" ||
                     configurationObject.iterationQuantity < 1
                 ) {
                     throw new Error(
@@ -301,18 +397,27 @@ export class BrioAudio {
                 throw new Error(
                     "Error playing through audios: iterationType should be 'once', 'loop' or 'many'",
                 );
-                break;
         }
     }
 
-    public static playInSequence(audios: BrioAudio[]) {
+    /**
+     * Plays an array of `BrioAudio` tracks sequentially one after another.
+     *
+     * @param audios Non-empty array of `BrioAudio` tracks to play in order
+     * @returns A Promise that resolves once all tracks in the sequence have finished playing
+     * @throws {Error} When `audios` is not a non-empty array
+     * @example
+     * ```ts
+     * await BrioAudio.playInSequence([audIntro, audMainTheme]);
+     * ```
+     */
+    public static playInSequence(audios: BrioAudio[]): Promise<void> {
         if (!audios || audios.length === 0 || !Array.isArray(audios)) {
             throw new Error("playInSequence method shoud receive an Array of BrioAudio objects");
         }
 
-        // creating audio promise
         const playSingleAudio = (audio: HTMLAudioElement) => {
-            return new Promise((resolve: any) => {
+            return new Promise<void>((resolve) => {
                 const onEnded = () => cleanup();
                 const onError = () => cleanup();
 
@@ -331,7 +436,7 @@ export class BrioAudio {
             });
         };
 
-        const playNext = async (index: number) => {
+        const playNext = async (index: number): Promise<void> => {
             if (index >= audios.length) return;
             await playSingleAudio(audios[index].#element);
             await playNext(index + 1);
@@ -340,6 +445,11 @@ export class BrioAudio {
         return playNext(0);
     }
 
+    /**
+     * Returns a shared singleton fallback `BrioAudio` instance when a requested audio asset is not found.
+     *
+     * @returns Fallback empty `BrioAudio` instance
+     */
     public static getEmptyInstance(): BrioAudio {
         if (this.#emptyInstance === undefined) {
             const instance = new BrioAudio("", "");
@@ -351,3 +461,4 @@ export class BrioAudio {
         }
     }
 }
+

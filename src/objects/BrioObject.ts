@@ -4,55 +4,95 @@ import { BrioCollision } from "../math/BrioCollision";
 import { Vec2 } from "../math/index";
 import { create } from "../math/vec2";
 
+/**
+ * Dictionary mapping keyboard keys to action callbacks.
+ */
 export type KeyActions = {
     [key: string]: () => void;
 };
 
+/**
+ * Represents the 2D collision mask attached to a `BrioObject`.
+ */
 export interface CollisionType {
+    /** Controls whether collision detection is active for this collider. */
     enabled: boolean;
+    /** Physical interaction behavior (`"solid"` blocks movement, `"trigger"` detects overlap without physical blocking). */
     colliderType: CollisionColliderType;
+    /** Geometric primitive used for intersection checks (`"square"`, `"rectangle"`, or `"circle"`). */
     shape: CollisionShapeType;
+    /** Local offset `{ x, y }` of the collider relative to `transform.position`. */
     pos: Vec2;
+    /** Dimensions `{ x, y }` of the collider in pixels (for `"circle"`, `size.x` and `size.y` store the diameter). */
     size: Vec2;
 }
-export type CollisionColliderType = "solid" | "intangible";
+
+/**
+ * Defines how a collider interacts during collision checks:
+ * - `"solid"`: Represents a physical obstacle or body.
+ * - `"trigger"`: Represents a non-blocking sensor or area that detects overlap without physical obstruction.
+ */
+export type CollisionColliderType = "solid" | "trigger";
+
+/**
+ * Geometric primitive shapes supported by 2D collision detection.
+ */
 export type CollisionShapeType = "square" | "circle" | "rectangle";
 
+/**
+ * Core 2D entity class in BrioJS encapsulating a spatial `BrioTransform`, a `BrioSprite` reference,
+ * an optional `CollisionType` mask, and prefab instantiation metadata.
+ *
+ * @example
+ * ```ts
+ * game.load((assets) => {
+ *     const sprPlayer = assets.getSprite("spr_player");
+ *     const player = new BrioObject("obj_player", sprPlayer.name, 1);
+ *     player.transform.position = { x: 100, y: 200 };
+ *     return [player];
+ * });
+ * ```
+ */
 export class BrioObject {
-    // Basic properites
+    // Basic properties
     #transform: BrioTransform = new BrioTransform(create(0, 0), create(0, 0));
-    /** The name of the game object */
+    /** Unique identifier of the game object. */
     #name: string;
-    /** The sprite attached to the game object */
+    /** Name of the `BrioSprite` asset attached to this game object. */
     #sprite: BrioSprite["name"];
-    /** The layer level the object is located */
 
     // Cloning and identification logic
-    /** Used to check if the object is the original object or a instance of itself  */
+    /** Internal flag indicating whether `BrioGame.instantiate` is currently creating a clone. */
     public static instanceOfObject: boolean = false;
-    /** An instance ID used when a game object is a instance of the same game object, defaults to 0 if it's the original object */
+    /** Sequential 1-based instance ID when spawned via `game.instantiate()`, or `0` for the original template object. */
     public instanceId: number;
-    /** The number of instantiated clones of this object (clones can also be cloned) */
+    /** Total number of clones instantiated from this object template. */
     #clonesInstantiatedValue: number = 0;
-    /** An empty instance for singleton logic */ // todo: remove this
+    /** Singleton fallback empty object instance. */
     static #emptyInstance?: BrioObject;
 
     // COLLISION LOGIC
-    /** An object that contains collision properties of the game object, such as shape, position and size */
+    /** Optional 2D collision mask configuration (`shape`, `colliderType`, `pos`, `size`, `enabled`). */
     public collision?: CollisionType;
 
     /**
-     * @param name The name of the game object
-     * @param sprite The Sprite that will be attached to the game object
-     * @example game.load((assets) => {
+     * Creates a new `BrioObject` instance.
      *
-     * const spr_player = assets.preloaded("spr_player");
-     * const player = new BrioObject("player", spr_player);
-     * return [player]; // now the "player" BrioObject can be used in the 'update' step
+     * @param name Unique identifier for the object (cannot end with `-[0-9]+` unless instantiated via `game.instantiate()`)
+     * @param sprite Name of the preloaded `BrioSprite` asset to render
+     * @param layer Non-negative rendering depth layer (defaults to `1`)
+     * @throws {Error} When a manually created object's `name` ends with `-[0-9]+`
+     * @example
+     * ```ts
+     * game.load((assets) => {
+     *     const sprPlayer = assets.getSprite("spr_player");
+     *     const player = new BrioObject("obj_player", sprPlayer.name, 1);
+     *     return [player];
      * });
+     * ```
      */
-    constructor(name: string, sprite: BrioSprite["name"], layer: number) {
-        // Checks if the given name have -[0-9] at the end (so it doesn't conflict with instances of the same game object)
+    constructor(name: string, sprite: BrioSprite["name"], layer: number = 1) {
+        // Checks if the given name has -[0-9] at the end (so it doesn't conflict with instances of the same game object)
         if (/-[0-9]+$/.test(name) && !BrioObject.instanceOfObject) {
             throw new Error(
                 "Game objects can't end with '-number', try using underline instead (bot-5 -> bot_5)",
@@ -60,36 +100,62 @@ export class BrioObject {
         }
 
         this.#name = name;
-        // clones the Sprite so that more than one game object can have the same one
         this.#sprite = sprite;
         this.transform.layer = Math.round(Math.abs(layer));
         this.instanceId = 0;
     }
 
     /**
-     * GETTER AND SETTERS ---------------------------------------------------------------
+     * GETTERS AND SETTERS --------------------------------------------------------------
      */
 
-    public get transform() {
+    /**
+     * Spatial 2D transformation component (`position`, `size`, `scale`, `rotation`, `pivot`, `skew`, `flip`, `visibility`, `opacity`, `layer`).
+     *
+     * @example
+     * ```ts
+     * player.transform.position.x += 150 * dt;
+     * player.transform.scale = { x: 2, y: 2 };
+     * ```
+     */
+    public get transform(): BrioTransform {
         return this.#transform;
     }
 
-    /** Returns the attached Sprite used in the game object
+    /**
+     * Name of the `BrioSprite` asset attached to this game object.
+     *
+     * @example
+     * ```ts
+     * player.sprite = "spr_player_run";
+     * ```
      */
     public get sprite(): string {
         return this.#sprite;
     }
-    /** Returns the attached Sprite used in the game object
-     */
-    public set sprite(newSprite) {
+
+    public set sprite(newSprite: string) {
         this.#sprite = newSprite;
     }
 
-    /** Returns the name of the game object */
-    public get name() {
+    /**
+     * Unique identifier of this `BrioObject`.
+     *
+     * @example
+     * ```ts
+     * console.log(player.name); // "obj_player"
+     * ```
+     */
+    public get name(): string {
         return this.#name;
     }
 
+    /**
+     * Increments the count of clones instantiated from this object template.
+     * Can only be modified internally during `game.instantiate()`.
+     *
+     * @throws {Error} When modified outside `game.instantiate()`
+     */
     public set clonesInstantiatedValue(value: number) {
         if (!BrioObject.instanceOfObject) {
             throw new Error(
@@ -99,7 +165,8 @@ export class BrioObject {
 
         this.#clonesInstantiatedValue += value;
     }
-    public get clonesInstantiatedValue() {
+
+    public get clonesInstantiatedValue(): number {
         return this.#clonesInstantiatedValue;
     }
 
@@ -107,14 +174,28 @@ export class BrioObject {
      * METHODS --------------------------------------------------------------------------
      */
 
+    /**
+     * Attaches a 2D collision mask to this `BrioObject` if one is not already present.
+     *
+     * @param shape Geometric shape (`"square"`, `"rectangle"`, or `"circle"`)
+     * @param collisionType Collider interaction mode (`"solid"` or `"trigger"`)
+     * @param px Local horizontal offset from `transform.position.x`
+     * @param py Local vertical offset from `transform.position.y`
+     * @param sw Width (or diameter for `"circle"`) of the collider in pixels
+     * @param sh Height (or diameter for `"circle"`) of the collider in pixels
+     * @example
+     * ```ts
+     * player.addCollisionMask("rectangle", "solid", 4, 2, 24, 60);
+     * ```
+     */
     public addCollisionMask(
         shape: CollisionShapeType = "square",
         collisionType: CollisionColliderType = "solid",
-        px: number,
-        py: number,
-        sw: number,
-        sh: number,
-    ) {
+        px: number = 0,
+        py: number = 0,
+        sw: number = this.transform.size.x,
+        sh: number = shape === "square" || shape === "circle" ? sw : this.transform.size.y,
+    ): void {
         if (this.collision) {
             return;
         }
@@ -128,7 +209,12 @@ export class BrioObject {
         };
     }
 
-    static getEmptyInstance(): BrioObject {
+    /**
+     * Returns a shared singleton fallback `BrioObject` when a requested object is not found.
+     *
+     * @returns Fallback empty `BrioObject` instance
+     */
+    public static getEmptyInstance(): BrioObject {
         if (!this.#emptyInstance) {
             const instance = new BrioObject("", "", 1);
 
@@ -138,6 +224,16 @@ export class BrioObject {
         return this.#emptyInstance;
     }
 
+    /**
+     * Creates a deep copy of a `BrioObject`, preserving all `transform` properties and its `collision` mask.
+     *
+     * @param gameObject Source `BrioObject` to clone
+     * @returns A new `BrioObject` with identical transform and collider configuration
+     * @example
+     * ```ts
+     * const enemyCopy = BrioObject.clone(enemyTemplate);
+     * ```
+     */
     public static clone(gameObject: BrioObject): BrioObject {
         const object = new BrioObject(
             gameObject.#name,
@@ -156,6 +252,21 @@ export class BrioObject {
             x: gameObject.transform.scale.x,
             y: gameObject.transform.scale.y,
         };
+        object.transform.rotation = gameObject.transform.rotation;
+        object.transform.pivot = {
+            x: gameObject.transform.pivot.x,
+            y: gameObject.transform.pivot.y,
+        };
+        object.transform.skew = {
+            x: gameObject.transform.skew.x,
+            y: gameObject.transform.skew.y,
+        };
+        object.transform.flip = {
+            x: gameObject.transform.flip.x,
+            y: gameObject.transform.flip.y,
+        };
+        object.transform.visibility = gameObject.transform.visibility;
+        object.transform.opacity = gameObject.transform.opacity;
 
         if (gameObject.collision) {
             switch (gameObject.collision.shape) {
@@ -184,8 +295,12 @@ export class BrioObject {
                     });
                     break;
             }
+            if (object.collision) {
+                object.collision.enabled = gameObject.collision.enabled;
+            }
         }
 
         return object;
     }
 }
+

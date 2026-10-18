@@ -25,22 +25,22 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [x] Corrigir logica de `BrioGame.outbound` (linha 691 usa `this.#width` para `auxHeight` e multiplica `0 * auxWidth * screenThreshold`)
 - [x] Corrigir `BrioObject.clone` (bloco `if (object.collision)` nunca executa porque `object` acabou de ser instanciado sem copiar `gameObject.collision`)
 - [x] Corrigir atribuicao incorreta `newObject.instanceId = targetObject.clonesInstantiatedValue` em `BrioGame.instantiate` (deve referenciar o prefab/template registrado)
-- [ ] Remover metodos `animate`, `animateFromName`, `animateMany` e `animateInstancesOf` de `BrioUpdater` que causam dupla renderizacao no Game Loop
+- [x] Remover metodos `animate`, `animateFromName`, `animateMany` e `animateInstancesOf` de `BrioUpdater` que causam dupla renderizacao no Game Loop
 
 ### 2.2. Transformacao, Escala e Renderizacao 2D
 - [x] Corrigir propagacao de `BrioGame.scale` para o renderer (atualmente passado por valor primitivo no construtor de `BrioSpriteRenderer`, ignorando alteracoes posteriores em `game.scale`)
 - [x] Corrigir `BrioSpriteRenderer.renderObject` para utilizar `transform.renderSize` (ou aplicar `transform.scale`) em vez de desenhar sempre com `transform.size` bruto
 - [x] Corrigir setters individuais de vetores em `BrioTransform` (`position.x`, `scale.x`, `size.x`, `pivot.x`, `skew.x`) usando classes atomicas reativas (`BrioVec2` / `BrioVec3`)
 - [x] Corrigir calculo de `skew` em `BrioSpriteRenderer` (respeitar `transform.pivot` em vez de fixar `size / 2`, padronizar unidade em radianos e usar `Math.tan` na matriz de cisalhamento)
-- [ ] Corrigir artefatos de limpeza (`clearObject`) em objetos rotacionados/escalados e artefatos de movimento em navegadores baseados em Chromium (limpeza por camada/frame e alinhamento sub-pixel opcional para pixel art)
-- [ ] Evitar reconfiguracao redundante de `ctx.imageSmoothingEnabled` e `ctx.imageSmoothingQuality` a cada objeto desenhado no mesmo frame
+- [x] Corrigir artefatos de limpeza (`clearObject`) em objetos rotacionados/escalados e artefatos de movimento em navegadores baseados em Chromium (limpeza por camada/frame e alinhamento sub-pixel opcional para pixel art)
+- [x] Evitar reconfiguracao redundante de `ctx.imageSmoothingEnabled` e `ctx.imageSmoothingQuality` a cada objeto desenhado no mesmo frame
 
 ### 2.3. Matematica, Colisao, Audio e Console
 - [x] Corrigir `vec2.normalize(out, v)` em `./src/math/vec2.ts` (atualmente calcula a magnitude lendo `out` em vez do vetor de entrada `v`)
 - [x] Corrigir `vec2.distanceTo(a, b)` em `./src/math/vec2.ts` (retornar a distancia euclidiana escalar `number` via `Math.hypot` sem sobrescrever o vetor de origem, criando funcao separada se necessario vetor de diferenca)
 - [x] Corrigir assimetria no teste Circulo-Retangulo em `BrioCollision.isColliding` (atualmente falha quando `one` e `"circle"` e `two` e `"rectangle"` ou `"square"`)
 - [x] Unificar a convencao de coordenadas de `collision.pos` para circulos entre `BrioCollision.isColliding` e `BrioSpriteRenderer.renderCollisions`
-- [ ] Remover metodo duplicado e incompleto `BrioGame.isColliding` em favor do subsistema unificado `BrioCollision`
+- [x] Remover metodo duplicado e incompleto `BrioGame.isColliding` em favor do subsistema unificado `BrioCollision`
 - [x] Inicializar `#storedErrors` e `#storedExceptions` em `BrioConsole.ts` e corrigir o statement `if (isFound) true;` na linha 121 para `if (isFound) return;`
 - [x] Corrigir vazamento de `EventListener` no metodo `BrioAudio.playMany` quando utilizado com `delay` (funcao anonima criada no `addEventListener("ended", ...)` nunca e removida)
 - [x] Remover URL externa hardcoded e corrigir encadeamento assincrono de `decode()` + `createImageBitmap()` em `BrioAtlas.mount()`
@@ -50,7 +50,7 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 ## 3. Refatoracoes Arquiteturais e Desempenho (Refactors & Performance)
 
 ### 3.1. Linguagem Ubiqua Estrita e Modularizacao da API Publica
-- [ ] Aplicar a regra de Linguagem Ubiqua Estrita em toda a base: remover aliases semanticos (`BrioSpriteAtlas`, `BrioLogger`, `"intangible"`) e manter apenas os termos canonicos documentados em `./GLOSSARY.md` (`BrioAtlas`, `BrioConsole`, `"trigger"`)
+- [x] Aplicar a regra de Linguagem Ubiqua Estrita em toda a base: remover aliases semanticos (`BrioSpriteAtlas`, `BrioLogger`, `"intangible"`) e manter apenas os termos canonicos documentados em `./GLOSSARY.md` (`BrioAtlas`, `BrioConsole`, `"trigger"`)
 - [ ] Separar classes concretas `BrioObject2D` e `BrioObject3D` (bem como `BrioTransform2D` / `BrioTransform3D` e `BrioCamera2D` / `BrioCamera3D`)
 - [ ] Refatorar `BrioGame` para deixar de ser um God Object, atuando como entrypoint central que aceita presets `"2d"` e `"3d"` ou um objeto completo `BrioGameConfig`
 - [ ] Garantir que todas as funcoes utilitarias (`vec2`, `vec3`, `mat4`, `quat`, `BrioMath`, `BrioCollision`) sejam exportadas de forma independente para total suporte a *Tree-Shaking* (`"sideEffects": false` no `package.json`)
@@ -61,7 +61,7 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [ ] Implementar **Object Pooling nativo e transparente** em `ECSWorld` para `instantiate(prefab)` e `destroy(object)` em tempo $O(1)$, eliminando a flag estatica `BrioObject.instanceOfObject` e a restricao de sufixo `-[0-9]+`
 - [ ] Eliminar a alocacao e ordenacao de array por frame (`Array.from(this.#assets.objects.values()).sort(...)`) em favor de listas de renderizacao pre-ordenadas por `BrioLayer` com reordenacao apenas quando uma camada for marcada como *dirty*
 - [x] Eliminar criacao de closures e objetos literais em getters de leitura frequente (`BrioDebugger.console`, `BrioDebugger.render`, `BrioDebugger.#grid`)
-- [ ] Eliminar criacao de closures em `BrioCamera.pos` e `BrioCamera.size` durante a implementacao de `BrioCamera2D` / `BrioCamera3D`
+- [x] Eliminar criacao de closures em `BrioCamera.pos` e `BrioCamera.size` durante a implementacao de `BrioCamera2D` / `BrioCamera3D`
 
 ### 3.3. Multi-Canvas, Compositor de Camadas (`BrioLayer`), Multi-Viewport e Workers (`OffscreenCanvas`)
 - [ ] Implementar sistema `BrioLayer` suportando $N$ camadas configuraveis como `static` (redesenha apenas quando *dirty*), `parallax` (fator de scroll automatico), `dynamic` (redesenha por frame) e `ui` (empilhamento ordenado em Screen Space para caixas de dialogo estilo *Persona* + HUD sobreposto)
@@ -87,7 +87,7 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 
 ### 5.1. Cenas e Transformacoes (`BrioScene`, `BrioTransform2D`, `BrioTransform3D`)
 - [ ] Implementar `BrioScene` completa com ciclo proprio (`preload`, `load`, `update`, `pause`, `resume`, `restart`, `destroy`) e manter uma `defaultScene` implicita em `BrioGame`
-- [ ] Implementar `baseSize`, `renderSize`, `visibility`, `opacity` e `layer` reativos em `BrioTransform2D`
+- [x] Implementar `baseSize`, `renderSize`, `visibility`, `opacity` e `layer` reativos em `BrioTransform2D`
 - [ ] Implementar hierarquia Pai-Filho (`parent` / `children`) com calculo automatico de `localTransform` e `worldTransform` (via matrizes `Mat3` em 2D e `Mat4` em 3D)
 
 ### 5.2. Recursos Visuais 2D e 3D (`BrioTexture`, `BrioAtlas`, `BrioSpriteSheet`, `BrioSprite`, `BrioAnimation`, `BrioMesh`, `BrioMaterial`)
@@ -125,5 +125,5 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 
 - [ ] Expandir `./src/tools/base_types.ts` com *Template Literal Types* e *Union Types* estritos para `KeyboardKey`, `MouseButton`, `GamepadButton`, `CSSColor`, `AnchorPoint` e `ViewportPreset`
 - [ ] Adicionar suporte a Generics em `BrioGame` e `BrioScene` para inferencia e autocomplete de identificadores de assets e objetos registrados
-- [ ] Auditar e completar 100% de cobertura **JSDoc / TSDoc** em todas as classes, metodos, funcoes, propriedades e tipos publicos (foco em *Agent Context Optimization - ACO* e geracao do TypeDoc em `./docs/api/`)
+- [x] Auditar e completar 100% de cobertura **JSDoc / TSDoc** em todas as classes, metodos, funcoes, propriedades e tipos publicos (foco em *Agent Context Optimization - ACO* e geracao do TypeDoc em `./docs/api/`)
 - [x] Configurar suite de testes automatizados (Vitest + validacao em navegador via ChromeDevTools MCP na pasta `./demo/`) e validar antes de cada push

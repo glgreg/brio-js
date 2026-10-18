@@ -15,15 +15,21 @@ describe("BrioKeyboard", () => {
         // Press ArrowRight
         window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
         expect(keyboard.isDown("ArrowRight")).toBe(true);
+        expect(keyboard.isPressed("ArrowRight")).toBe(true);
         expect(keyboard.isUp("ArrowRight")).toBe(false);
 
         // Simulate frame boundary (copy state -> prevState)
         prevState.clear();
         for (const [k, v] of state) prevState.set(k, v);
 
+        // Held down on second frame -> isDown is true, isPressed is false
+        expect(keyboard.isDown("ArrowRight")).toBe(true);
+        expect(keyboard.isPressed("ArrowRight")).toBe(false);
+
         // Release ArrowRight
         window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowRight" }));
         expect(keyboard.isDown("ArrowRight")).toBe(false);
+        expect(keyboard.isPressed("ArrowRight")).toBe(false);
         expect(keyboard.isUp("ArrowRight")).toBe(true);
 
         // Trigger custom action

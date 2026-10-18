@@ -17,25 +17,44 @@ describe("BrioObject", () => {
         );
     });
 
-    it("clones a BrioObject preserving its collision mask and transform size", () => {
+    it("clones a BrioObject preserving its collision mask and all transform properties", () => {
         const original = new BrioObject("orc", "spr_orc", 2);
+        original.transform.position = { x: 12, y: 24 };
         original.transform.size = { x: 48, y: 64 };
+        original.transform.rotation = Math.PI / 4;
+        original.transform.scale = { x: 2, y: 1.5 };
+        original.transform.pivot = { x: 0.25, y: 0.75 };
+        original.transform.skew = { x: 0.1, y: 0.2 };
+        original.transform.flip = { x: true, y: false };
+        original.transform.visibility = false;
+        original.transform.opacity = 0.75;
+
         BrioCollision.addRectangle({
             object: original,
-            colliderType: "solid",
+            colliderType: "trigger",
             pos: { x: 4, y: 8 },
             size: { x: 40, y: 56 },
         });
+        original.collision!.enabled = false;
 
         const cloned = BrioObject.clone(original);
         expect(cloned).not.toBe(original);
         expect(cloned.name).toBe("orc");
         expect(cloned.sprite).toBe("spr_orc");
         expect(cloned.transform.layer).toBe(2);
-        expect(cloned.transform.size.x).toBe(48);
-        expect(cloned.transform.size.y).toBe(64);
+        expect(cloned.transform.position).toEqual({ x: 12, y: 24 });
+        expect(cloned.transform.size).toEqual({ x: 48, y: 64 });
+        expect(cloned.transform.rotation).toBeCloseTo(Math.PI / 4);
+        expect(cloned.transform.scale).toEqual({ x: 2, y: 1.5 });
+        expect(cloned.transform.pivot).toEqual({ x: 0.25, y: 0.75 });
+        expect(cloned.transform.skew).toEqual({ x: 0.1, y: 0.2 });
+        expect(cloned.transform.flip).toEqual({ x: true, y: false });
+        expect(cloned.transform.visibility).toBe(false);
+        expect(cloned.transform.opacity).toBe(0.75);
         expect(cloned.collision).toBeDefined();
         expect(cloned.collision?.shape).toBe("rectangle");
+        expect(cloned.collision?.colliderType).toBe("trigger");
+        expect(cloned.collision?.enabled).toBe(false);
         expect(cloned.collision?.pos).toEqual({ x: 4, y: 8 });
         expect(cloned.collision?.size).toEqual({ x: 40, y: 56 });
     });

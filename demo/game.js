@@ -1,4 +1,3 @@
-import { BrioAtlas } from "../dist/assets/BrioAtlas.js";
 import {
     BrioGame,
     BrioObject,
@@ -7,7 +6,7 @@ import {
     BrioUtils,
     Vector2,
     BrioMath,
-    BrioSpriteAtlas,
+    BrioAtlas,
     BrioCollision,
 } from "../dist/index.js";
 import { Enemy } from "./Enemy.js";
@@ -129,7 +128,7 @@ game.update((updater, dt) => {
     if (projectile_pool.length > 0) {
         for (let i = 0; i < projectile_pool.length; ++i) {
             const proj = projectile_pool[i];
-            if (game.isColliding(enemy, proj)) {
+            if (BrioCollision.isColliding(enemy, proj)) {
                 console.log("tiro acertou");
                 game.destroy(proj);
                 projectile_pool.splice(i, 1);

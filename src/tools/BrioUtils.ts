@@ -1,85 +1,99 @@
 import { BrioObject } from "../objects/BrioObject";
-import { BrioSprite } from "../assets/BrioSprite";
 import { BrioGame } from "../game/BrioGame";
 
+/**
+ * Collection of general-purpose timing and boundary utility methods for BrioJS games.
+ */
 export class BrioUtils {
-	/** A function that loops throught a given callback until it stops at given time
-	 * @param callbackFn The callback that will be looped
-	 * @param animationDuration The timeout for stoping the animation
-	 * @example const player = new BrioObject("player", spr_gato);
-	 * player.setActions({ onKeyDown: {
-	 * ArrowUp: () => { Utils.timedAnimation(() => {
-	 * player.sprite.posY -= 10;
-	 * }, 300)
-	 * }}})
-	 */
-	public static timedAnimation(callbackFn: () => void, animationDuration: number) {
-		let animationFrameId: number;
+    /**
+     * Repeatedly invokes `callbackFn` on every animation frame until `animationDuration` (in milliseconds) elapses.
+     *
+     * @param callbackFn Callback executed on each frame while the animation is active
+     * @param animationDuration Duration in milliseconds before the loop automatically stops
+     * @returns A function that can be called to cancel the animation loop early
+     * @example
+     * ```ts
+     * const cancelDash = BrioUtils.timedAnimation(() => {
+     *     player.transform.position.x += 12;
+     * }, 300);
+     * ```
+     */
+    public static timedAnimation(callbackFn: () => void, animationDuration: number): () => void {
+        let animationFrameId: number = 0;
+        let cancelled = false;
 
-		const animationLoop = () => {
-			callbackFn();
-			animationFrameId = requestAnimationFrame(animationLoop);
-		};
-		animationLoop();
+        const animationLoop = () => {
+            if (cancelled) return;
+            callbackFn();
+            if (!cancelled) {
+                animationFrameId = requestAnimationFrame(animationLoop);
+            }
+        };
+        animationLoop();
 
-		setTimeout(() => {
-			cancelAnimationFrame(animationFrameId);
-		}, animationDuration);
-	}
+        const timeoutId = setTimeout(() => {
+            cancelled = true;
+            cancelAnimationFrame(animationFrameId);
+        }, animationDuration);
 
-	// TODO: check this unusable gargabe
-	/**
-	 * An method used for safely (in the 'strict mode' JS sense) adding new properties into an object
-	 * @param object The target object (can be of any class and literals)
-	 * @param propertyKey The property key
-	 * @param propertyValue The initial value (obligatory adding is needed for type cohersion)
-	 * @example const player = new BrioObject("player", spr_player);
-	 *
-	 * Utils.addProperty(player, "health", 100);
-	 * console.log(player.health); // 100
-	 */
-	public static addProperty<T extends BrioSprite | BrioObject, K>(
-		object: T,
-		propertyKey: string,
-		propertyValue: K,
-	) {
-		if (typeof object !== "object") {
-			throw new Error("Something other than a object was passed");
-		}
-		if (object) {
-			if (Object.hasOwn(object, propertyKey)) {
-				throw new Error(
-					`Trying to create a property that alread exists. ${object.name}.${propertyKey}`,
-				);
-			}
-			Object.defineProperty(object, propertyKey, {
-				configurable: false,
-				value: propertyValue,
-				writable: true,
-			});
-		}
-	}
+        return () => {
+            cancelled = true;
+            clearTimeout(timeoutId);
+            cancelAnimationFrame(animationFrameId);
+        };
+    }
 
-	public static wait(callbackFn: () => void, timInMiliseconds: number) {
-		setTimeout(() => {
-			callbackFn();
-		}, timInMiliseconds);
-	}
+    /**
+     * Executes `callbackFn` once after `timeInMilliseconds` has elapsed.
+     *
+     * @param callbackFn Callback invoked after the delay
+     * @param timeInMilliseconds Delay duration in milliseconds
+     * @returns A function that cancels the scheduled callback if invoked before the timeout fires
+     * @example
+     * ```ts
+     * BrioUtils.wait(() => {
+     *     enemy.transform.visibility = true;
+     * }, 1000);
+     * ```
+     */
+    public static wait(callbackFn: () => void, timeInMilliseconds: number): () => void {
+        const timeoutId = setTimeout(() => {
+            callbackFn();
+        }, timeInMilliseconds);
 
-	public static mapRestrainOffbound(game: BrioGame, target: BrioObject) {
-		if (target.transform.position.x >= 0) {
-			target.transform.position.x = 0;
-		} else if (
-			target.transform.position.x <= -(target.transform.size.x * game.scale - game.width)
-		) {
-			target.transform.position.x = -(target.transform.size.x * game.scale - game.width);
-		}
-		if (target.transform.position.y >= 0) {
-			target.transform.position.y = 0;
-		} else if (
-			target.transform.position.y <= -(target.transform.size.y * game.scale - game.height)
-		) {
-			target.transform.position.y = -(target.transform.size.y * game.scale - game.height);
-		}
-	}
+        return () => {
+            clearTimeout(timeoutId);
+        };
+    }
+
+    /**
+     * Clamps a scrolling background or map `BrioObject` so its edges never move inside the visible `BrioGame` viewport.
+     *
+     * @param game Active `BrioGame` instance providing viewport `width`, `height`, and `scale`
+     * @param target Map or background `BrioObject` whose `transform.position` will be constrained
+     * @example
+     * ```ts
+     * game.update((updater, dt) => {
+     *     const worldMap = updater.getObject("obj_background");
+     *     BrioUtils.mapRestrainOffbound(game, worldMap);
+     * });
+     * ```
+     */
+    public static mapRestrainOffbound(game: BrioGame, target: BrioObject): void {
+        if (target.transform.position.x >= 0) {
+            target.transform.position.x = 0;
+        } else if (
+            target.transform.position.x <= -(target.transform.size.x * game.scale - game.width)
+        ) {
+            target.transform.position.x = -(target.transform.size.x * game.scale - game.width);
+        }
+        if (target.transform.position.y >= 0) {
+            target.transform.position.y = 0;
+        } else if (
+            target.transform.position.y <= -(target.transform.size.y * game.scale - game.height)
+        ) {
+            target.transform.position.y = -(target.transform.size.y * game.scale - game.height);
+        }
+    }
 }
+

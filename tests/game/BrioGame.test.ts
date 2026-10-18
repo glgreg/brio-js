@@ -136,4 +136,69 @@ describe("BrioGame", () => {
         game.outbound(hero, 2, onOutThreshold);
         expect(onOutThreshold).not.toHaveBeenCalled();
     });
+
+    it("preserves CSS background sub-properties regardless of assignment order and supports background setter", () => {
+        const game = new BrioGame(640, 480, container);
+        game.background.repeat = "no-repeat";
+        game.background.size = "cover";
+        game.background.position = "center center";
+        // Setting color AFTER repeat/size/position must not wipe them out
+        game.background.color = "#020319";
+
+        expect(game.background.repeat).toBe("no-repeat");
+        expect(game.background.size).toBe("cover");
+        expect(game.background.position).toBe("center center");
+        expect(game.background.color).toBe("#020319");
+
+        // Bulk assignment via game.background setter
+        game.background = {
+            color: "rgb(10, 20, 30)",
+            image: "./bg.png",
+            repeat: "repeat-x",
+            position: "left top",
+            size: "contain",
+            blendMode: "multiply",
+            rendering: "pixelated",
+        };
+        expect(game.background.color).toBe("rgb(10, 20, 30)");
+        expect(game.background.image).toBe("./bg.png");
+        expect(game.background.repeat).toBe("repeat-x");
+        expect(game.background.position).toBe("left top");
+        expect(game.background.size).toBe("contain");
+        expect(game.background.blendMode).toBe("multiply");
+        expect(game.background.rendering).toBe("pixelated");
+    });
+
+    it("provides zero-allocation BrioCamera pos/size and cancellable BrioUtils timers", async () => {
+        const { BrioCamera } = await import("../../src/not-implemented/BrioCamera");
+        const { BrioMap } = await import("../../src/not-implemented/BrioMap");
+        const { BrioUtils } = await import("../../src/tools/BrioUtils");
+
+        const map = new BrioMap("map_1", 1000, 1000);
+        const cam = new BrioCamera("cam_1", { x: 10, y: 20 }, { x: 320, y: 240 }, map);
+
+        // Repeated access returns the same reactive vector reference (no closure allocations)
+        expect(cam.pos).toBe(cam.pos);
+        expect(cam.size).toBe(cam.size);
+
+        cam.pos.x = 50;
+        cam.size.y = 480;
+        expect(cam.pos).toEqual({ x: 50, y: 20 });
+        expect(cam.size).toEqual({ x: 320, y: 480 });
+
+        vi.useFakeTimers();
+        const animStep = vi.fn();
+        const stopAnim = BrioUtils.timedAnimation(animStep, 100);
+        expect(animStep).toHaveBeenCalledTimes(1);
+        stopAnim();
+        vi.advanceTimersByTime(200);
+        expect(animStep).toHaveBeenCalledTimes(1);
+
+        const waitStep = vi.fn();
+        const cancelWait = BrioUtils.wait(waitStep, 100);
+        cancelWait();
+        vi.advanceTimersByTime(200);
+        expect(waitStep).not.toHaveBeenCalled();
+        vi.useRealTimers();
+    });
 });

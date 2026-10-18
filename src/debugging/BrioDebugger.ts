@@ -1,42 +1,76 @@
 import { CanvasFPSPosition } from "../game/BrioSpriteRenderer";
 import { BrioConsole } from "./BrioConsole";
 
-interface DebugConsoleProperties {
-    /** Enables standard state logs, loaded assets/objects reporting, and basic error messages */
+/**
+ * Configuration options for `game.debugging.console`.
+ */
+export interface DebugConsoleProperties {
+    /** Enables standard state logs, loaded assets/objects reporting, and basic error messages. */
     enabled: boolean;
-    /** Displays the user file stack trace for log calls */
+    /** Displays the user file stack trace for log calls. */
     showStackTrace: boolean;
-    /** Displays internal BrioJS stack traces for debugging engine calls */
+    /** Displays internal BrioJS stack traces for debugging engine calls. */
     showInternalStackTrace: boolean;
 }
 
-interface DebugGridProperties {
+/**
+ * Configuration options for the visual alignment grid (`game.debugging.render.grid`).
+ */
+export interface DebugGridProperties {
+    /** Enables rendering of the background coordinate grid. */
     enabled: boolean;
+    /** Horizontal cell width in pixels (automatically rounded to the nearest integer). */
     width: number;
+    /** Vertical cell height in pixels (automatically rounded to the nearest integer). */
     height: number;
-    /** Renders X and Y axis center rulers on the canvas */
+    /** Renders X and Y axis center rulers on the canvas. */
     showAxisRulers: boolean;
 }
 
-interface DebugFPSOverlayProperties {
+/**
+ * Configuration options for the real-time FPS counter overlay (`game.debugging.render.fpsOverlay`).
+ */
+export interface DebugFPSOverlayProperties {
+    /** Enables rendering of the FPS overlay box. */
     enabled: boolean;
+    /** Screen anchor position for the FPS box (e.g. `"right-top"`). */
     position: CanvasFPSPosition;
+    /** Margin offset in pixels from the canvas edge. */
     offset: number;
+    /** Font and container base size in pixels. */
     size: number;
+    /** CSS color string for the overlay box background. */
     backgroundColor: string;
+    /** CSS color string for the FPS numeric text. */
     textColor: string;
 }
 
-interface DebugRenderProperties {
+/**
+ * Configuration options for visual rendering debug helpers (`game.debugging.render`).
+ */
+export interface DebugRenderProperties {
+    /** Visual coordinate grid and center axis ruler settings. */
     grid: DebugGridProperties;
+    /** Draws a green bounding box around every object's `renderSize`. */
     showRenderBounds: boolean;
+    /** Draws a red outline around every active object's `collision` mask. */
     showCollisionBounds: boolean;
+    /** Real-time FPS counter overlay configuration. */
     fpsOverlay: DebugFPSOverlayProperties;
 }
 
 /**
  * Manages visual and console debugging configurations for a `BrioGame` instance.
  * Pre-allocates its configuration views once in the constructor to prevent per-frame closure allocations.
+ *
+ * @example
+ * ```ts
+ * game.debugging.console.enabled = true;
+ * game.debugging.render.showRenderBounds = true;
+ * game.debugging.render.showCollisionBounds = true;
+ * game.debugging.render.grid.enabled = true;
+ * game.debugging.render.fpsOverlay.enabled = true;
+ * ```
  */
 export class BrioDebugger {
     #console: BrioConsole;
@@ -69,6 +103,11 @@ export class BrioDebugger {
     #fpsOverlayView: DebugFPSOverlayProperties;
     #renderView: DebugRenderProperties;
 
+    /**
+     * Creates a new `BrioDebugger` bound to a `BrioConsole` instance.
+     *
+     * @param consoleInstance The `BrioConsole` controlled by this debugger
+     */
     constructor(consoleInstance: BrioConsole) {
         this.#console = consoleInstance;
         const config = this.#consoleConfig;
@@ -197,11 +236,30 @@ export class BrioDebugger {
         };
     }
 
+    /**
+     * Console logging and stack-trace configuration view.
+     *
+     * @example
+     * ```ts
+     * game.debugging.console.enabled = true;
+     * game.debugging.console.showStackTrace = true;
+     * ```
+     */
     public get console(): DebugConsoleProperties {
         return this.#consoleView;
     }
 
+    /**
+     * Visual rendering debug overlays configuration view (`grid`, `showRenderBounds`, `showCollisionBounds`, `fpsOverlay`).
+     *
+     * @example
+     * ```ts
+     * game.debugging.render.showCollisionBounds = true;
+     * game.debugging.render.grid.enabled = true;
+     * ```
+     */
     public get render(): DebugRenderProperties {
         return this.#renderView;
     }
 }
+
