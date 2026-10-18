@@ -46,6 +46,10 @@ export class BrioSpriteRenderer {
     public renderObject<T extends BrioObject>(object: T) {
         if (!object || !object.transform.visibility || object.transform.opacity === 0) return;
 
+        const gameScale = this.#game.scale;
+        const renderWidth = object.transform.renderSize.x || object.transform.size.x;
+        const renderHeight = object.transform.renderSize.y || object.transform.size.y;
+
         if (this.#game.rendering.mode === "smooth") {
             this.#ctx.imageSmoothingEnabled = true;
             this.#ctx.imageSmoothingQuality = this.#game.rendering.smoothness;
@@ -56,15 +60,15 @@ export class BrioSpriteRenderer {
         this.#ctx.save();
 
         // scale or flipped scale for sprites
-        const scaleX = (object.transform.flip.x ? -1 : 1) * this.#gameScale;
-        const scaleY = (object.transform.flip.y ? -1 : 1) * this.#gameScale;
+        const scaleX = (object.transform.flip.x ? -1 : 1) * gameScale;
+        const scaleY = (object.transform.flip.y ? -1 : 1) * gameScale;
         // offset for flipped sprites
-        const offsetX = object.transform.flip.x ? object.transform.size.x * this.#gameScale : 0;
-        const offsetY = object.transform.flip.y ? object.transform.size.y * this.#gameScale : 0;
+        const offsetX = object.transform.flip.x ? renderWidth * gameScale : 0;
+        const offsetY = object.transform.flip.y ? renderHeight * gameScale : 0;
 
         this.#ctx.translate(
-            object.transform.position.x * this.#gameScale + offsetX,
-            object.transform.position.y * this.#gameScale + offsetY,
+            object.transform.position.x * gameScale + offsetX,
+            object.transform.position.y * gameScale + offsetY,
         );
 
         this.#ctx.scale(scaleX, scaleY);
@@ -72,10 +76,9 @@ export class BrioSpriteRenderer {
         let translated = false;
 
         if (object.transform.rotation !== 0) {
-            // this.#ctx.translate(object.transform.size.x / 2, object.transform.size.y / 2);
             this.#ctx.translate(
-                object.transform.size.x * object.transform.pivot.x,
-                object.transform.size.y * object.transform.pivot.y,
+                renderWidth * object.transform.pivot.x,
+                renderHeight * object.transform.pivot.y,
             );
             this.#ctx.rotate(object.transform.rotation);
             translated = true;
@@ -83,15 +86,18 @@ export class BrioSpriteRenderer {
 
         if (object.transform.skew.x !== 0 || object.transform.skew.y !== 0) {
             if (!translated) {
-                this.#ctx.translate(object.transform.size.x / 2, object.transform.size.y / 2);
+                this.#ctx.translate(
+                    renderWidth * object.transform.pivot.x,
+                    renderHeight * object.transform.pivot.y,
+                );
             }
             this.#ctx.transform(
-                1, // scaleX
-                (object.transform.skew.x * Math.PI) / 180, // rotateX
-                (object.transform.skew.y * Math.PI) / 180, // rotateY
-                1, // scaleY
-                0, // translateX
-                0, // translateY
+                1,
+                Math.tan(object.transform.skew.x),
+                Math.tan(object.transform.skew.y),
+                1,
+                0,
+                0,
             );
             translated = true;
         }
@@ -103,13 +109,11 @@ export class BrioSpriteRenderer {
         // sprite rendering
         this.#ctx.drawImage(
             sprite.element,
-            translated ? -object.transform.size.x * object.transform.pivot.x : 0,
-            translated ? -object.transform.size.y * object.transform.pivot.y : 0,
-            object.transform.size.x,
-            object.transform.size.y,
+            translated ? -renderWidth * object.transform.pivot.x : 0,
+            translated ? -renderHeight * object.transform.pivot.y : 0,
+            renderWidth,
+            renderHeight,
         );
-
-        // spritesheet sprite rendering
 
         this.#ctx.restore();
     }
@@ -119,24 +123,29 @@ export class BrioSpriteRenderer {
             return;
         }
 
+        const gameScale = this.#game.scale;
+        const renderWidth = gameObject.transform.renderSize.x || gameObject.transform.size.x;
+        const renderHeight = gameObject.transform.renderSize.y || gameObject.transform.size.y;
+
         this.#ctx.save();
 
-        this.#ctx.scale(this.#gameScale, this.#gameScale);
+        this.#ctx.scale(gameScale, gameScale);
         this.#ctx.clearRect(
             gameObject.transform.position.x,
             gameObject.transform.position.y,
-            gameObject.transform.size.x,
-            gameObject.transform.size.y,
+            renderWidth,
+            renderHeight,
         );
 
         this.#ctx.restore();
     }
 
     public renderCollisions() {
-        this.#assets.objects.forEach((gameObject, key) => {
+        const gameScale = this.#game.scale;
+        this.#assets.objects.forEach((gameObject) => {
             if (this.#ctx && gameObject.collision && gameObject.collision.colliderType) {
                 this.#ctx.save();
-                this.#ctx.scale(this.#gameScale, this.#gameScale);
+                this.#ctx.scale(gameScale, gameScale);
                 this.#ctx.beginPath();
 
                 switch (gameObject.collision.shape) {
@@ -162,7 +171,7 @@ export class BrioSpriteRenderer {
                         break;
                 }
 
-                this.#ctx.lineWidth = 2 / this.#gameScale;
+                this.#ctx.lineWidth = 2 / gameScale;
                 this.#ctx.strokeStyle = "#F00";
                 this.#ctx.stroke();
                 this.#ctx.closePath();
@@ -173,19 +182,25 @@ export class BrioSpriteRenderer {
     }
 
     public renderBounds() {
-        this.#assets.objects.forEach((gameObject, key) => {
+        const gameScale = this.#game.scale;
+        this.#assets.objects.forEach((gameObject) => {
             if (this.#ctx) {
+                const renderWidth =
+                    gameObject.transform.renderSize.x || gameObject.transform.size.x;
+                const renderHeight =
+                    gameObject.transform.renderSize.y || gameObject.transform.size.y;
+
                 this.#ctx.save();
 
-                this.#ctx.scale(this.#gameScale, this.#gameScale);
+                this.#ctx.scale(gameScale, gameScale);
                 this.#ctx.beginPath();
                 this.#ctx.rect(
                     gameObject.transform.position.x,
                     gameObject.transform.position.y,
-                    gameObject.transform.size.x,
-                    gameObject.transform.size.y,
+                    renderWidth,
+                    renderHeight,
                 );
-                this.#ctx.lineWidth = 2 / this.#gameScale;
+                this.#ctx.lineWidth = 2 / gameScale;
                 this.#ctx.strokeStyle = "#0F0";
                 this.#ctx.stroke();
                 this.#ctx.closePath();

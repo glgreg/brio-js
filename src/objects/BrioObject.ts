@@ -138,37 +138,49 @@ export class BrioObject {
         return this.#emptyInstance;
     }
 
-    public static clone(gameObject: BrioObject) {
+    public static clone(gameObject: BrioObject): BrioObject {
         const object = new BrioObject(
             gameObject.#name,
             gameObject.#sprite,
             gameObject.transform.layer,
         );
+        object.transform.position = {
+            x: gameObject.transform.position.x,
+            y: gameObject.transform.position.y,
+        };
+        object.transform.size = {
+            x: gameObject.transform.size.x,
+            y: gameObject.transform.size.y,
+        };
+        object.transform.scale = {
+            x: gameObject.transform.scale.x,
+            y: gameObject.transform.scale.y,
+        };
 
-        if (object.collision) {
-            switch (object.collision.shape) {
+        if (gameObject.collision) {
+            switch (gameObject.collision.shape) {
                 case "square":
                     BrioCollision.addSquare({
                         object: object,
-                        colliderType: "solid",
-                        pos: object.collision.pos,
-                        size: object.collision.size.x,
+                        colliderType: gameObject.collision.colliderType,
+                        pos: { x: gameObject.collision.pos.x, y: gameObject.collision.pos.y },
+                        size: gameObject.collision.size.x,
                     });
                     break;
                 case "rectangle":
                     BrioCollision.addRectangle({
                         object: object,
-                        colliderType: "solid",
-                        pos: object.collision.pos,
-                        size: object.collision.size,
+                        colliderType: gameObject.collision.colliderType,
+                        pos: { x: gameObject.collision.pos.x, y: gameObject.collision.pos.y },
+                        size: { x: gameObject.collision.size.x, y: gameObject.collision.size.y },
                     });
                     break;
                 case "circle":
                     BrioCollision.addCircle({
                         object: object,
-                        colliderType: "solid",
-                        pos: object.collision.pos,
-                        size: object.collision.size.x,
+                        colliderType: gameObject.collision.colliderType,
+                        pos: { x: gameObject.collision.pos.x, y: gameObject.collision.pos.y },
+                        size: gameObject.collision.size.x,
                     });
                     break;
             }

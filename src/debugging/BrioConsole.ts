@@ -11,8 +11,8 @@ export class BrioConsole {
     // temp
     #loggedErrors = new Set<string>();
 
-    #storedErrors?: Set<number>;
-    #storedExceptions?: Set<number>;
+    #storedErrors: Set<number> = new Set<number>();
+    #storedExceptions: Set<number> = new Set<number>();
     #errors: LoggerLogType[] = errors;
     #exceptions: LoggerLogType[] = exceptions;
 
@@ -118,7 +118,7 @@ export class BrioConsole {
             }
         }
 
-        if (isFound) true;
+        if (isFound) return;
         this.out("warn", `Exception id ${exceptionId} not found.`);
     }
 }

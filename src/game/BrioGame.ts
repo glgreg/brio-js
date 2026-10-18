@@ -466,10 +466,14 @@ export class BrioGame {
                     this.#renderer.clearObject(gameObject);
                 });
 
+                if (this.#deltaTimePreviousTime === 0) {
+                    this.#deltaTimePreviousTime = currentTime;
+                }
                 const deltaTime = (currentTime - this.#deltaTimePreviousTime) / 1000;
 
-                // -> debug PFS
-                this.#gameLastFPS = this.#renderer.gameLastFPS = 1 / deltaTime;
+                // -> debug FPS
+                this.#gameLastFPS = this.#renderer.gameLastFPS =
+                    deltaTime > 0 ? 1 / deltaTime : 60;
 
                 this.#renderDebuggingGrid();
 
@@ -687,18 +691,17 @@ export class BrioGame {
             return;
         }
 
-        let auxWidth = screenThreshold !== 1 ? this.#width : 0;
-        let auxHeight = screenThreshold !== 1 ? this.#width : 0;
+        const marginX = this.#width * (screenThreshold - 1);
+        const marginY = this.#height * (screenThreshold - 1);
+        const objWidth = (targetObject.transform.renderSize.x || targetObject.transform.size.x) * this.#scale;
+        const objHeight = (targetObject.transform.renderSize.y || targetObject.transform.size.y) * this.#scale;
+
         if (
-            targetObject.transform.position.x > this.#width * screenThreshold ||
-            targetObject.transform.position.x + targetObject.transform.size.x * this.#scale <
-                0 * auxWidth * screenThreshold ||
-            targetObject.transform.position.y > this.#height * screenThreshold ||
-            targetObject.transform.position.y + targetObject.transform.size.y * this.#scale <
-                0 * auxHeight * screenThreshold
+            targetObject.transform.position.x > this.#width + marginX ||
+            targetObject.transform.position.x + objWidth < -marginX ||
+            targetObject.transform.position.y > this.#height + marginY ||
+            targetObject.transform.position.y + objHeight < -marginY
         ) {
-            // this.stopGame();
-            // this.removeObject(targetObject);
             if (callbackFn) {
                 callbackFn();
             } else {
@@ -711,7 +714,7 @@ export class BrioGame {
         BrioObject.instanceOfObject = true;
 
         // prettier-ignore
-        const registeredObject = this.#assets.objects.get(targetObject.name) ?? BrioObject.getEmptyInstance();
+        const registeredObject = this.#assets.objects.get(targetObject.name) ?? targetObject;
 
         // cloning object
         const newObject = new BrioObject(
@@ -738,7 +741,7 @@ export class BrioGame {
         }
 
         // setting an id
-        newObject.instanceId = targetObject.clonesInstantiatedValue;
+        newObject.instanceId = registeredObject.clonesInstantiatedValue;
 
         // add instantiated object to map
         if (!this.#assets.objects.has(newObject.name)) {
@@ -751,33 +754,33 @@ export class BrioGame {
     }
 
     public destroy(targetObject: BrioObject) {
+        if (!targetObject) return;
+
         if (this.#assets.objects.has(targetObject.name)) {
-            this.#assets.objects.delete(targetObject.name);
-        }
-        if (this.#assets.sprites.has(targetObject.sprite)) {
             this.#renderer.clearObject(targetObject);
-            this.#assets.sprites.delete(targetObject.name);
+            this.#assets.objects.delete(targetObject.name);
         }
     }
 
     public isColliding(obj1: BrioObject, obj2: BrioObject): boolean {
-        let result: boolean = false;
-
         if (!obj1.collision || !obj2.collision) {
-            console.info("not");
             return false;
         }
 
         if (
-            obj1.transform.position.x <= obj2.transform.position.x + obj2.collision.size.x &&
-            obj1.transform.position.x + obj1.collision.size.x >= obj2.transform.position.x &&
-            obj1.transform.position.y <= obj2.transform.position.y + obj2.collision.size.y &&
-            obj1.transform.position.y + obj1.collision.size.y >= obj2.transform.position.y
+            obj1.transform.position.x + obj1.collision.pos.x <=
+                obj2.transform.position.x + obj2.collision.pos.x + obj2.collision.size.x &&
+            obj1.transform.position.x + obj1.collision.pos.x + obj1.collision.size.x >=
+                obj2.transform.position.x + obj2.collision.pos.x &&
+            obj1.transform.position.y + obj1.collision.pos.y <=
+                obj2.transform.position.y + obj2.collision.pos.y + obj2.collision.size.y &&
+            obj1.transform.position.y + obj1.collision.pos.y + obj1.collision.size.y >=
+                obj2.transform.position.y + obj2.collision.pos.y
         ) {
-            result = true;
+            return true;
         }
 
-        return result;
+        return false;
     }
 
     public translate(px: number, py: number) {

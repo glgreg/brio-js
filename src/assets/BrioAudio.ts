@@ -157,23 +157,21 @@ export class BrioAudio {
             } else if (playCount === iterations - 1) {
                 this.#element.currentTime = 0;
                 this.#element.play();
-                this.#element.removeEventListener("ended", handleEnded);
+                this.#element.removeEventListener("ended", onEndedListener);
             }
         };
 
+        const onEndedListener = delay
+            ? () => {
+                  setTimeout(() => {
+                      handleEnded();
+                  }, delay);
+              }
+            : handleEnded;
+
         // plays the sound for the first time
         this.#element.play();
-
-        // checks if a delay was given and then listens for the end of the first play
-        if (!delay) {
-            this.#element.addEventListener("ended", handleEnded);
-        } else {
-            this.#element.addEventListener("ended", () => {
-                setTimeout(() => {
-                    handleEnded();
-                }, delay);
-            });
-        }
+        this.#element.addEventListener("ended", onEndedListener);
     }
 
     /**

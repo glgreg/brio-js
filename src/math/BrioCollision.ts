@@ -21,86 +21,76 @@ type CircleCollisionType = {
     size: number;
 };
 
+/**
+ * Provides 2D collision mask attachment and intersection testing (AABB and Circle).
+ */
 export class BrioCollision {
+    /**
+     * Tests whether two `BrioObject` instances with active collision masks are intersecting.
+     * Supports Rectangle/Square vs Rectangle/Square, Circle vs Circle, and symmetric Circle vs Rectangle/Square.
+     * @param one First game object
+     * @param two Second game object
+     * @returns `true` if the two colliders intersect, otherwise `false`
+     */
     public static isColliding(one: BrioObject, two: BrioObject): boolean {
         if (!one.collision || !two.collision) return false;
+        if (!one.collision.enabled || !two.collision.enabled) return false;
 
         const oneShape = one.collision.shape;
         const twoShape = two.collision.shape;
 
         if (oneShape === "circle" || twoShape === "circle") {
             if (oneShape !== "circle" || twoShape !== "circle") {
-                // Posição do círculo (dinâmica) e raio
-                const cx = two.transform.position.x + two.collision.pos.x;
-                const cy = two.transform.position.y + two.collision.pos.y;
-                const radius = Math.min(two.collision.size.x, two.collision.size.y) / 2;
+                const circleObj = oneShape === "circle" ? one : two;
+                const rectObj = oneShape === "circle" ? two : one;
 
-                // Limites do quadrado
-                const minX = one.transform.position.x + one.collision.pos.x;
-                const maxX = minX + one.collision.size.x;
-                const minY = one.transform.position.y + one.collision.pos.y;
-                const maxY = minY + one.collision.size.y;
+                const radius = Math.min(circleObj.collision!.size.x, circleObj.collision!.size.y) / 2;
+                const cx =
+                    circleObj.transform.position.x + circleObj.collision!.pos.x + radius;
+                const cy =
+                    circleObj.transform.position.y + circleObj.collision!.pos.y + radius;
 
-                // Verificação AABB inicial
-                const aabbCircleMinX = cx - radius;
-                const aabbCircleMaxX = cx + radius;
-                const aabbCircleMinY = cy - radius;
-                const aabbCircleMaxY = cy + radius;
+                const minX = rectObj.transform.position.x + rectObj.collision!.pos.x;
+                const maxX = minX + rectObj.collision!.size.x;
+                const minY = rectObj.transform.position.y + rectObj.collision!.pos.y;
+                const maxY = minY + rectObj.collision!.size.y;
 
+                // Broadphase AABB check
                 if (
-                    aabbCircleMaxX < minX ||
-                    aabbCircleMinX > maxX ||
-                    aabbCircleMaxY < minY ||
-                    aabbCircleMinY > maxY
+                    cx + radius < minX ||
+                    cx - radius > maxX ||
+                    cy + radius < minY ||
+                    cy - radius > maxY
                 ) {
                     return false;
                 }
 
-                // Encontrar o ponto mais próximo no quadrado
+                // Closest point on the AABB to the circle center
                 const closestX = Math.max(minX, Math.min(cx, maxX));
                 const closestY = Math.max(minY, Math.min(cy, maxY));
 
-                // Calcular a distância entre o centro do círculo e o ponto mais próximo
                 const dx = cx - closestX;
                 const dy = cy - closestY;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                // Colisão ocorre se a distância for menor que o raio
-                return distance < radius;
+                return dx * dx + dy * dy <= radius * radius;
             }
-
-            const oneCenterX = one.transform.position.x + one.collision.pos.x;
-            const oneCenterY = one.transform.position.y + one.collision.pos.y;
-            const twoCenterX = two.transform.position.x + two.collision.pos.x;
-            const twoCenterY = two.transform.position.y + two.collision.pos.y;
 
             const oneRadius = Math.min(one.collision.size.x, one.collision.size.y) / 2;
             const twoRadius = Math.min(two.collision.size.x, two.collision.size.y) / 2;
 
-            const oneAabbMinX = oneCenterX - oneRadius;
-            const oneAabbMaxX = oneCenterX + oneRadius;
-            const oneAabbMinY = oneCenterY - oneRadius;
-            const oneAabbMaxY = oneCenterY + oneRadius;
+            const oneCenterX = one.transform.position.x + one.collision.pos.x + oneRadius;
+            const oneCenterY = one.transform.position.y + one.collision.pos.y + oneRadius;
+            const twoCenterX = two.transform.position.x + two.collision.pos.x + twoRadius;
+            const twoCenterY = two.transform.position.y + two.collision.pos.y + twoRadius;
 
-            const twoAabbMinX = twoCenterX - twoRadius;
-            const twoAabbMaxX = twoCenterX + twoRadius;
-            const twoAabbMinY = twoCenterY - twoRadius;
-            const twoAabbMaxY = twoCenterY + twoRadius;
+            const radiusSum = oneRadius + twoRadius;
+            const dx = oneCenterX - twoCenterX;
+            const dy = oneCenterY - twoCenterY;
 
-            if (
-                oneAabbMaxX < twoAabbMinX ||
-                twoAabbMaxX < oneAabbMinX ||
-                oneAabbMaxY < twoAabbMinY ||
-                twoAabbMaxY < oneAabbMinY
-            ) {
+            if (Math.abs(dx) > radiusSum || Math.abs(dy) > radiusSum) {
                 return false;
             }
 
-            const dx = oneCenterX - twoCenterX;
-            const dy = oneCenterY - twoCenterY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            return distance < oneRadius + twoRadius;
+            return dx * dx + dy * dy <= radiusSum * radiusSum;
         } else {
             const rect1 = {
                 x: one.transform.position.x + one.collision.pos.x,
@@ -132,7 +122,7 @@ export class BrioCollision {
             enabled: true,
             shape: "square",
             colliderType: config.colliderType,
-            pos: config.pos,
+            pos: { x: config.pos.x, y: config.pos.y },
             size: {
                 x: config.size,
                 y: config.size,
@@ -147,8 +137,8 @@ export class BrioCollision {
             enabled: true,
             shape: "rectangle",
             colliderType: config.colliderType,
-            pos: config.pos,
-            size: config.size,
+            pos: { x: config.pos.x, y: config.pos.y },
+            size: { x: config.size.x, y: config.size.y },
         };
     }
 
@@ -159,7 +149,7 @@ export class BrioCollision {
             enabled: true,
             shape: "circle",
             colliderType: config.colliderType,
-            pos: config.pos,
+            pos: { x: config.pos.x, y: config.pos.y },
             size: {
                 x: config.size,
                 y: config.size,

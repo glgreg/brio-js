@@ -2,11 +2,11 @@ import { CanvasFPSPosition } from "../game/BrioSpriteRenderer";
 import { BrioConsole } from "./BrioConsole";
 
 interface DebugConsoleProperties {
-    /** logs padrão de estado e mostrar quais assets e objetos foram carregados, além de erros básicos */
+    /** Enables standard state logs, loaded assets/objects reporting, and basic error messages */
     enabled: boolean;
-    /** mostra a stack trace dos arquivos do usuario, para que encontre os locais onde cada ação ocorre via suas chamadas */
+    /** Displays the user file stack trace for log calls */
     showStackTrace: boolean;
-    /** mostra a stack trace dos arquivos internos de Brio, para que caso o usuário precise entender o que está criando a lógica ao qual ele está usando (e possivelmente o motivo de seus erros) */
+    /** Displays internal BrioJS stack traces for debugging engine calls */
     showInternalStackTrace: boolean;
 }
 
@@ -14,7 +14,7 @@ interface DebugGridProperties {
     enabled: boolean;
     width: number;
     height: number;
-    /** mostra reguas no eixo x e y para o usuário saber onde buscar centralização */
+    /** Renders X and Y axis center rulers on the canvas */
     showAxisRulers: boolean;
 }
 
@@ -29,11 +29,15 @@ interface DebugFPSOverlayProperties {
 
 interface DebugRenderProperties {
     grid: DebugGridProperties;
-    showRenderBounds: boolean; // mostra as caixas/circulos de geometria dos sprites
-    showCollisionBounds: boolean; // mostra as caixas/circulos de colisões dos objetos
-    fpsOverlay: DebugFPSOverlayProperties; // mostra um overlay de fps do game loop
+    showRenderBounds: boolean;
+    showCollisionBounds: boolean;
+    fpsOverlay: DebugFPSOverlayProperties;
 }
 
+/**
+ * Manages visual and console debugging configurations for a `BrioGame` instance.
+ * Pre-allocates its configuration views once in the constructor to prevent per-frame closure allocations.
+ */
 export class BrioDebugger {
     #console: BrioConsole;
     #consoleConfig: DebugConsoleProperties = {
@@ -60,138 +64,144 @@ export class BrioDebugger {
         },
     };
 
-    constructor(console: BrioConsole) {
-        this.#console = console;
-    }
+    #consoleView: DebugConsoleProperties;
+    #gridView: DebugGridProperties;
+    #fpsOverlayView: DebugFPSOverlayProperties;
+    #renderView: DebugRenderProperties;
 
-    get console(): DebugConsoleProperties {
+    constructor(consoleInstance: BrioConsole) {
+        this.#console = consoleInstance;
         const config = this.#consoleConfig;
-        const console = this.#console;
+        const gridConfig = this.#renderConfig.grid;
+        const fpsConfig = this.#renderConfig.fpsOverlay;
+        const renderConfig = this.#renderConfig;
 
-        return {
+        this.#consoleView = {
             set enabled(shouldEnable: boolean) {
                 if (!config.enabled && shouldEnable) {
-                    console.enabled = shouldEnable;
+                    consoleInstance.enabled = shouldEnable;
                     config.enabled = shouldEnable;
-                    console.out("info", "Console logs are now enabled.");
+                    consoleInstance.out("info", "Console logs are now enabled.");
+                } else {
+                    consoleInstance.enabled = shouldEnable;
+                    config.enabled = shouldEnable;
                 }
             },
             get enabled() {
                 return config.enabled;
             },
             set showStackTrace(shouldEnable: boolean) {
-                console.showStackTrace = shouldEnable;
+                consoleInstance.showStackTrace = shouldEnable;
                 config.showStackTrace = shouldEnable;
             },
             get showStackTrace() {
                 return config.showStackTrace;
             },
             set showInternalStackTrace(shouldEnable: boolean) {
-                console.showInternalStackTrace = shouldEnable;
+                consoleInstance.showInternalStackTrace = shouldEnable;
                 config.showInternalStackTrace = shouldEnable;
             },
             get showInternalStackTrace() {
                 return config.showInternalStackTrace;
             },
         };
-    }
 
-    get render(): DebugRenderProperties {
-        const self = this;
-
-        return {
-            get grid() {
-                return self.#grid;
-            },
-            set showRenderBounds(shouldEnable: boolean) {
-                self.#renderConfig.showRenderBounds = shouldEnable;
-            },
-            get showRenderBounds() {
-                return self.#renderConfig.showRenderBounds;
-            },
-            set showCollisionBounds(shouldEnable: boolean) {
-                self.#renderConfig.showCollisionBounds = shouldEnable;
-            },
-            get showCollisionBounds() {
-                return self.#renderConfig.showCollisionBounds;
-            },
-            get fpsOverlay() {
-                return self.#renderConfig.fpsOverlay;
-            },
-        };
-    }
-
-    get #grid(): DebugGridProperties {
-        const self = this.#renderConfig.grid;
-
-        return {
+        this.#gridView = {
             set enabled(shouldEnable: boolean) {
-                self.enabled = shouldEnable;
+                gridConfig.enabled = shouldEnable;
             },
             get enabled() {
-                return self.enabled;
+                return gridConfig.enabled;
             },
             set width(cellWidth: number) {
-                self.width = Math.round(cellWidth);
+                gridConfig.width = Math.round(cellWidth);
             },
             get width() {
-                return self.width;
+                return gridConfig.width;
             },
             set height(cellHeight: number) {
-                self.height = Math.round(cellHeight);
+                gridConfig.height = Math.round(cellHeight);
             },
             get height() {
-                return self.height;
+                return gridConfig.height;
             },
             set showAxisRulers(shouldEnable: boolean) {
-                self.showAxisRulers = shouldEnable;
+                gridConfig.showAxisRulers = shouldEnable;
             },
             get showAxisRulers() {
-                return self.showAxisRulers;
+                return gridConfig.showAxisRulers;
+            },
+        };
+
+        this.#fpsOverlayView = {
+            set enabled(shouldEnable: boolean) {
+                fpsConfig.enabled = shouldEnable;
+            },
+            get enabled() {
+                return fpsConfig.enabled;
+            },
+            set position(canvasPosition: CanvasFPSPosition) {
+                fpsConfig.position = canvasPosition;
+            },
+            get position() {
+                return fpsConfig.position;
+            },
+            set offset(canvasOffset: number) {
+                fpsConfig.offset = canvasOffset;
+            },
+            get offset() {
+                return fpsConfig.offset;
+            },
+            set size(overlaySize: number) {
+                fpsConfig.size = overlaySize;
+            },
+            get size() {
+                return fpsConfig.size;
+            },
+            set backgroundColor(backgroundColor: string) {
+                fpsConfig.backgroundColor = backgroundColor;
+            },
+            get backgroundColor() {
+                return fpsConfig.backgroundColor;
+            },
+            set textColor(textColor: string) {
+                fpsConfig.textColor = textColor;
+            },
+            get textColor() {
+                return fpsConfig.textColor;
+            },
+        };
+
+        const gridView = this.#gridView;
+        const fpsOverlayView = this.#fpsOverlayView;
+
+        this.#renderView = {
+            get grid() {
+                return gridView;
+            },
+            set showRenderBounds(shouldEnable: boolean) {
+                renderConfig.showRenderBounds = shouldEnable;
+            },
+            get showRenderBounds() {
+                return renderConfig.showRenderBounds;
+            },
+            set showCollisionBounds(shouldEnable: boolean) {
+                renderConfig.showCollisionBounds = shouldEnable;
+            },
+            get showCollisionBounds() {
+                return renderConfig.showCollisionBounds;
+            },
+            get fpsOverlay() {
+                return fpsOverlayView;
             },
         };
     }
 
-    get #fpsOverlay(): DebugFPSOverlayProperties {
-        const self = this.#renderConfig.fpsOverlay;
+    public get console(): DebugConsoleProperties {
+        return this.#consoleView;
+    }
 
-        return {
-            set enabled(shouldEnable: boolean) {
-                self.enabled = shouldEnable;
-            },
-            get enabled() {
-                return self.enabled;
-            },
-            set position(canvasPosition: CanvasFPSPosition) {
-                self.position = canvasPosition;
-            },
-            get position() {
-                return self.position;
-            },
-            set offset(canvasOffset: number) {
-                self.offset = canvasOffset;
-            },
-            get offset() {
-                return self.offset;
-            },
-            set size(overlaySize: number) {
-                self.size = overlaySize;
-            },
-            get size() {
-                return self.size;
-            },
-            set backgroundColor(backgroundColor: string) {
-                self.backgroundColor = backgroundColor;
-            },
-            get backgroundColor() {
-                return self.backgroundColor;
-            },
-            set textColor(textColor: string) {
-                self.textColor = textColor;
-            },
-            get textColor() {
-                return self.textColor;
-            },
-        };
+    public get render(): DebugRenderProperties {
+        return this.#renderView;
     }
 }

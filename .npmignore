@@ -12,3 +12,11 @@ tsconfig.json
 
 # test files
 demo/
+tests/
+vitest.config.ts
+
+# docs and agent
+docs/
+brio-agent/
+TODO.md
+GLOSSARY.md
