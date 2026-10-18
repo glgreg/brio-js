@@ -6,7 +6,7 @@
     "scripts": {
         "build:win": "cls & tsc & npx ts-add-js-extension --dir=dist",
         "build:lin": "clear; tsc; npx ts-add-js-extension --dir=dist",
-        "doc": "npx typedoc"
+        "doc": "npx typedoc --out docs/api"
     },
     "repository": {
         "type": "git",
