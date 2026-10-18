@@ -170,6 +170,20 @@ export class BrioObject {
         return this.#clonesInstantiatedValue;
     }
 
+    /** Numeric entity ID allocated in `ECSWorld` (`-1` if not yet bound to an `ECSWorld`). */
+    #entityId: number = -1;
+
+    /**
+     * Numeric entity ID allocated in `ECSWorld` (`-1` if not bound).
+     */
+    public get entityId(): number {
+        return this.#entityId;
+    }
+
+    public set entityId(id: number) {
+        this.#entityId = id;
+    }
+
     /**
      * METHODS --------------------------------------------------------------------------
      */

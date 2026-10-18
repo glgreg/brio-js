@@ -45,6 +45,8 @@ export interface Vec2Bool {
 export class BrioVec2 implements Vec2 {
     #x: number;
     #y: number;
+    #buffer?: Float32Array;
+    #offset: number = 0;
     #onChange?: (x: number, y: number) => void;
 
     /** Horizontal component of the vector. */
@@ -69,22 +71,39 @@ export class BrioVec2 implements Vec2 {
             x: {
                 enumerable: true,
                 configurable: true,
-                get: (): number => this.#x,
+                get: (): number => (this.#buffer ? this.#buffer[this.#offset] : this.#x),
                 set: (value: number): void => {
                     this.#x = value;
-                    if (this.#onChange) this.#onChange(this.#x, this.#y);
+                    if (this.#buffer) this.#buffer[this.#offset] = value;
+                    if (this.#onChange) this.#onChange(this.x, this.y);
                 },
             },
             y: {
                 enumerable: true,
                 configurable: true,
-                get: (): number => this.#y,
+                get: (): number => (this.#buffer ? this.#buffer[this.#offset + 1] : this.#y),
                 set: (value: number): void => {
                     this.#y = value;
-                    if (this.#onChange) this.#onChange(this.#x, this.#y);
+                    if (this.#buffer) this.#buffer[this.#offset + 1] = value;
+                    if (this.#onChange) this.#onChange(this.x, this.y);
                 },
             },
         });
+    }
+
+    /**
+     * Binds this vector directly to a 2-float slot in an ECS `Float32Array` buffer.
+     *
+     * @param buffer Target `Float32Array` component storage
+     * @param offset Starting index in `buffer` (`offset`, `offset + 1`)
+     * @returns This `BrioVec2` instance
+     */
+    public bindBuffer(buffer: Float32Array, offset: number): this {
+        this.#buffer = buffer;
+        this.#offset = offset;
+        this.#buffer[offset] = this.#x;
+        this.#buffer[offset + 1] = this.#y;
+        return this;
     }
 
     /**
@@ -101,8 +120,22 @@ export class BrioVec2 implements Vec2 {
     public set(x: number, y: number): this {
         this.#x = x;
         this.#y = y;
-        if (this.#onChange) this.#onChange(this.#x, this.#y);
+        if (this.#buffer) {
+            this.#buffer[this.#offset] = x;
+            this.#buffer[this.#offset + 1] = y;
+        }
+        if (this.#onChange) this.#onChange(x, y);
         return this;
+    }
+
+    /**
+     * Copies `x` and `y` from another `Vec2` into this instance and triggers the change listener once.
+     *
+     * @param v Source 2D vector
+     * @returns This `BrioVec2` instance
+     */
+    public copy(v: Vec2): this {
+        return this.set(v.x, v.y);
     }
 
     /**
@@ -116,6 +149,10 @@ export class BrioVec2 implements Vec2 {
     public setSilent(x: number, y: number): this {
         this.#x = x;
         this.#y = y;
+        if (this.#buffer) {
+            this.#buffer[this.#offset] = x;
+            this.#buffer[this.#offset + 1] = y;
+        }
         return this;
     }
 }

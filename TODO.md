@@ -51,73 +51,73 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 
 ### 3.1. Linguagem Ubiqua Estrita e Modularizacao da API Publica
 - [x] Aplicar a regra de Linguagem Ubiqua Estrita em toda a base: remover aliases semanticos (`BrioSpriteAtlas`, `BrioLogger`, `"intangible"`) e manter apenas os termos canonicos documentados em `./GLOSSARY.md` (`BrioAtlas`, `BrioConsole`, `"trigger"`)
-- [ ] Separar classes concretas `BrioObject2D` e `BrioObject3D` (bem como `BrioTransform2D` / `BrioTransform3D` e `BrioCamera2D` / `BrioCamera3D`)
-- [ ] Refatorar `BrioGame` para deixar de ser um God Object, atuando como entrypoint central que aceita presets `"2d"` e `"3d"` ou um objeto completo `BrioGameConfig`
-- [ ] Garantir que todas as funcoes utilitarias (`vec2`, `vec3`, `mat4`, `quat`, `BrioMath`, `BrioCollision`) sejam exportadas de forma independente para total suporte a *Tree-Shaking* (`"sideEffects": false` no `package.json`)
+- [x] Separar classes concretas `BrioObject2D` e `BrioObject3D` (bem como `BrioTransform2D` / `BrioTransform3D` e `BrioCamera2D` / `BrioCamera3D`)
+- [x] Refatorar `BrioGame` para deixar de ser um God Object, atuando como entrypoint central que aceita presets `"2d"` e `"3d"` ou um objeto completo `BrioGameConfig`
+- [x] Garantir que todas as funcoes utilitarias (`vec2`, `vec3`, `mat4`, `quat`, `BrioMath`, `BrioCollision`) sejam exportadas de forma independente para total suporte a *Tree-Shaking* (`"sideEffects": false` no `package.json`)
 
 ### 3.2. Backend ECS (Structure of Arrays) + Facade OOP e Object Pooling
-- [ ] Implementar `ECSWorld` e `ComponentStorage` baseados em `TypedArrays` contiguos (`Float32Array`, `Uint32Array`, `Uint8Array`)
-- [ ] Transformar `BrioObject2D` e `BrioObject3D` em Facades OOP leves (Entity Handles) cujos getters/setters leem e escrevem diretamente nos slots do ECS via `entityId`
-- [ ] Implementar **Object Pooling nativo e transparente** em `ECSWorld` para `instantiate(prefab)` e `destroy(object)` em tempo $O(1)$, eliminando a flag estatica `BrioObject.instanceOfObject` e a restricao de sufixo `-[0-9]+`
-- [ ] Eliminar a alocacao e ordenacao de array por frame (`Array.from(this.#assets.objects.values()).sort(...)`) em favor de listas de renderizacao pre-ordenadas por `BrioLayer` com reordenacao apenas quando uma camada for marcada como *dirty*
+- [x] Implementar `ECSWorld` e `ComponentStorage` baseados em `TypedArrays` contiguos (`Float32Array`, `Uint32Array`, `Uint8Array`)
+- [x] Transformar `BrioObject2D` e `BrioObject3D` em Facades OOP leves (Entity Handles) cujos getters/setters leem e escrevem diretamente nos slots do ECS via `entityId`
+- [x] Implementar **Object Pooling nativo e transparente** em `ECSWorld` para `instantiate(prefab)` e `destroy(object)` em tempo $O(1)$, eliminando a flag estatica `BrioObject.instanceOfObject` e a restricao de sufixo `-[0-9]+`
+- [x] Eliminar a alocacao e ordenacao de array por frame (`Array.from(this.#assets.objects.values()).sort(...)`) em favor de listas de renderizacao pre-ordenadas por `BrioLayer` com reordenacao apenas quando uma camada for marcada como *dirty*
 - [x] Eliminar criacao de closures e objetos literais em getters de leitura frequente (`BrioDebugger.console`, `BrioDebugger.render`, `BrioDebugger.#grid`)
 - [x] Eliminar criacao de closures em `BrioCamera.pos` e `BrioCamera.size` durante a implementacao de `BrioCamera2D` / `BrioCamera3D`
 
 ### 3.3. Multi-Canvas, Compositor de Camadas (`BrioLayer`), Multi-Viewport e Workers (`OffscreenCanvas`)
-- [ ] Implementar sistema `BrioLayer` suportando $N$ camadas configuraveis como `static` (redesenha apenas quando *dirty*), `parallax` (fator de scroll automatico), `dynamic` (redesenha por frame) e `ui` (empilhamento ordenado em Screen Space para caixas de dialogo estilo *Persona* + HUD sobreposto)
-- [ ] Implementar suporte a multiplos `BrioViewport` por cena para permitir multiplayer local em tela dividida (*Split-Screen* para 2 a 4 jogadores, estilo *Gears of War*) e minimapas (*Picture-in-Picture*)
+- [x] Implementar sistema `BrioLayer` suportando $N$ camadas configuraveis como `static` (redesenha apenas quando *dirty*), `parallax` (fator de scroll automatico), `dynamic` (redesenha por frame) e `ui` (empilhamento ordenado em Screen Space para caixas de dialogo estilo *Persona* + HUD sobreposto)
+- [x] Implementar suporte a multiplos `BrioViewport` por cena para permitir multiplayer local em tela dividida (*Split-Screen* para 2 a 4 jogadores, estilo *Gears of War*) e minimapas (*Picture-in-Picture*)
 - [ ] Implementar `RenderWorker` com `OffscreenCanvas` (`transferControlToOffscreen()`) para retirar o custo de rasterizacao da Main Thread
 - [ ] Implementar `PhysicsWorker` para processar Broadphase e resolucao de colisoes fora da Main Thread
-- [ ] Implementar transporte de memoria do ECS com fallback automatico em 3 niveis: `SharedArrayBuffer` (zero-copy) -> `Transferable ArrayBuffer` (double-buffering) -> Main Thread (single-thread fallback)
+- [x] Implementar transporte de memoria do ECS com fallback automatico em 3 niveis: `SharedArrayBuffer` (zero-copy) -> `Transferable ArrayBuffer` (double-buffering) -> Main Thread (single-thread fallback)
 
 ---
 
 ## 4. Pipeline Grafico Multi-Backend (2D & 3D Zero-Dependency)
 
-- [ ] Definir interface formal `RenderBackend` garantindo paridade visual deterministica entre todos os motores graficos
-- [ ] Implementar seletor automatico de backend seguindo a cascata prioritaria: `WebGPU -> WebGL2 -> WebGL1 -> Canvas2D`
+- [x] Definir interface formal `RenderBackend` garantindo paridade visual deterministica entre todos os motores graficos
+- [x] Implementar seletor automatico de backend seguindo a cascata prioritaria: `WebGPU -> WebGL2 -> WebGL1 -> Canvas2D`
 - [ ] Implementar `WebGPURenderer` (pipeline 2D de Sprite Batching e pipeline 3D de malhas e iluminacao basica)
 - [ ] Implementar `WebGL2Renderer` (Instanced Drawing via VAOs e Uniform Buffer Objects para 2D e 3D)
 - [ ] Implementar `WebGL1Renderer` (Dynamic Quad/Mesh Batching para GPUs legadas)
-- [ ] Refatorar `Canvas2DRenderer` (suporte a `OffscreenCanvasRenderingContext2D`, multi-layer caching e **Software 3D Projector/Rasterizer** leve com *Painter's Algorithm* como fallback para cenas 3D em maquinas sem WebGL)
+- [x] Refatorar `Canvas2DRenderer` (suporte a `OffscreenCanvasRenderingContext2D`, multi-layer caching e **Software 3D Projector/Rasterizer** leve com *Painter's Algorithm* como fallback para cenas 3D em maquinas sem WebGL)
 
 ---
 
 ## 5. Implementacao e Polimento dos Modulos de Dominio
 
 ### 5.1. Cenas e Transformacoes (`BrioScene`, `BrioTransform2D`, `BrioTransform3D`)
-- [ ] Implementar `BrioScene` completa com ciclo proprio (`preload`, `load`, `update`, `pause`, `resume`, `restart`, `destroy`) e manter uma `defaultScene` implicita em `BrioGame`
+- [x] Implementar `BrioScene` completa com ciclo proprio (`preload`, `load`, `update`, `pause`, `resume`, `restart`, `destroy`) e manter uma `defaultScene` implicita em `BrioGame`
 - [x] Implementar `baseSize`, `renderSize`, `visibility`, `opacity` e `layer` reativos em `BrioTransform2D`
-- [ ] Implementar hierarquia Pai-Filho (`parent` / `children`) com calculo automatico de `localTransform` e `worldTransform` (via matrizes `Mat3` em 2D e `Mat4` em 3D)
+- [x] Implementar hierarquia Pai-Filho (`parent` / `children`) com calculo automatico de `localTransform` e `worldTransform` (via matrizes `Mat3` em 2D e `Mat4` em 3D)
 
 ### 5.2. Recursos Visuais 2D e 3D (`BrioTexture`, `BrioAtlas`, `BrioSpriteSheet`, `BrioSprite`, `BrioAnimation`, `BrioMesh`, `BrioMaterial`)
-- [ ] Implementar `BrioTexture` e `TextureRegistry` (padrao Flyweight com `ImageBitmap` / texturas de GPU para evitar duplicacao de memoria por URI)
-- [ ] Implementar `BrioAtlas` (mapeamento de sub-regioes nomeadas arbitrarias e factory de `BrioSprite`)
-- [ ] Implementar `BrioSpriteSheet` como factory de `BrioSprite` e `BrioAnimation` a partir de grades uniformes (linhas x colunas / largura x altura de celula)
-- [ ] Implementar `BrioAnimation` / `BrioAnimator` para controle de animacoes de sprites (frame rate, loop, ping-pong, callbacks de fim de animacao)
-- [ ] Implementar `BrioMesh` (primitivas 3D Box, Sphere, Plane, Cylinder e parser leve para `.obj` / `.gltf`) e `BrioMaterial` / `BrioLight`
+- [x] Implementar `BrioTexture` e `TextureRegistry` (padrao Flyweight com `ImageBitmap` / texturas de GPU para evitar duplicacao de memoria por URI)
+- [x] Implementar `BrioAtlas` (mapeamento de sub-regioes nomeadas arbitrarias e factory de `BrioSprite`)
+- [x] Implementar `BrioSpriteSheet` como factory de `BrioSprite` e `BrioAnimation` a partir de grades uniformes (linhas x colunas / largura x altura de celula)
+- [x] Implementar `BrioAnimation` / `BrioAnimator` para controle de animacoes de sprites (frame rate, loop, ping-pong, callbacks de fim de animacao)
+- [x] Implementar `BrioMesh` (primitivas 3D Box, Sphere, Plane, Cylinder e parser leve para `.obj` / `.gltf`) e `BrioMaterial` / `BrioLight`
 
 ### 5.3. Cameras e Mapas (`BrioCamera2D`, `BrioCamera3D`, `BrioTileMap`)
-- [ ] Implementar `BrioCamera2D` desacoplada de `BrioMap` (suporte a `follow` com `lerp` e `deadzone`, `zoom`, `rotation`, `setBounds`, `shake`, `screenToWorld`, `worldToScreen` e *Frustum Culling* 2D)
-- [ ] Implementar `BrioCamera3D` (projecao `perspective` e `orthographic`, `fov`, `near`, `far`, `lookAt`, `screenToRay` e *Frustum Culling* 3D)
-- [ ] Implementar `BrioTileMap` (suporte a matrizes 2D, importacao de JSON padrao Tiled/LDtk, mesclagem automatica de colliders adjacentes e renderizacao em chunks estaticos)
+- [x] Implementar `BrioCamera2D` desacoplada de `BrioMap` (suporte a `follow` com `lerp` e `deadzone`, `zoom`, `rotation`, `setBounds`, `shake`, `screenToWorld`, `worldToScreen` e *Frustum Culling* 2D)
+- [x] Implementar `BrioCamera3D` (projecao `perspective` e `orthographic`, `fov`, `near`, `far`, `lookAt`, `screenToRay` e *Frustum Culling* 3D)
+- [x] Implementar `BrioTileMap` (suporte a matrizes 2D, importacao de JSON padrao Tiled/LDtk, mesclagem automatica de colliders adjacentes e renderizacao em chunks estaticos)
 
 ### 5.4. Fisica e Colisoes (`BrioCollision`, `BrioRigidBody`, Broadphase)
-- [ ] Implementar resolucao fisica automatica por *Minimum Translation Vector* (MTV) para colliders do tipo `"solid"` e emissao de eventos/deteccao sem bloqueio para `"trigger"`
-- [ ] Implementar `SpatialHash2D` e `SpatialOctree3D` para Broadphase automatica
-- [ ] Implementar componente/perfil opcional `BrioRigidBody` (velocidade, aceleracao, gravidade, massa, atrito e restituicao)
+- [x] Implementar resolucao fisica automatica por *Minimum Translation Vector* (MTV) para colliders do tipo `"solid"` e emissao de eventos/deteccao sem bloqueio para `"trigger"`
+- [x] Implementar `SpatialHash2D` e `SpatialOctree3D` para Broadphase automatica
+- [x] Implementar componente/perfil opcional `BrioRigidBody` (velocidade, aceleracao, gravidade, massa, atrito e restituicao)
 
 ### 5.5. Input, Audio, Serializacao, Storage e Plataforma
-- [ ] Refatorar `BrioKeyboard` para usar um unico listener global na janela, expondo `BrioKeyboard.globalIsDown` e `BrioKeyboard.globalIsUp`, e aplicando `preventDefault()` apenas nas teclas configuradas
-- [ ] Implementar `BrioMouse` (posicao em tela e no mundo, cliques, scroll wheel, cursor lock)
-- [ ] Implementar `BrioTouch` (eventos multi-touch e gestos basicos para Web Mobile e Capacitor)
-- [ ] Implementar `BrioGamepad` (polling unificado da Gamepad API, mapeamento padrao de botoes/eixos, deadzone e vibracao)
+- [x] Refatorar `BrioKeyboard` para usar um unico listener global na janela, expondo `BrioKeyboard.globalIsDown` e `BrioKeyboard.globalIsUp`, e aplicando `preventDefault()` apenas nas teclas configuradas
+- [x] Implementar `BrioMouse` (posicao em tela e no mundo, cliques, scroll wheel, cursor lock)
+- [x] Implementar `BrioTouch` (eventos multi-touch e gestos basicos para Web Mobile e Capacitor)
+- [x] Implementar `BrioGamepad` (polling unificado da Gamepad API, mapeamento padrao de botoes/eixos, deadzone e vibracao)
 - [ ] Refatorar `BrioAudio` para utilizar **Web Audio API** (`AudioContext`, `AudioBuffer`, `GainNode` para canais Master/BGM/SFX, desbloqueio automatico de autoplay mobile) com fallback para `HTMLAudioElement`
-- [ ] Implementar `BrioSerializer` com serializacao **binaria pura** (`ArrayBuffer` / `Uint8Array`) dos buffers do ECS para `createCheckpoint()`, `restoreCheckpoint()` e `restart()`, alem de tradutor opcional para JSON (`toJSON` / `fromJSON`)
-- [ ] Remover a logica antiga de `#cachedObjects`, `#cachedSprites` e `JSON.stringify` de dentro de `BrioGame`
-- [ ] Implementar `BrioStorage` multiplataforma (`state` em memoria, `session` via `sessionStorage`, `local` via `localStorage`, e `db` via `IndexedDB` suportando armazenamento direto dos snapshots binarios do `BrioSerializer`)
-- [ ] Implementar `PlatformAdapter` para tratar particularidades de ciclo de vida, tela cheia, redimensionamento e storage entre Browser, Electron, Capacitor e ambiente Headless
-- [ ] Remover `BrioUtils.addProperty` e substituir `BrioUtils.timedAnimation` e `BrioUtils.wait` pelo sistema `BrioTimer` sincronizado ao `deltaTime` e ao estado de `pause()` da cena
+- [x] Implementar `BrioSerializer` com serializacao **binaria pura** (`ArrayBuffer` / `Uint8Array`) dos buffers do ECS para `createCheckpoint()`, `restoreCheckpoint()` e `restart()`, alem de tradutor opcional para JSON (`toJSON` / `fromJSON`)
+- [x] Remover a logica antiga de `#cachedObjects`, `#cachedSprites` e `JSON.stringify` de dentro de `BrioGame`
+- [x] Implementar `BrioStorage` multiplataforma (`state` em memoria, `session` via `sessionStorage`, `local` via `localStorage`, e `db` via `IndexedDB` suportando armazenamento direto dos snapshots binarios do `BrioSerializer`)
+- [x] Implementar `PlatformAdapter` para tratar particularidades de ciclo de vida, tela cheia, redimensionamento e storage entre Browser, Electron, Capacitor e ambiente Headless
+- [x] Remover `BrioUtils.addProperty` e substituir `BrioUtils.timedAnimation` e `BrioUtils.wait` pelo sistema `BrioTimer` sincronizado ao `deltaTime` e ao estado de `pause()` da cena
 
 ---
 

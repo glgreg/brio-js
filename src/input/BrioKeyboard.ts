@@ -21,6 +21,10 @@ import { KeyboardKey } from "../tools/base_types";
  * ```
  */
 export class BrioKeyboard {
+    static #globalState: Map<string, boolean> = new Map();
+    static #globalPrevState: Map<string, boolean> = new Map();
+    static #globalInitialized: boolean = false;
+
     /** Map storing current frame key states (`true` while held down, `false` when released). */
     #keyboardState: Map<string, boolean>;
     /** Map storing previous frame key states for transition detection (`isPressed` and `isUp`). */
@@ -30,6 +34,19 @@ export class BrioKeyboard {
     #console: BrioConsole;
 
     #customEventMaps: Map<KeyboardKey, () => void> = new Map();
+
+    /**
+     * Set of keys whose default browser action (such as page scrolling on Arrow keys or Space)
+     * will be suppressed via `event.preventDefault()`. Browser shortcuts like `F12` or `F5` are preserved.
+     */
+    public readonly preventDefaultKeys: Set<KeyboardKey> = new Set([
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        " ",
+        "Tab",
+    ]);
 
     /**
      * Creates a new `BrioKeyboard` controller and attaches `keydown`/`keyup` listeners to `window`.
@@ -49,17 +66,71 @@ export class BrioKeyboard {
         this.#addListener();
     }
 
+    static #ensureGlobalListener(): void {
+        if (this.#globalInitialized || typeof window === "undefined") return;
+        this.#globalInitialized = true;
+
+        window.addEventListener("keydown", (event: KeyboardEvent) => {
+            this.#globalState.set(event.key, true);
+        });
+        window.addEventListener("keyup", (event: KeyboardEvent) => {
+            this.#globalState.set(event.key, false);
+        });
+    }
+
+    /**
+     * Checks globally whether `key` is currently held down without requiring an instance reference.
+     *
+     * @param key Standard `KeyboardEvent.key` identifier
+     * @returns `true` while the key is held down
+     * @example
+     * ```ts
+     * if (BrioKeyboard.globalIsDown("ArrowUp")) {
+     *     player.moveUp();
+     * }
+     * ```
+     */
+    public static globalIsDown(key: KeyboardKey): boolean {
+        this.#ensureGlobalListener();
+        return this.#globalState.get(key) === true;
+    }
+
+    /**
+     * Checks globally whether `key` was released on the current frame.
+     *
+     * @param key Standard `KeyboardEvent.key` identifier
+     * @returns `true` if `key` transitioned from down to up
+     * @example
+     * ```ts
+     * if (BrioKeyboard.globalIsUp("z")) {
+     *     player.shoot();
+     * }
+     * ```
+     */
+    public static globalIsUp(key: KeyboardKey): boolean {
+        this.#ensureGlobalListener();
+        return this.#globalPrevState.get(key) === true && this.#globalState.get(key) === false;
+    }
+
+    /**
+     * Synchronizes global previous-frame key states at the end of a game frame.
+     */
+    public static syncGlobalFrame(): void {
+        if (!this.#globalInitialized) return;
+        this.#globalPrevState.clear();
+        for (const [k, v] of this.#globalState.entries()) {
+            this.#globalPrevState.set(k, v);
+        }
+    }
+
     #addListener() {
         this.#keyDownListenerId = (event: KeyboardEvent) => {
-            event.preventDefault();
-
-            if (!this.#keyboardState.has(event.key)) {
-                this.#keyboardState.set(event.key, true);
+            if (this.preventDefaultKeys.has(event.key)) {
+                event.preventDefault();
             }
 
-            if (this.#keyboardState.get(event.key) === false) {
-                this.#keyboardState.set(event.key, true);
-            }
+            this.#keyboardState.set(event.key, true);
+            BrioKeyboard.#globalState.set(event.key, true);
 
             const customHandler = this.#customEventMaps.get(event.key);
             if (customHandler) {
@@ -67,11 +138,14 @@ export class BrioKeyboard {
             }
         };
         this.#keyUpListenerId = (event: KeyboardEvent) => {
-            event.preventDefault();
+            if (this.preventDefaultKeys.has(event.key)) {
+                event.preventDefault();
+            }
 
             if (this.#keyboardState.get(event.key) === true) {
                 this.#keyboardState.set(event.key, false);
             }
+            BrioKeyboard.#globalState.set(event.key, false);
         };
 
         window.addEventListener("keydown", this.#keyDownListenerId);

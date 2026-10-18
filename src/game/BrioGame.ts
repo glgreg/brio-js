@@ -1,6 +1,9 @@
 import { BrioSprite } from "../assets/BrioSprite";
 import { BrioObject } from "../objects/BrioObject";
 import { BrioKeyboard } from "../input/BrioKeyboard";
+import { BrioMouse } from "../input/BrioMouse";
+import { BrioTouch } from "../input/BrioTouch";
+import { BrioGamepad } from "../input/BrioGamepad";
 import { BrioMap } from "../not-implemented/BrioMap";
 import { BrioCamera } from "../not-implemented/BrioCamera";
 import { BrioAudio } from "../assets/BrioAudio";
@@ -12,8 +15,36 @@ import { BrioUpdater } from "./BrioUpdater";
 import { BrioAssetManager } from "./BrioAssetManager";
 import { create } from "../math/vec2";
 import { BrioAtlas } from "../assets/BrioAtlas";
+import { ECSWorld } from "../ecs/ECSWorld";
+import { ComponentMask } from "../ecs/ComponentStorage";
+import { BrioTimer } from "../core/BrioTimer";
+import { BrioScene } from "../core/BrioScene";
+import { BrioSerializer } from "../storage/BrioSerializer";
 
 // #region --> TYPES-INTERFACES
+
+/**
+ * Dimension preset or mode for a `BrioGame` instance.
+ */
+export type BrioGameDimension = "2d" | "3d" | "hybrid";
+
+/**
+ * Full configuration object for initializing a `BrioGame` instance.
+ */
+export interface BrioGameConfig {
+    /** Logical width of the canvas viewport in pixels. */
+    width: number;
+    /** Logical height of the canvas viewport in pixels. */
+    height: number;
+    /** Target DOM `HTMLElement` where the canvas will be mounted. */
+    container: HTMLElement;
+    /** Spatial dimension preset (`"2d"`, `"3d"`, or `"hybrid"`). Defaults to `"2d"`. */
+    dimension?: BrioGameDimension;
+    /** Maximum ECS entity capacity. Defaults to `4096`. */
+    maxEntities?: number;
+    /** Optional Canvas 2D context settings. */
+    contextSettings?: CanvasRenderingContext2DSettings;
+}
 
 /**
  * Lifecycle state machine stages of a `BrioGame` instance.
@@ -66,13 +97,13 @@ export interface CanvasRendering {
 
 /**
  * Central entrypoint of BrioJS that manages the HTML5 Canvas, asset preloading (`preload`),
- * entity initialization (`load`), the `requestAnimationFrame` game loop (`update`), input controllers,
- * and visual/console debugging tools.
+ * entity initialization (`load`), the `requestAnimationFrame` game loop (`update`), ECS world storage,
+ * scenes, timers, input controllers, and visual/console debugging tools.
  *
  * @example
  * ```ts
  * const container = document.getElementById("game_container")!;
- * const game = new BrioGame(640, 480, container);
+ * const game = new BrioGame(640, 480, container, "2d");
  *
  * game.useKeyboard();
  *
@@ -106,6 +137,8 @@ export class BrioGame {
     #width: number;
     /** Logical height of the canvas viewport in pixels. */
     #height: number;
+    /** Spatial dimension preset (`"2d"`, `"3d"`, or `"hybrid"`). */
+    #dimension: BrioGameDimension = "2d";
     /** Canvas image interpolation settings (`mode` and `smoothness`). */
     #rendering: CanvasRendering = { mode: "smooth", smoothness: "medium" };
     /** Global scale multiplier applied to all rendered objects. */
@@ -127,6 +160,14 @@ export class BrioGame {
     #assets: BrioAssetManager = new BrioAssetManager();
     /** Reactive CSS background controller for the canvas element. */
     #canvasBackground: BrioCanvasBackground;
+    /** Internal Structure-of-Arrays (SoA) ECS world backing entities and binary snapshots. */
+    #ecsWorld: ECSWorld;
+    /** Frame-synchronized `deltaTime` timer scheduler. */
+    #timer: BrioTimer = new BrioTimer();
+    /** Registered `BrioScene` instances keyed by scene name. */
+    #scenes: Map<string, BrioScene> = new Map();
+    /** Currently active `BrioScene`. */
+    #activeScene?: BrioScene;
     // #endregion - COMPOSITION-OBJECTS
 
     // #region - UPDATE-LOGIC
@@ -143,58 +184,89 @@ export class BrioGame {
     #keyboardState: Map<string, boolean> = new Map<string, boolean>();
     #keyboardPrevState: Map<string, boolean> = new Map<string, boolean>();
     #keyboardInstance?: BrioKeyboard;
+    #mouseInstance?: BrioMouse;
+    #touchInstance?: BrioTouch;
+    #gamepadInstance?: BrioGamepad;
     // #endregion - INPUT-LOGIC
 
     // #region - STORAGE-LOGIC
     /** Map holding checkpoint references created via `createCheckPoint()`. */
     public cachedObjects: Map<string, Map<string, any>> = new Map();
     #cacheExists: boolean = false;
-
-    #cachedSprites: Map<string, string> = new Map();
-    #cachedObjects: Map<string, string> = new Map();
+    /** Initial binary ECS snapshot captured after `load()` for `useSnapshot()` and `restart()`. */
+    #initialBinarySnapshot?: Uint8Array;
+    /** Binary ECS snapshot captured via `createCheckPoint()`. */
+    #checkpointBinarySnapshot?: Uint8Array;
     // #endregion - STORAGE-LOGIC
     // #endregion --> PROPERTIES
 
     // #region --> CONSTRUCTOR
 
     /**
-     * Creates a new `BrioGame` instance and appends its `<canvas>` element to `appendToElement`.
+     * Creates a new `BrioGame` instance and appends its `<canvas>` element to the target container.
+     * Supports both `(width, height, appendToElement, presetOrSettings?)` and a single `BrioGameConfig` object.
      *
-     * @param width Canvas viewport width in pixels (negative values are converted to positive)
-     * @param height Canvas viewport height in pixels (negative values are converted to positive)
+     * @param widthOrConfig Canvas viewport width in pixels, or a `BrioGameConfig` object
+     * @param height Canvas viewport height in pixels (when first argument is `width`)
      * @param appendToElement Target DOM `HTMLElement` where the canvas will be mounted
-     * @param canvasContextSettings Optional `CanvasRenderingContext2DSettings` passed to `getContext("2d")`
-     * @throws {Error} When `appendToElement` is not a valid `HTMLElement`
+     * @param optionsOrSettings Optional dimension preset (`"2d" | "3d" | "hybrid"`) or `CanvasRenderingContext2DSettings`
+     * @throws {Error} When the target container is not a valid `HTMLElement`
      * @example
      * ```ts
-     * const game = new BrioGame(640, 480, document.body);
+     * const game = new BrioGame(640, 480, document.body, "2d");
      * ```
      */
     constructor(
-        width: number,
-        height: number,
-        appendToElement: HTMLElement,
-        canvasContextSettings: CanvasRenderingContext2DSettings = {},
+        widthOrConfig: number | BrioGameConfig,
+        height?: number,
+        appendToElement?: HTMLElement,
+        optionsOrSettings: BrioGameDimension | CanvasRenderingContext2DSettings = {},
     ) {
         // Initializing debugging tools
         this.#console = new BrioConsole();
         this.#debugger = new BrioDebugger(this.#console);
 
-        if (width < 0 || height < 0) {
+        let rawWidth: number;
+        let rawHeight: number;
+        let container: HTMLElement | undefined;
+        let maxEntities = 4096;
+
+        if (typeof widthOrConfig === "object" && widthOrConfig !== null) {
+            rawWidth = widthOrConfig.width;
+            rawHeight = widthOrConfig.height;
+            container = widthOrConfig.container;
+            this.#dimension = widthOrConfig.dimension ?? "2d";
+            maxEntities = widthOrConfig.maxEntities ?? 4096;
+            this.#ctxSettings = widthOrConfig.contextSettings ?? {};
+        } else {
+            rawWidth = widthOrConfig;
+            rawHeight = height ?? 0;
+            container = appendToElement;
+            if (typeof optionsOrSettings === "string") {
+                this.#dimension = optionsOrSettings;
+            } else {
+                this.#ctxSettings = optionsOrSettings;
+            }
+        }
+
+        if (rawWidth < 0 || rawHeight < 0) {
             this.#console.out(
                 "warn",
                 "BrioGame constructor: Negative values converted to positive.",
             );
         }
-        if (!(appendToElement instanceof HTMLElement)) {
+        if (!(container instanceof HTMLElement)) {
             throw this.#console.fatalError(
                 "BrioGame constructor: A BrioGame should be appended to a working HTMLElement.",
             );
         }
 
         // Game dimensions
-        this.#width = Math.abs(width);
-        this.#height = Math.abs(height);
+        this.#width = Math.abs(rawWidth);
+        this.#height = Math.abs(rawHeight);
+
+        // ECS world allocation
+        this.#ecsWorld = new ECSWorld(maxEntities);
 
         // Canvas element configuration
         this.#canvas = document.createElement("canvas");
@@ -203,10 +275,9 @@ export class BrioGame {
         this.#canvas.height = this.#height;
 
         // Canvas 2D context configuration
-        this.#ctxSettings = canvasContextSettings;
         this.ctx = this.#canvas.getContext("2d", this.#ctxSettings);
 
-        appendToElement.appendChild(this.#canvas);
+        container.appendChild(this.#canvas);
 
         // Composing engine subsystems
         this.#canvasBackground = new BrioCanvasBackground(this.#canvas);
@@ -235,6 +306,56 @@ export class BrioGame {
     // #endregion --> CONSTRUCTOR
 
     // #region --> GETTERS-SETTERS
+
+    /**
+     * Spatial dimension preset of this game instance (`"2d"`, `"3d"`, or `"hybrid"`).
+     *
+     * @example
+     * ```ts
+     * console.log(game.dimension); // "2d"
+     * ```
+     */
+    public get dimension(): BrioGameDimension {
+        return this.#dimension;
+    }
+
+    /**
+     * Internal Structure-of-Arrays (SoA) `ECSWorld` instance backing entities and binary snapshots.
+     *
+     * @example
+     * ```ts
+     * console.log(game.ecsWorld.activeCount);
+     * ```
+     */
+    public get ecsWorld(): ECSWorld {
+        return this.#ecsWorld;
+    }
+
+    /**
+     * Frame-synchronized `BrioTimer` scheduler that pauses automatically when the game is paused.
+     *
+     * @example
+     * ```ts
+     * game.timer.after(2.0, () => console.log("2 seconds of gameplay elapsed!"));
+     * ```
+     */
+    public get timer(): BrioTimer {
+        return this.#timer;
+    }
+
+    /**
+     * Map of registered `BrioScene` instances keyed by scene name.
+     */
+    public get scenes(): Map<string, BrioScene> {
+        return this.#scenes;
+    }
+
+    /**
+     * Currently active `BrioScene`, if any.
+     */
+    public get activeScene(): BrioScene | undefined {
+        return this.#activeScene;
+    }
 
     /**
      * Map of all preloaded `BrioSprite` assets keyed by `sprite.name`.
@@ -381,6 +502,70 @@ export class BrioGame {
         }
 
         return this.#keyboardInstance;
+    }
+
+    /**
+     * Active `BrioMouse` input controller.
+     * Requires `game.useMouse()` to be called before accessing.
+     *
+     * @throws {Error} When accessed before calling `game.useMouse()`
+     * @example
+     * ```ts
+     * game.useMouse();
+     * if (game.mouse.isPressed(0)) {
+     *     console.log(game.mouse.position);
+     * }
+     * ```
+     */
+    public get mouse(): BrioMouse {
+        if (!this.#mouseInstance) {
+            throw this.#console.fatalError(
+                "Mouse instance doesn't exist. Try using the useMouse() method in the game object.",
+            );
+        }
+        return this.#mouseInstance;
+    }
+
+    /**
+     * Active `BrioTouch` multi-touch input controller.
+     * Requires `game.useTouch()` to be called before accessing.
+     *
+     * @throws {Error} When accessed before calling `game.useTouch()`
+     * @example
+     * ```ts
+     * game.useTouch();
+     * if (game.touch.isTouching) {
+     *     console.log(game.touch.primaryPosition);
+     * }
+     * ```
+     */
+    public get touch(): BrioTouch {
+        if (!this.#touchInstance) {
+            throw this.#console.fatalError(
+                "Touch instance doesn't exist. Try using the useTouch() method in the game object.",
+            );
+        }
+        return this.#touchInstance;
+    }
+
+    /**
+     * Active `BrioGamepad` controller.
+     * Requires `game.useGamepad()` to be called before accessing.
+     *
+     * @throws {Error} When accessed before calling `game.useGamepad()`
+     * @example
+     * ```ts
+     * game.useGamepad();
+     * const move = game.gamepad.getLeftStick(0);
+     * ```
+     */
+    public get gamepad(): BrioGamepad {
+        if (!this.#gamepadInstance) {
+            throw this.#console.fatalError(
+                "Gamepad instance doesn't exist. Try using the useGamepad() method in the game object.",
+            );
+        }
+        return this.#gamepadInstance;
     }
 
     // #endregion --> GETTERS-SETTERS
@@ -557,6 +742,7 @@ export class BrioGame {
                     gameObject.transform.size.y = sprite.size.y;
                 }
 
+                this.#bindObjectToECS(gameObject);
                 this.#assets.objects.set(gameObject.name, gameObject);
             });
 
@@ -614,10 +800,17 @@ export class BrioGame {
                 this.#gameLastFPS = this.#renderer.gameLastFPS =
                     deltaTime > 0 ? 1 / deltaTime : 60;
 
+                // Poll gamepads and advance frame-synchronized timers
+                this.#gamepadInstance?.poll();
+                this.#timer.update(deltaTime);
+
                 this.#renderDebuggingGrid();
 
                 // Main user update callback
                 callbackFn(this.#updater, deltaTime);
+
+                // Active scene update
+                this.#activeScene?.step(deltaTime);
 
                 // #region PRIMITIVE-LAYER-RENDERING
                 const objects = Array.from(this.#assets.objects.values());
@@ -630,11 +823,13 @@ export class BrioGame {
 
                 this.#renderDebuggingHelpers();
 
-                // Snapshot current keyboard state into previous state for next frame's isPressed / isUp
+                // Snapshot current keyboard/mouse state into previous state for next frame's isPressed / isUp
                 this.#keyboardPrevState.clear();
                 for (const state of this.#keyboardState) {
                     this.#keyboardPrevState.set(state[0], state[1]);
                 }
+                this.#mouseInstance?.endFrame();
+                this.#ecsWorld.storage.clearAllDirty();
 
                 this.#deltaTimePreviousTime = currentTime;
 
@@ -651,6 +846,15 @@ export class BrioGame {
     // #endregion --> GAME-STATES
 
     // #region --> METHODS
+
+    #bindObjectToECS(gameObject: BrioObject): void {
+        if (gameObject.entityId < 0 || !this.#ecsWorld.isAlive(gameObject.entityId)) {
+            const entityId = this.#ecsWorld.createEntity();
+            gameObject.entityId = entityId;
+            this.#ecsWorld.addComponent(entityId, ComponentMask.TRANSFORM_2D);
+            gameObject.transform.bindECS(this.#ecsWorld.storage, entityId);
+        }
+    }
 
     #renderDebuggingGrid(): void {
         const render = this.#renderer;
@@ -683,30 +887,83 @@ export class BrioGame {
     }
 
     /**
-     * INTERNAL METHODS -----------------------------------------------------------------
+     * SCENE MANAGEMENT -----------------------------------------------------------------
      */
 
     /**
-     * Captures a serialized snapshot of currently loaded objects and sprites.
+     * Registers a `BrioScene` instance in the game. If no scene is currently active, activates it immediately.
+     *
+     * @param scene `BrioScene` instance to register
+     * @returns This `BrioGame` instance
+     * @example
+     * ```ts
+     * const level1 = new BrioScene("scene_level_1");
+     * game.addScene(level1);
+     * ```
      */
-    public createSnapshot(): void {
-        this.#assets.objects.forEach((object, key) => {
-            this.#cachedObjects.set(key, JSON.stringify(object));
-        });
-        this.#assets.sprites.forEach((sprite, key) => {
-            this.#cachedSprites.set(key, JSON.stringify(sprite));
-        });
+    public addScene(scene: BrioScene): this {
+        this.#scenes.set(scene.name, scene);
+        if (!this.#activeScene) {
+            this.#activeScene = scene;
+            scene.resume();
+        }
+        return this;
     }
 
     /**
-     * Restores objects from the most recent snapshot captured via `createSnapshot()`.
+     * Transitions from the currently active scene to the registered scene named `name`.
+     *
+     * @param name Target scene name
+     * @returns This `BrioGame` instance
+     * @throws {Error} When `name` is not registered in `game.scenes`
+     * @example
+     * ```ts
+     * game.setScene("scene_game_over");
+     * ```
+     */
+    public setScene(name: string): this {
+        const nextScene = this.#scenes.get(name);
+        if (!nextScene) {
+            throw this.#console.fatalError(`Scene '${name}' is not registered in BrioGame.`);
+        }
+        if (this.#activeScene && this.#activeScene !== nextScene) {
+            this.#activeScene.pause();
+        }
+        this.#activeScene = nextScene;
+        nextScene.resume();
+        return this;
+    }
+
+    /**
+     * INTERNAL & BINARY SNAPSHOT METHODS -----------------------------------------------
+     */
+
+    /**
+     * Captures a high-speed binary snapshot (`Uint8Array`) of the current `ECSWorld` state via `BrioSerializer`.
+     *
+     * @returns The captured `Uint8Array` binary snapshot
+     * @example
+     * ```ts
+     * const snapshot = game.createSnapshot();
+     * ```
+     */
+    public createSnapshot(): Uint8Array {
+        this.#assets.objects.forEach((obj) => this.#bindObjectToECS(obj));
+        this.#initialBinarySnapshot = BrioSerializer.captureSnapshot(this.#ecsWorld);
+        return this.#initialBinarySnapshot;
+    }
+
+    /**
+     * Restores the `ECSWorld` and all bound `BrioObject` transforms from the most recent snapshot captured via `createSnapshot()`.
+     *
+     * @example
+     * ```ts
+     * game.useSnapshot();
+     * ```
      */
     public useSnapshot(): void {
-        for (const [key, object] of this.#cachedObjects) {
-            if (!this.#assets.objects.has(key)) {
-                break;
-            }
-            this.#assets.objects.set(key, JSON.parse(object));
+        if (this.#initialBinarySnapshot) {
+            BrioSerializer.restoreSnapshot(this.#ecsWorld, this.#initialBinarySnapshot);
         }
     }
 
@@ -715,7 +972,7 @@ export class BrioGame {
      */
 
     /**
-     * Stores an in-memory checkpoint of all current scene maps, objects, sprites, audios, and cameras.
+     * Stores an in-memory binary checkpoint of all current scene entities, maps, sprites, audios, and cameras.
      *
      * @example
      * ```ts
@@ -723,17 +980,44 @@ export class BrioGame {
      * ```
      */
     public createCheckPoint(): void {
-        this.cachedObjects.set("objects", new Map<string, BrioObject>());
-        this.#assets.objects.forEach((object, id) => {
-            this.cachedObjects.get("objects")?.set(id, object);
-        });
+        this.#assets.objects.forEach((obj) => this.#bindObjectToECS(obj));
+        this.#checkpointBinarySnapshot = BrioSerializer.captureSnapshot(this.#ecsWorld);
 
+        const clonedMap = new Map<string, BrioObject>();
+        this.#assets.objects.forEach((object, id) => {
+            clonedMap.set(id, object);
+        });
+        this.cachedObjects.set("objects", clonedMap);
         this.cachedObjects.set("sprites", this.#assets.sprites);
         this.cachedObjects.set("audios", this.#assets.audios);
         this.cachedObjects.set("cameras", this.#assets.cameras);
         this.cachedObjects.set("maps", this.#assets.maps);
 
-        if (!this.#cacheExists) this.#cacheExists = true;
+        this.#cacheExists = true;
+    }
+
+    /**
+     * Restores all entities and `ECSWorld` state from the most recent checkpoint created via `createCheckPoint()`.
+     *
+     * @returns `true` if a checkpoint existed and was restored, or `false` otherwise
+     * @example
+     * ```ts
+     * game.restoreCheckPoint();
+     * ```
+     */
+    public restoreCheckPoint(): boolean {
+        if (!this.#cacheExists || !this.#checkpointBinarySnapshot) {
+            return false;
+        }
+        BrioSerializer.restoreSnapshot(this.#ecsWorld, this.#checkpointBinarySnapshot);
+        const savedObjects = this.cachedObjects.get("objects");
+        if (savedObjects) {
+            this.#assets.objects.clear();
+            savedObjects.forEach((obj: BrioObject, id: string) => {
+                this.#assets.objects.set(id, obj);
+            });
+        }
+        return true;
     }
 
     /**
@@ -800,10 +1084,10 @@ export class BrioGame {
         // Pausing the game update loop
         this.pause();
 
-        // Removing keyboard listener
-        if (this.#keyboardInstance) {
-            this.#keyboardInstance.removeListener();
-        }
+        // Removing input listeners
+        this.#keyboardInstance?.removeListener();
+        this.#mouseInstance?.removeListener();
+        this.#touchInstance?.removeListener();
 
         // Clearing asset and state registries
         this.#assets.audios.clear();
@@ -814,16 +1098,24 @@ export class BrioGame {
         this.#assets.atlases.clear();
         this.#keyboardState.clear();
         this.#keyboardPrevState.clear();
+        this.#timer.clear();
+        this.#ecsWorld.clear();
         this.#console.loggedErrors.clear();
 
         this.#console.out("info", "Game ended!");
     }
 
     /**
-     * Placeholder for restarting the current game state from the initial snapshot.
+     * Restarts the current game state from the initial binary snapshot captured after `load()`.
+     *
+     * @example
+     * ```ts
+     * game.restart();
+     * ```
      */
     public restart(): void {
-        // Restart logic to be implemented via BrioSerializer
+        this.useSnapshot();
+        this.#deltaTimePreviousTime = 0;
     }
 
     /**
@@ -847,6 +1139,10 @@ export class BrioGame {
         ) {
             objectExists = true;
             this.#assets.objects.delete(targetObject.name);
+            if (targetObject.entityId >= 0) {
+                this.#ecsWorld.destroyEntity(targetObject.entityId);
+                targetObject.entityId = -1;
+            }
         }
         if (this.ctx && objectExists && targetObject) {
             this.#renderer.clearObject(targetObject);
@@ -903,8 +1199,8 @@ export class BrioGame {
 
     /**
      * Spawns a new clone instance of `targetObject` (e.g. a projectile or enemy prefab),
-     * assigning it a sequential name (`"<name>-<instanceId>"`), copying its `transform` and `collision` mask,
-     * and registering it in `game.gameObjects`.
+     * assigning it a sequential name (`"<name>-<instanceId>"`), copying its `transform` and `collision` mask
+     * via $O(1)$ ECS entity pooling, and registering it in `game.gameObjects`.
      *
      * @param targetObject Template/prefab `BrioObject` to instantiate
      * @returns The newly spawned `BrioObject` instance
@@ -918,6 +1214,7 @@ export class BrioGame {
         BrioObject.instanceOfObject = true;
 
         const registeredObject = this.#assets.objects.get(targetObject.name) ?? targetObject;
+        this.#bindObjectToECS(registeredObject);
 
         // Cloning object with sequential suffix
         const newObject = new BrioObject(
@@ -925,6 +1222,11 @@ export class BrioGame {
             registeredObject.sprite,
             registeredObject.transform.layer,
         );
+
+        // Allocate pooled ECS slot and copy template data in O(1)
+        const pooledEntityId = this.#ecsWorld.instantiateFrom(registeredObject.entityId);
+        newObject.entityId = pooledEntityId;
+
         newObject.transform.position = {
             x: registeredObject.transform.position.x,
             y: registeredObject.transform.position.y,
@@ -952,6 +1254,7 @@ export class BrioGame {
         };
         newObject.transform.visibility = registeredObject.transform.visibility;
         newObject.transform.opacity = registeredObject.transform.opacity;
+        newObject.transform.bindECS(this.#ecsWorld.storage, pooledEntityId);
 
         // Incrementing the prefab clone counter
         registeredObject.clonesInstantiatedValue = 1;
@@ -985,8 +1288,8 @@ export class BrioGame {
     }
 
     /**
-     * Destroys an active `BrioObject` instance, clearing its canvas region and removing it from `game.gameObjects`
-     * without deleting shared `BrioSprite` assets.
+     * Destroys an active `BrioObject` instance, clearing its canvas region, returning its `entityId`
+     * to the `ECSWorld` object pool, and removing it from `game.gameObjects` without deleting shared `BrioSprite` assets.
      *
      * @param targetObject The `BrioObject` instance to destroy
      * @example
@@ -1002,6 +1305,10 @@ export class BrioGame {
         if (this.#assets.objects.has(targetObject.name)) {
             this.#renderer.clearObject(targetObject);
             this.#assets.objects.delete(targetObject.name);
+        }
+        if (targetObject.entityId >= 0) {
+            this.#ecsWorld.destroyEntity(targetObject.entityId);
+            targetObject.entityId = -1;
         }
     }
 
@@ -1079,7 +1386,34 @@ export class BrioGame {
     }
 
     /**
-     * Registers browser `gamepadconnected` and `gamepaddisconnected` event listeners.
+     * Initializes the `BrioMouse` input subsystem on the game canvas.
+     * Must be called before accessing `game.mouse`.
+     *
+     * @example
+     * ```ts
+     * game.useMouse();
+     * ```
+     */
+    public useMouse(): void {
+        this.#mouseInstance = new BrioMouse(this.#canvas);
+    }
+
+    /**
+     * Initializes the `BrioTouch` multi-touch input subsystem on the game canvas.
+     * Must be called before accessing `game.touch`.
+     *
+     * @example
+     * ```ts
+     * game.useTouch();
+     * ```
+     */
+    public useTouch(): void {
+        this.#touchInstance = new BrioTouch(this.#canvas);
+    }
+
+    /**
+     * Initializes the `BrioGamepad` input subsystem and registers browser `gamepadconnected` / `gamepaddisconnected` listeners.
+     * Must be called before accessing `game.gamepad`.
      *
      * @example
      * ```ts
@@ -1087,13 +1421,7 @@ export class BrioGame {
      * ```
      */
     public useGamepad(): void {
-        window.addEventListener("gamepadconnected", (event) => {
-            this.#console.out("log", `gamepadconnected ${event}.`);
-        });
-
-        window.addEventListener("gamepaddisconnected", (event) => {
-            this.#console.out("log", `gamepadisconnnected ${event}.`);
-        });
+        this.#gamepadInstance = new BrioGamepad();
     }
 
     // #endregion --> METHODS

@@ -41,12 +41,12 @@ describe("BrioMath", () => {
 
     it("supports lerp, inverseLerp, remap, and smoothstep", () => {
         expect(lerp(0, 100, 0.25)).toBe(25);
-        expect(inverseLerp(0, 100, 25)).toBe(0.25);
+        expect(inverseLerp(25, 0, 100)).toBe(0.25);
         expect(inverseLerp(10, 10, 10)).toBe(0);
         expect(remap(50, 0, 100, 0, 1)).toBe(0.5);
-        expect(smoothstep(0, 10, -5)).toBe(0);
-        expect(smoothstep(0, 10, 5)).toBe(0.5);
-        expect(smoothstep(0, 10, 15)).toBe(1);
+        expect(smoothstep(-5, 0, 10)).toBe(0);
+        expect(smoothstep(5, 0, 10)).toBe(0.5);
+        expect(smoothstep(15, 0, 10)).toBe(1);
     });
 
     it("supports wrap, approxEqual, randomRange, and randomInt", () => {

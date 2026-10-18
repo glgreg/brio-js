@@ -1,5 +1,2 @@
-/**
- * Mouse input controller for tracking pointer coordinates, button states, and wheel events.
- */
-export class BrioMouse {}
-
+export { BrioMouse } from "../input/BrioMouse";
+export type { MouseButton } from "../input/BrioMouse";

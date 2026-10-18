@@ -1,5 +1,2 @@
-/**
- * Gamepad input controller for polling connected controllers, buttons, and analog sticks.
- */
-export class BrioGamepad {}
-
+export { BrioGamepad } from "../input/BrioGamepad";
+export type { GamepadButtonName } from "../input/BrioGamepad";

@@ -64,16 +64,16 @@ export function lerp(start: number, end: number, t: number): number {
  * Calculates the normalized interpolation factor `t` of `value` within `[start, end]`.
  * Returns `0` when `start === end` to prevent division by zero.
  *
+ * @param value Input value inside or outside `[start, end]`
  * @param start Range start
  * @param end Range end
- * @param value Value inside or outside `[start, end]`
  * @returns Normalized factor `t`
  * @example
  * ```ts
- * const t = BrioMath.inverseLerp(10, 20, 15); // 0.5
+ * const t = BrioMath.inverseLerp(15, 10, 20); // 0.5
  * ```
  */
-export function inverseLerp(start: number, end: number, value: number): number {
+export function inverseLerp(value: number, start: number, end: number): number {
     if (start === end) return 0;
     return (value - start) / (end - start);
 }
@@ -99,22 +99,22 @@ export function remap(
     outMin: number,
     outMax: number,
 ): number {
-    return lerp(outMin, outMax, inverseLerp(inMin, inMax, value));
+    return lerp(outMin, outMax, inverseLerp(value, inMin, inMax));
 }
 
 /**
  * Performs Hermite smoothstep interpolation of `value` between `edge0` and `edge1`.
  *
+ * @param value Input value to evaluate
  * @param edge0 Lower edge of the transition
  * @param edge1 Upper edge of the transition
- * @param value Input value
- * @returns Smoothly interpolated value in `[0, 1]`
+ * @returns Smoothly interpolated factor in `[0, 1]`
  * @example
  * ```ts
- * const eased = BrioMath.smoothstep(0, 10, 5); // 0.5
+ * const eased = BrioMath.smoothstep(5, 0, 10); // 0.5
  * ```
  */
-export function smoothstep(edge0: number, edge1: number, value: number): number {
+export function smoothstep(value: number, edge0: number, edge1: number): number {
     if (edge0 === edge1) return 0;
     const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
     return t * t * (3 - 2 * t);

@@ -7,7 +7,7 @@
     "main": "dist/index.js",
     "scripts": {
         "build:win": "cls & tsc & npx ts-add-js-extension --dir=dist",
-        "build:lin": "clear; tsc; npx ts-add-js-extension --dir=dist",
+        "build:lin": "clear; rm -rf ./dist/; tsc; npx ts-add-js-extension --dir=dist",
         "doc": "npx typedoc --out docs/api",
         "test": "vitest run",
         "test:watch": "vitest"
