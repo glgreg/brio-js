@@ -1,6 +1,7 @@
 import { BrioMesh } from "./BrioMesh";
 import { BrioMaterial } from "./BrioMaterial";
 import { Vec3 } from "../math/vec3";
+import { BrioObject3D } from "../objects/BrioObject3D";
 import { OBJLoader } from "./loaders/OBJLoader";
 import { GLBLoader } from "./loaders/GLBLoader";
 import { GLTFLoader } from "./loaders/GLTFLoader";
@@ -228,6 +229,53 @@ export class BrioModel {
                 z: (minZ + maxZ) * 0.5,
             },
         };
+    }
+
+    /**
+     * Instantiates this model as a scene graph `BrioObject3D` entity.
+     * If the model contains multiple sub-meshes, creates a root container entity
+     * with child `BrioObject3D` nodes for each sub-mesh part.
+     * Also attaches a matching 3D box collider configured from the model bounding box.
+     *
+     * @param objectName Unique entity name
+     * @returns Instantiated `BrioObject3D` root entity
+     * @example
+     * ```ts
+     * const ship = shipModel.instantiate("obj_ship");
+     * ```
+     */
+    public instantiate(objectName: string): BrioObject3D {
+        const meshesArr = Array.from(this.#meshes.values());
+        const materialsArr = Array.from(this.#materials.values());
+
+        if (meshesArr.length === 0) {
+            return new BrioObject3D(objectName);
+        }
+
+        if (meshesArr.length === 1) {
+            const root = new BrioObject3D(
+                objectName,
+                meshesArr[0].name,
+                materialsArr[0]?.name ?? "",
+            );
+            root.addCollider3D("box", "solid", this.#boundingBox.center, this.#boundingBox.size);
+            return root;
+        }
+
+        const root = new BrioObject3D(objectName);
+        for (let i = 0; i < meshesArr.length; i++) {
+            const mesh = meshesArr[i];
+            const mat = materialsArr[i] ?? materialsArr[0];
+            const child = new BrioObject3D(
+                `${objectName}_part_${i}`,
+                mesh.name,
+                mat?.name ?? "",
+            );
+            root.transform.addChild(child.transform);
+        }
+
+        root.addCollider3D("box", "solid", this.#boundingBox.center, this.#boundingBox.size);
+        return root;
     }
 
     /**

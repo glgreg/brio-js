@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>BrioJS - 3D GLB Models Scene Demo</title>
+        <link rel="stylesheet" href="./style.css" />
+        <script type="module" src="./app.js" defer></script>
+    </head>
+    <body>
+        <div id="app_root">
+            <header id="app_header">
+                <div class="header-left">
+                    <h1>BrioJS</h1>
+                    <span class="badge">GLB 3D Models Showcase</span>
+                    <span class="tag">Scope: test-3d-glb-scene</span>
+                    <span class="tag">Date: 18-10-26</span>
+                </div>
+                <div class="header-right">
+                    <span id="fps_display">FPS: --</span>
+                    <span id="delta_display">dt: --ms</span>
+                    <span id="total_tris_display">Triangles: ~155k</span>
+                </div>
+            </header>
+
+            <main id="app_main">
+                <div id="viewport_panel">
+                    <div id="canvas_container">
+                        <canvas id="brio_3d_canvas" width="960" height="540"></canvas>
+                        <div id="loading_screen" class="loading-overlay">
+                            <div class="spinner"></div>
+                            <h2>Loading 3D GLB Models...</h2>
+                            <p id="loading_status">Decoding binary GLB containers and accessors...</p>
+                        </div>
+                    </div>
+
+                    <div id="viewport_overlay">
+                        <div class="overlay-item">
+                            <span class="label">Camera View:</span>
+                            <span id="cam_mode_info">Orbit (All Models)</span>
+                        </div>
+                        <div class="overlay-item">
+                            <span class="label">Camera Pos:</span>
+                            <span id="cam_pos_info">X: 0.0, Y: 3.5, Z: 11.0</span>
+                        </div>
+                        <div class="overlay-item">
+                            <span class="label">Culled Tris:</span>
+                            <span id="culled_tris_info">--</span>
+                        </div>
+                        <div class="overlay-item">
+                            <span class="label">ECS Entities:</span>
+                            <span id="ecs_info">Active: --</span>
+                        </div>
+                    </div>
+                </div>
+
+                <aside id="controls_sidebar">
+                    <section class="control-card">
+                        <h2>Camera Focus & View</h2>
+                        <div class="button-group">
+                            <button id="btn_cam_all" class="btn primary active">All Models</button>
+                            <button id="btn_cam_gwen" class="btn secondary">Gwen Tennyson</button>
+                            <button id="btn_cam_malfoy" class="btn secondary">Malfoy</button>
+                            <button id="btn_cam_spider" class="btn secondary">Spider-Gwen</button>
+                        </div>
+                        <div class="control-row">
+                            <label for="slider_cam_distance">Zoom Distance</label>
+                            <input type="range" id="slider_cam_distance" min="3" max="25" value="11" />
+                            <span id="cam_distance_val">11</span>
+                        </div>
+                        <div class="control-row">
+                            <label for="slider_orbit_speed">Orbit Speed</label>
+                            <input type="range" id="slider_orbit_speed" min="0" max="150" value="40" />
+                            <span id="orbit_speed_val">40%</span>
+                        </div>
+                        <div class="toggle-row">
+                            <label><input type="checkbox" id="chk_auto_rotate" checked /> Auto-Rotate Stage</label>
+                            <label><input type="checkbox" id="chk_model_spin" checked /> Independent Turntable Spin</label>
+                        </div>
+                    </section>
+
+                    <section class="control-card">
+                        <h2>Render & Material Modes</h2>
+                        <div class="button-group compact">
+                            <button id="btn_mode_diffuse" class="btn action active">Diffuse Shaded</button>
+                            <button id="btn_mode_wireframe" class="btn action">Wireframe</button>
+                            <button id="btn_mode_palette" class="btn action">Color Palette</button>
+                            <button id="btn_mode_clay" class="btn action">Clay White</button>
+                        </div>
+                    </section>
+
+                    <section class="control-card">
+                        <h2>Loaded GLB Models Inspector</h2>
+                        <div class="model-cards-container">
+                            <div class="model-meta-box" id="meta_gwen">
+                                <div class="model-meta-header">
+                                    <strong>Gwen Tennyson</strong>
+                                    <span class="meta-tag">gwen_tennyson.glb</span>
+                                </div>
+                                <div class="model-meta-grid">
+                                    <span>Meshes: 10</span>
+                                    <span>Materials: 10</span>
+                                    <span>Triangles: 37,514</span>
+                                    <span>Vertices: 20,804</span>
+                                    <span>Size: 2.1 x 2.6 x 0.4</span>
+                                    <span>Pos: X -3.5, Z 0</span>
+                                </div>
+                            </div>
+
+                            <div class="model-meta-box" id="meta_malfoy">
+                                <div class="model-meta-header">
+                                    <strong>Malfoy Draconia</strong>
+                                    <span class="meta-tag">malfoy.glb</span>
+                                </div>
+                                <div class="model-meta-grid">
+                                    <span>Meshes: 3</span>
+                                    <span>Materials: 3</span>
+                                    <span>Triangles: 105,122</span>
+                                    <span>Vertices: 68,553</span>
+                                    <span>Size: 1.3 x 1.6 x 0.4</span>
+                                    <span>Pos: X 0, Z 0</span>
+                                </div>
+                            </div>
+
+                            <div class="model-meta-box" id="meta_spider">
+                                <div class="model-meta-header">
+                                    <strong>Spider-Gwen</strong>
+                                    <span class="meta-tag">spider_gwen.glb</span>
+                                </div>
+                                <div class="model-meta-grid">
+                                    <span>Meshes: 8</span>
+                                    <span>Materials: 7</span>
+                                    <span>Triangles: 12,330</span>
+                                    <span>Vertices: 8,254</span>
+                                    <span>Size: 1.3 x 2.0 x 0.3</span>
+                                    <span>Pos: X 3.5, Z 0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="control-card">
+                        <h2>Snapshots & Persistence</h2>
+                        <div class="button-group compact">
+                            <button id="btn_checkpoint_save" class="btn success">Save Checkpoint</button>
+                            <button id="btn_checkpoint_restore" class="btn secondary">Restore Checkpoint</button>
+                            <button id="btn_idb_save" class="btn info">Save to IndexedDB</button>
+                            <button id="btn_idb_load" class="btn action">Load from IndexedDB</button>
+                        </div>
+                        <div class="slot-status" id="idb_status_label">IndexedDB Slot: Ready</div>
+                    </section>
+
+                    <section class="control-card log-card">
+                        <h2>Operation Log</h2>
+                        <div id="log_output" class="log-console"></div>
+                    </section>
+                </aside>
+            </main>
+        </div>
+    </body>
+</html>

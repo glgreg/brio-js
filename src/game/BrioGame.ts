@@ -79,6 +79,8 @@ export interface AssetLoaderParam {
     getAtlas: (atlasName: string) => BrioAtlas | undefined;
     /** Retrieves a preloaded `BrioModel` by its `modelName`, or an empty fallback instance if not found. */
     getModel: (modelName: string) => BrioModel;
+    /** Instantiates a preloaded `BrioModel` into a configured `BrioObject3D` scene entity. */
+    instantiateModel: (modelName: string, objectName: string) => BrioObject3D;
 }
 
 /**
@@ -771,6 +773,17 @@ export class BrioGame {
                     }
 
                     return BrioModel.getEmptyInstance();
+                },
+                instantiateModel: (modelName: string, objectName: string) => {
+                    const mod = this.#assets.models.get(modelName);
+                    if (!mod) {
+                        this.#console.out(
+                            "error",
+                            `Model asset '${modelName}' was not found in preloaded resources.`,
+                        );
+                        return BrioObject3D.getEmptyInstance();
+                    }
+                    return mod.instantiate(objectName);
                 },
             };
 

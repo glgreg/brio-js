@@ -149,6 +149,12 @@ export class Canvas2DBackend implements RenderBackend {
             const sx2 = vx + (p2.x * 0.5 + 0.5) * vw;
             const sy2 = vy + (-p2.y * 0.5 + 0.5) * vh;
 
+            // Backface culling: cross product in screen space (skips back-facing triangles)
+            const cross = (sx1 - sx0) * (sy2 - sy0) - (sy1 - sy0) * (sx2 - sx0);
+            if (!material.wireframe && cross <= 0) {
+                continue;
+            }
+
             let shade = 1;
             if (material.shading !== "unlit" && norm.length >= i0 + 3) {
                 const nx = norm[i0];

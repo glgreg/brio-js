@@ -363,6 +363,18 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
             const restored = game.restoreCheckPoint();
             expect(restored).toBe(true);
             expect(game.gameObjects3D.has("obj_player_ship")).toBe(true);
+
+            // Test model.instantiate
+            const multiMeshModel = BrioModel.fromData(
+                "mod_robot",
+                [BrioMesh.createBox("head", 1, 1, 1), BrioMesh.createBox("body", 2, 2, 2)],
+                [new BrioMaterial("mat_metal", { color: "#888888" })],
+            );
+            const instantiatedRoot = multiMeshModel.instantiate("obj_robot");
+            expect(instantiatedRoot.name).toBe("obj_robot");
+            expect(instantiatedRoot.transform.children.length).toBe(2);
+            expect(instantiatedRoot.collision).toBeDefined();
+            expect(instantiatedRoot.collision?.shape).toBe("box");
         });
     });
 });
