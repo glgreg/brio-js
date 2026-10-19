@@ -12,6 +12,10 @@ import { BrioSpriteSheet as SpriteSheet } from "./assets/BrioSpriteSheet";
 import { BrioAnimation as Animation } from "./assets/BrioAnimation";
 import { BrioMesh as Mesh } from "./assets/BrioMesh";
 import { BrioMaterial as Material } from "./assets/BrioMaterial";
+import { BrioModel as Model } from "./assets/BrioModel";
+import { OBJLoader } from "./assets/loaders/OBJLoader";
+import { GLBLoader } from "./assets/loaders/GLBLoader";
+import { GLTFLoader } from "./assets/loaders/GLTFLoader";
 import { BrioObject as Object } from "./objects/BrioObject";
 import { BrioObject2D as Object2D } from "./objects/BrioObject2D";
 import { BrioObject3D as Object3D } from "./objects/BrioObject3D";
@@ -65,6 +69,15 @@ export type { SpriteType, SpriteProperties } from "./assets/BrioSprite";
 export type { Atlas as AtlasData } from "./assets/BrioAtlas";
 export type { MergedTileCollider } from "./assets/BrioTileMap";
 export type { BrioMaterialOptions } from "./assets/BrioMaterial";
+export type {
+    BrioModelOptions,
+    ModelFormat,
+    ModelBoundingBox,
+} from "./assets/BrioModel";
+export type {
+    ParsedModelData,
+    OBJLoaderOptions,
+} from "./assets/loaders/OBJLoader";
 export type { StartingTime, IterationTypes, PlayTogetherConfig } from "./assets/BrioAudio";
 export type {
     KeyActions,
@@ -135,6 +148,10 @@ export {
     Animation as BrioAnimation,
     Mesh as BrioMesh,
     Material as BrioMaterial,
+    Model as BrioModel,
+    OBJLoader,
+    GLBLoader,
+    GLTFLoader,
     Object as BrioObject,
     Object2D as BrioObject2D,
     Object3D as BrioObject3D,
@@ -196,6 +213,10 @@ const Brio = {
     Animation,
     Mesh,
     Material,
+    Model,
+    OBJLoader,
+    GLBLoader,
+    GLTFLoader,
     Object,
     Object2D,
     Object3D,

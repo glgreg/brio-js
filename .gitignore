@@ -7,7 +7,7 @@ node_modules/
 # arquives used in tests
 # demo/
 dist/
-assets/
+/assets/
 
 # trash
 *.tgz

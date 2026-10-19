@@ -1,11 +1,14 @@
 import { BrioSprite } from "../assets/BrioSprite";
+import { BrioModel } from "../assets/BrioModel";
 import { BrioObject } from "../objects/BrioObject";
+import { BrioObject3D } from "../objects/BrioObject3D";
 import { BrioKeyboard } from "../input/BrioKeyboard";
 import { BrioMouse } from "../input/BrioMouse";
 import { BrioTouch } from "../input/BrioTouch";
 import { BrioGamepad } from "../input/BrioGamepad";
 import { BrioMap } from "../not-implemented/BrioMap";
 import { BrioCamera } from "../not-implemented/BrioCamera";
+import { BrioCamera3D } from "../cameras/BrioCamera3D";
 import { BrioAudio } from "../assets/BrioAudio";
 import { BrioConsole } from "../debugging/BrioConsole";
 import { BrioSpriteRenderer } from "./BrioSpriteRenderer";
@@ -66,7 +69,7 @@ export enum GameState {
  * Contract for the `assets` helper passed into `game.load((assets) => { ... })`.
  */
 export interface AssetLoaderParam {
-    /** Logs the currently preloaded sprites, audios, and atlases to `BrioConsole`. */
+    /** Logs the currently preloaded sprites, audios, atlases, and models to `BrioConsole`. */
     logAssets: () => void;
     /** Retrieves a preloaded `BrioSprite` by its `spriteName`, or an empty fallback instance if not found. */
     getSprite: (spriteName: string) => BrioSprite;
@@ -74,6 +77,8 @@ export interface AssetLoaderParam {
     getAudio: (audioName: string) => BrioAudio;
     /** Retrieves a preloaded `BrioAtlas` by its `atlasName`, or `undefined` if not found. */
     getAtlas: (atlasName: string) => BrioAtlas | undefined;
+    /** Retrieves a preloaded `BrioModel` by its `modelName`, or an empty fallback instance if not found. */
+    getModel: (modelName: string) => BrioModel;
 }
 
 /**
@@ -81,7 +86,7 @@ export interface AssetLoaderParam {
  */
 export type LoaderCallbackFunction = (
     assets: AssetLoaderParam,
-) => Array<BrioObject | BrioMap | BrioCamera>;
+) => Array<BrioObject | BrioObject3D | BrioMap | BrioCamera | BrioCamera3D>;
 
 /**
  * Canvas 2D image interpolation settings exposed via `game.rendering`.
@@ -443,6 +448,30 @@ export class BrioGame {
     }
 
     /**
+     * Map of all active `BrioObject3D` entities in the current scene keyed by `object.name`.
+     *
+     * @example
+     * ```ts
+     * console.log(game.gameObjects3D.size);
+     * ```
+     */
+    public get gameObjects3D(): Map<string, BrioObject3D> {
+        return this.#assets.objects3d;
+    }
+
+    /**
+     * Map of all preloaded `BrioModel` 3D model assets keyed by `model.name`.
+     *
+     * @example
+     * ```ts
+     * const ship = game.loadedModels.get("mod_ship");
+     * ```
+     */
+    public get loadedModels(): Map<string, BrioModel> {
+        return this.#assets.models;
+    }
+
+    /**
      * Indicates whether the `update()` loop is currently running (`true`) or paused/stopped (`false`).
      *
      * @example
@@ -588,7 +617,7 @@ export class BrioGame {
      * });
      * ```
      */
-    public preload(callbackFn: () => Array<BrioSprite | BrioAudio | BrioAtlas>): this {
+    public preload(callbackFn: () => Array<BrioSprite | BrioAudio | BrioAtlas | BrioModel>): this {
         this.#lifecyclePromise = this.#lifecyclePromise.then(async () => {
             this.#currentState = GameState.PRELOAD;
 
@@ -605,6 +634,7 @@ export class BrioGame {
             const spriteAtlases = assets.filter(
                 (asset): asset is BrioAtlas => asset instanceof BrioAtlas,
             );
+            const models = assets.filter((asset): asset is BrioModel => asset instanceof BrioModel);
 
             const spriteLoadPromises = sprites.map((sprite) => {
                 return new Promise<void>((resolve, reject) => {
@@ -644,9 +674,16 @@ export class BrioGame {
                 });
             });
 
+            const modelLoadPromises = models.map(async (model) => {
+                await model.load();
+                this.#assets.models.set(model.name, model);
+                this.#console.out("log", `Model: ${model.name} sucessfully preloaded.`);
+            });
+
             await Promise.all(spriteLoadPromises);
             await Promise.all(spriteAtlasPromises);
             await Promise.all(audioLoadPromises);
+            await Promise.all(modelLoadPromises);
 
             this.#console.out("info", "Preload step complete!");
         });
@@ -658,7 +695,7 @@ export class BrioGame {
      * Second stage of the `BrioGame` lifecycle: instantiates and registers initial `BrioObject`,
      * `BrioMap`, and `BrioCamera` instances using the preloaded assets.
      *
-     * @param callbackFn Callback receiving `AssetLoaderParam` (`getSprite`, `getAudio`, `getAtlas`, `logAssets`) and returning initial scene entities
+     * @param callbackFn Callback receiving `AssetLoaderParam` (`getSprite`, `getAudio`, `getAtlas`, `getModel`, `logAssets`) and returning initial scene entities
      * @returns This `BrioGame` instance for method chaining
      * @example
      * ```ts
@@ -678,6 +715,7 @@ export class BrioGame {
                     this.#console.out("log", `Currently loaded sprites: ${this.#assets.sprites}.`);
                     this.#console.out("log", `Currently loaded audios: ${this.#assets.audios}.`);
                     this.#console.out("log", `Currently loaded atlases: ${this.#assets.atlases}.`);
+                    this.#console.out("log", `Currently loaded models: ${this.#assets.models}.`);
                 },
                 getSprite: (spriteName: string) => {
                     if (!this.#assets.sprites.has(spriteName)) {
@@ -719,17 +757,38 @@ export class BrioGame {
 
                     return this.#assets.atlases.get(atlasName);
                 },
+                getModel: (modelName: string) => {
+                    if (!this.#assets.models.has(modelName)) {
+                        this.#console.out(
+                            "error",
+                            `Named model asset '${modelName}' was not found in the preloaded resources, check if you preloaded it correctly and gave it the right name.`,
+                        );
+                    }
+
+                    const mod = this.#assets.models.get(modelName);
+                    if (mod !== undefined) {
+                        return mod;
+                    }
+
+                    return BrioModel.getEmptyInstance();
+                },
             };
 
             const objects = callbackFn(assetsManipulationObject);
             const gameObjects = objects.filter(
                 (object): object is BrioObject => object instanceof BrioObject,
             );
+            const gameObjects3D = objects.filter(
+                (object): object is BrioObject3D => object instanceof BrioObject3D,
+            );
             const gameMaps = objects.filter(
                 (object): object is BrioMap => object instanceof BrioMap,
             );
             const gameCameras = objects.filter(
                 (object): object is BrioCamera => object instanceof BrioCamera,
+            );
+            const gameCameras3D = objects.filter(
+                (object): object is BrioCamera3D => object instanceof BrioCamera3D,
             );
 
             gameObjects.forEach((gameObject) => {
@@ -746,12 +805,21 @@ export class BrioGame {
                 this.#assets.objects.set(gameObject.name, gameObject);
             });
 
+            gameObjects3D.forEach((gameObject3d) => {
+                this.#bindObject3DToECS(gameObject3d);
+                this.#assets.objects3d.set(gameObject3d.name, gameObject3d);
+            });
+
             gameMaps.forEach((gameMap) => {
                 this.#assets.maps.set(gameMap.name, gameMap);
             });
 
             gameCameras.forEach((gameCamera) => {
                 this.#assets.cameras.set(gameCamera.name, gameCamera);
+            });
+
+            gameCameras3D.forEach((gameCamera3d) => {
+                this.#assets.cameras.set(gameCamera3d.name, gameCamera3d as any);
             });
 
             this.createSnapshot();
@@ -856,6 +924,15 @@ export class BrioGame {
         }
     }
 
+    #bindObject3DToECS(gameObject3d: BrioObject3D): void {
+        if (gameObject3d.entityId < 0 || !this.#ecsWorld.isAlive(gameObject3d.entityId)) {
+            const entityId = this.#ecsWorld.createEntity();
+            gameObject3d.entityId = entityId;
+            this.#ecsWorld.addComponent(entityId, ComponentMask.TRANSFORM_3D);
+            gameObject3d.transform.bindECS(this.#ecsWorld.storage, entityId);
+        }
+    }
+
     #renderDebuggingGrid(): void {
         const render = this.#renderer;
         const renderConfig = this.#debugger.render;
@@ -949,6 +1026,7 @@ export class BrioGame {
      */
     public createSnapshot(): Uint8Array {
         this.#assets.objects.forEach((obj) => this.#bindObjectToECS(obj));
+        this.#assets.objects3d.forEach((obj3d) => this.#bindObject3DToECS(obj3d));
         this.#initialBinarySnapshot = BrioSerializer.captureSnapshot(this.#ecsWorld);
         return this.#initialBinarySnapshot;
     }
@@ -972,7 +1050,7 @@ export class BrioGame {
      */
 
     /**
-     * Stores an in-memory binary checkpoint of all current scene entities, maps, sprites, audios, and cameras.
+     * Stores an in-memory binary checkpoint of all current scene entities, maps, sprites, audios, models, and cameras.
      *
      * @example
      * ```ts
@@ -981,15 +1059,22 @@ export class BrioGame {
      */
     public createCheckPoint(): void {
         this.#assets.objects.forEach((obj) => this.#bindObjectToECS(obj));
+        this.#assets.objects3d.forEach((obj3d) => this.#bindObject3DToECS(obj3d));
         this.#checkpointBinarySnapshot = BrioSerializer.captureSnapshot(this.#ecsWorld);
 
         const clonedMap = new Map<string, BrioObject>();
         this.#assets.objects.forEach((object, id) => {
             clonedMap.set(id, object);
         });
+        const clonedMap3D = new Map<string, BrioObject3D>();
+        this.#assets.objects3d.forEach((object, id) => {
+            clonedMap3D.set(id, object);
+        });
         this.cachedObjects.set("objects", clonedMap);
+        this.cachedObjects.set("objects3d", clonedMap3D);
         this.cachedObjects.set("sprites", this.#assets.sprites);
         this.cachedObjects.set("audios", this.#assets.audios);
+        this.cachedObjects.set("models", this.#assets.models);
         this.cachedObjects.set("cameras", this.#assets.cameras);
         this.cachedObjects.set("maps", this.#assets.maps);
 
@@ -1015,6 +1100,13 @@ export class BrioGame {
             this.#assets.objects.clear();
             savedObjects.forEach((obj: BrioObject, id: string) => {
                 this.#assets.objects.set(id, obj);
+            });
+        }
+        const savedObjects3D = this.cachedObjects.get("objects3d");
+        if (savedObjects3D) {
+            this.#assets.objects3d.clear();
+            savedObjects3D.forEach((obj: BrioObject3D, id: string) => {
+                this.#assets.objects3d.set(id, obj);
             });
         }
         return true;

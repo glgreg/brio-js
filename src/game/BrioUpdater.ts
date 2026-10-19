@@ -1,10 +1,12 @@
 import { BrioAtlas } from "../assets/BrioAtlas";
 import { BrioAudio } from "../assets/BrioAudio";
 import { BrioSprite } from "../assets/BrioSprite";
+import { BrioModel } from "../assets/BrioModel";
 import { BrioConsole } from "../debugging/BrioConsole";
 import { BrioCamera } from "../not-implemented/BrioCamera";
 import { BrioMap } from "../not-implemented/BrioMap";
 import { BrioObject } from "../objects/BrioObject";
+import { BrioObject3D } from "../objects/BrioObject3D";
 import { BrioAssetManager } from "./BrioAssetManager";
 import { BrioSpriteRenderer } from "./BrioSpriteRenderer";
 
@@ -12,7 +14,7 @@ import { BrioSpriteRenderer } from "./BrioSpriteRenderer";
  * Contract for the `updater` parameter passed into `game.update((updater, dt) => { ... })`.
  */
 export interface UpdaterObjectParam {
-    /** Logs the keys of all currently loaded game objects, maps, and cameras to `BrioConsole`. */
+    /** Logs the keys of all currently loaded game objects, maps, cameras, and models to `BrioConsole`. */
     logObjectKeys: () => void;
     /** Retrieves a preloaded `BrioSprite` by its unique `spriteName`, or an empty fallback instance if not found. */
     getSprite: (spriteName: string) => BrioSprite;
@@ -20,8 +22,12 @@ export interface UpdaterObjectParam {
     getAudio: (audioName: string) => BrioAudio;
     /** Retrieves a preloaded `BrioAtlas` by its unique `atlasName`, or `undefined` if not found. */
     getAtlas: (atlasName: string) => BrioAtlas | undefined;
+    /** Retrieves a preloaded `BrioModel` by its unique `modelName`, or an empty fallback instance if not found. */
+    getModel: (modelName: string) => BrioModel;
     /** Retrieves a loaded `BrioObject` (or subclass `T`) by its unique `gameObjectName`, or an empty fallback instance if not found. */
     getObject: <T extends BrioObject>(gameObjectName: string) => T;
+    /** Retrieves a loaded `BrioObject3D` by its unique `gameObjectName`, or an empty fallback instance if not found. */
+    getObject3D: (gameObjectName: string) => BrioObject3D;
     /** Retrieves a loaded `BrioMap` by its unique `mapName`, or an empty fallback instance if not found. */
     getMap: (mapName: string) => BrioMap;
     /** Retrieves a loaded `BrioCamera` by its unique `cameraName`, or an empty fallback instance if not found. */
@@ -205,6 +211,67 @@ export class BrioUpdater implements UpdaterObjectParam {
         if (obj) return obj as T;
 
         return BrioObject.getEmptyInstance() as T;
+    }
+
+    /**
+     * Retrieves a loaded `BrioObject3D` by its `gameObjectName`.
+     * If not found, logs a deduplicated error once and returns `BrioObject3D.getEmptyInstance()`.
+     *
+     * @param gameObjectName Unique identifier of the 3D game object
+     * @returns Matching `BrioObject3D` or the empty fallback instance
+     * @example
+     * ```ts
+     * const ship = updater.getObject3D("obj_ship");
+     * ship.transform.position.z -= 10 * dt;
+     * ```
+     */
+    public getObject3D(gameObjectName: string): BrioObject3D {
+        if (
+            !this.#assets.objects3d.has(gameObjectName) &&
+            !this.#console.loggedErrors.has(`loadError: ${gameObjectName}`)
+        ) {
+            this.#console.out(
+                "error",
+                `Named 3D game object '${gameObjectName}' was not found in the loaded resources, check if you loaded it correctly and gave it the right name.`,
+            );
+            this.#console.loggedErrors.add(`loadError: ${gameObjectName}`);
+        }
+
+        const obj = this.#assets.objects3d.get(gameObjectName);
+        if (obj) return obj;
+
+        return BrioObject3D.getEmptyInstance();
+    }
+
+    /**
+     * Retrieves a preloaded `BrioModel` by its `modelName`.
+     * If not found, logs a deduplicated error once and returns `BrioModel.getEmptyInstance()`.
+     *
+     * @param modelName Unique identifier of the 3D model asset
+     * @returns Matching `BrioModel` or the empty fallback instance
+     * @example
+     * ```ts
+     * const model = updater.getModel("mod_ship");
+     * ```
+     */
+    public getModel(modelName: string): BrioModel {
+        if (
+            !this.#assets.models.has(modelName) &&
+            !this.#console.loggedErrors.has(`loadError: ${modelName}`)
+        ) {
+            this.#console.out(
+                "error",
+                `Named model asset '${modelName}' was not found in the preloaded resources, check if you preloaded it correctly and gave it the right name.`,
+            );
+            this.#console.loggedErrors.add(`loadError: ${modelName}`);
+        }
+
+        const model = this.#assets.models.get(modelName);
+        if (model !== undefined) {
+            return model;
+        }
+
+        return BrioModel.getEmptyInstance();
     }
 
     /**
