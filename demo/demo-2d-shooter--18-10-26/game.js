@@ -1,6 +1,6 @@
 import {
     BrioGame,
-    BrioObject,
+    BrioObject2D,
     BrioSprite,
     BrioAudio,
     BrioUtils,
@@ -80,7 +80,7 @@ game.load((assets) => {
     obj_player.transform.size.x = obj_enemy.transform.size.x = 64;
     obj_player.transform.size.y = obj_enemy.transform.size.y = 64;
 
-    const obj_background = new BrioObject(
+    const obj_background = new BrioObject2D(
         "obj_background",
         assets.getSprite("spr_background").name,
         0,
@@ -146,8 +146,8 @@ game.update((updater, dt) => {
 
 /**
  * @param {BrioGame} game
- * @param {BrioObject} object
- * @param {BrioObject[]} pool
+ * @param {BrioObject2D} object
+ * @param {BrioObject2D[]} pool
  */
 function spawnRandom(game, object, pool) {
     const obj = game.instantiate(object);
@@ -158,8 +158,8 @@ function spawnRandom(game, object, pool) {
 
 /**
  * @param {BrioGame} game
- * @param {BrioObject} object
- * @param {BrioObject[]} pool
+ * @param {BrioObject2D} object
+ * @param {BrioObject2D[]} pool
  * @param {number} mmf
  */
 function moveRandom(game, object, pool, mmf) {
@@ -174,7 +174,7 @@ function moveRandom(game, object, pool, mmf) {
 
     const randomAnimTime = Math.round(Math.random() * 2000);
     /**
-     * @param {BrioObject} obj
+     * @param {BrioObject2D} obj
      * @param {() => void} callbackFn
      */
     const move = (obj, callbackFn) => {

@@ -1,6 +1,6 @@
-import { BrioObject, BrioSprite } from "../../dist/index.js";
+import { BrioObject2D, BrioSprite } from "../../dist/index.js";
 
-export class Entity extends BrioObject {
+export class Entity extends BrioObject2D {
     /** @type {number} */
     #health;
 

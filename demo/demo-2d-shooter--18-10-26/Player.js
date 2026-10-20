@@ -1,5 +1,5 @@
 import { BrioGame, BrioSprite, BrioUtils } from "../../dist/index.js";
-import { BrioObject } from "../../dist/index.js";
+import { BrioObject2D } from "../../dist/index.js";
 import { Entity } from "./Entity.js";
 import { Projectile } from "./Projectile.js";
 
@@ -36,7 +36,7 @@ export class Player extends Entity {
      *
      * @param {Projectile} object
      * @param {number} speed
-     * @param {BrioObject[]} [pool]
+     * @param {BrioObject2D[]} [pool]
      */
     shoot(object, speed, pool) {
         const projectile = this.#game.instantiate(object);
