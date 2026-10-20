@@ -117,28 +117,83 @@ export class BrioTransform2D implements Transform2D {
      *
      * @param storage Target ECS `ComponentStorage`
      * @param entityId Allocated entity ID
+     * @param adopt When `true`, adopts the values already stored in the slot (e.g. after a snapshot restore)
+     * instead of writing the local transform state into it (defaults to `false`)
      * @returns This `BrioTransform2D` instance
      * @example
      * ```ts
      * transform.bindECS(world.storage, entityId);
      * ```
      */
-    public bindECS(storage: ComponentStorage, entityId: number): this {
+    public bindECS(storage: ComponentStorage, entityId: number, adopt: boolean = false): this {
         this.#ecsStorage = storage;
         this.#entityId = entityId;
         const base = storage.getTransform2DOffset(entityId);
         const buf = storage.transform2D;
 
-        this.#position.bindBuffer(buf, base);
-        this.#size.bindBuffer(buf, base + 2);
-        this.#scale.bindBuffer(buf, base + 4);
-        this.#pivot.bindBuffer(buf, base + 6);
-        this.#skew.bindBuffer(buf, base + 8);
-        this.#renderSize.bindBuffer(buf, base + 10);
-        buf[base + 12] = this.#rotation;
-        buf[base + 13] = this.#opacity;
-        buf[base + 14] = this.#layer;
+        this.#position.bindBuffer(buf, base, adopt);
+        this.#size.bindBuffer(buf, base + 2, adopt);
+        this.#scale.bindBuffer(buf, base + 4, adopt);
+        this.#pivot.bindBuffer(buf, base + 6, adopt);
+        this.#skew.bindBuffer(buf, base + 8, adopt);
+        this.#renderSize.bindBuffer(buf, base + 10, adopt);
+        if (adopt) {
+            this.#rotation = buf[base + 12];
+            this.#opacity = buf[base + 13];
+            this.#layer = buf[base + 14];
+        } else {
+            buf[base + 12] = this.#rotation;
+            buf[base + 13] = this.#opacity;
+            buf[base + 14] = this.#layer;
+        }
         return this;
+    }
+
+    /**
+     * Detaches this transform from its ECS slot, keeping the last slot values as local state.
+     * Called when the owning object is destroyed so later writes cannot corrupt a recycled slot.
+     *
+     * @returns This `BrioTransform2D` instance
+     * @example
+     * ```ts
+     * transform.unbindECS();
+     * ```
+     */
+    public unbindECS(): this {
+        if (!this.#ecsStorage || this.#entityId < 0) return this;
+        const base = this.#ecsStorage.getTransform2DOffset(this.#entityId);
+        const buf = this.#ecsStorage.transform2D;
+        this.#rotation = buf[base + 12];
+        this.#opacity = buf[base + 13];
+        this.#layer = buf[base + 14];
+
+        this.#position.unbindBuffer();
+        this.#size.unbindBuffer();
+        this.#scale.unbindBuffer();
+        this.#pivot.unbindBuffer();
+        this.#skew.unbindBuffer();
+        this.#renderSize.unbindBuffer();
+        this.#ecsStorage = undefined;
+        this.#entityId = -1;
+        return this;
+    }
+
+    /** Whether this transform is currently bound to an ECS slot. */
+    public get isBoundToECS(): boolean {
+        return this.#ecsStorage !== undefined && this.#entityId >= 0;
+    }
+
+    /**
+     * Flags this transform (and its children) as changed so cached layers redraw on the next frame.
+     * Setters call it automatically; call it manually after changes the transform cannot observe (e.g. swapping a sprite).
+     *
+     * @example
+     * ```ts
+     * player.transform.markDirty();
+     * ```
+     */
+    public markDirty(): void {
+        this.#markDirty();
     }
 
     /**

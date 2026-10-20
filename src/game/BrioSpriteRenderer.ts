@@ -1,6 +1,6 @@
 import { BrioSprite } from "../assets/BrioSprite";
 import { BrioGame } from "./BrioGame";
-import { BrioObject } from "../objects/BrioObject";
+import { BrioObject2D } from "../objects/BrioObject2D";
 import { Vec2 } from "../math/index";
 import { BrioAssetManager } from "./BrioAssetManager";
 
@@ -24,7 +24,7 @@ export type CanvasFPSPosition =
     | "right-bottom";
 
 /**
- * 2D Canvas renderer responsible for drawing `BrioObject` sprites, transforms, and visual debug overlays
+ * 2D Canvas renderer responsible for drawing `BrioObject2D` sprites, transforms, and visual debug overlays
  * (`grid`, `axisRulers`, `renderBounds`, `collisionBounds`, and `fpsOverlay`).
  */
 export class BrioSpriteRenderer {
@@ -100,25 +100,45 @@ export class BrioSpriteRenderer {
     }
 
     /**
-     * Draws a single `BrioObject` onto the canvas, applying `game.scale`, `transform.position`,
+     * Applies `game.rendering` smoothing settings to an auxiliary context (e.g. a `"static"` layer cache).
+     *
+     * @param ctx Target 2D context
+     */
+    public applySmoothingTo(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D): void {
+        const mode = this.#game.rendering.mode;
+        ctx.imageSmoothingEnabled = mode === "smooth";
+        if (mode === "smooth") {
+            ctx.imageSmoothingQuality = this.#game.rendering.smoothness;
+        }
+    }
+
+    /**
+     * Draws a single `BrioObject2D` onto `target` (the game canvas by default), applying `game.scale`, `transform.position`,
      * `transform.renderSize`, `transform.flip`, `transform.rotation`, `transform.skew`, `transform.pivot`, and `transform.opacity`.
      * When `game.rendering.mode === "pixelated"`, translation coordinates are rounded to integer pixels to prevent Chromium sub-pixel shimmering.
      *
-     * @param object The `BrioObject` instance to render
+     * @param object The `BrioObject2D` instance to render
+     * @param target Destination context (defaults to the game canvas context)
      */
-    public renderObject<T extends BrioObject>(object: T): void {
-        if (!this.#ctx || !object || !object.transform.visibility || object.transform.opacity === 0) {
+    public renderObject<T extends BrioObject2D>(
+        object: T,
+        target?: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    ): void {
+        const ctx = target ?? this.#ctx;
+        if (!ctx || !object || !object.transform.visibility || object.transform.opacity === 0) {
             return;
         }
 
-        this.syncSmoothingState();
+        if (ctx === this.#ctx) {
+            this.syncSmoothingState();
+        }
 
         const gameScale = this.#game.scale;
         const renderWidth = object.transform.renderSize.x || object.transform.size.x;
         const renderHeight = object.transform.renderSize.y || object.transform.size.y;
         const isPixelated = this.#game.rendering.mode === "pixelated";
 
-        this.#ctx.save();
+        ctx.save();
 
         // Scale or flipped scale for sprites
         const scaleX = (object.transform.flip.x ? -1 : 1) * gameScale;
@@ -130,32 +150,32 @@ export class BrioSpriteRenderer {
         const rawTx = object.transform.position.x * gameScale + offsetX;
         const rawTy = object.transform.position.y * gameScale + offsetY;
 
-        this.#ctx.translate(
+        ctx.translate(
             isPixelated ? Math.round(rawTx) : rawTx,
             isPixelated ? Math.round(rawTy) : rawTy,
         );
 
-        this.#ctx.scale(scaleX, scaleY);
+        ctx.scale(scaleX, scaleY);
 
         let translated = false;
 
         if (object.transform.rotation !== 0) {
-            this.#ctx.translate(
+            ctx.translate(
                 renderWidth * object.transform.pivot.x,
                 renderHeight * object.transform.pivot.y,
             );
-            this.#ctx.rotate(object.transform.rotation);
+            ctx.rotate(object.transform.rotation);
             translated = true;
         }
 
         if (object.transform.skew.x !== 0 || object.transform.skew.y !== 0) {
             if (!translated) {
-                this.#ctx.translate(
+                ctx.translate(
                     renderWidth * object.transform.pivot.x,
                     renderHeight * object.transform.pivot.y,
                 );
             }
-            this.#ctx.transform(
+            ctx.transform(
                 1,
                 Math.tan(object.transform.skew.x),
                 Math.tan(object.transform.skew.y),
@@ -167,11 +187,11 @@ export class BrioSpriteRenderer {
         }
 
         // Sprite opacity
-        this.#ctx.globalAlpha = object.transform.opacity;
+        ctx.globalAlpha = object.transform.opacity;
         const sprite = this.#assets.sprites.get(object.sprite) ?? BrioSprite.getEmptyInstance();
 
         // Sprite rendering
-        this.#ctx.drawImage(
+        ctx.drawImage(
             sprite.element,
             translated ? -renderWidth * object.transform.pivot.x : 0,
             translated ? -renderHeight * object.transform.pivot.y : 0,
@@ -179,15 +199,15 @@ export class BrioSpriteRenderer {
             renderHeight,
         );
 
-        this.#ctx.restore();
+        ctx.restore();
     }
 
     /**
-     * Clears the canvas region occupied by a specific `BrioObject`, accounting for its scale, rotation, and skew.
+     * Clears the canvas region occupied by a specific `BrioObject2D`, accounting for its scale, rotation, and skew.
      *
-     * @param gameObject The `BrioObject` whose rendered area should be cleared
+     * @param gameObject The `BrioObject2D` whose rendered area should be cleared
      */
-    public clearObject<T extends BrioObject>(gameObject: T): void {
+    public clearObject<T extends BrioObject2D>(gameObject: T): void {
         if (!this.#ctx || !gameObject) {
             return;
         }
@@ -250,11 +270,14 @@ export class BrioSpriteRenderer {
     }
 
     /**
-     * Renders red wireframe outlines for all objects with active collision masks when `game.debugging.render.showCollisionBounds` is `true`.
+     * Renders red wireframe outlines for `objects` with active colliders when `game.debugging.render.showCollisionBounds` is `true`.
+     *
+     * @param objects Objects to outline (in the current context transform, e.g. a camera pass)
      */
-    public renderCollisions(): void {
+    public renderCollisions(objects: readonly BrioObject2D[]): void {
         const gameScale = this.#game.scale;
-        this.#assets.objects.forEach((gameObject) => {
+        for (let i = 0; i < objects.length; i++) {
+            const gameObject = objects[i];
             if (
                 this.#ctx &&
                 gameObject.collision &&
@@ -295,15 +318,18 @@ export class BrioSpriteRenderer {
 
                 this.#ctx.restore();
             }
-        });
+        }
     }
 
     /**
-     * Renders green bounding-box outlines around every object's `renderSize` when `game.debugging.render.showRenderBounds` is `true`.
+     * Renders green bounding-box outlines around the `renderSize` of `objects` when `game.debugging.render.showRenderBounds` is `true`.
+     *
+     * @param objects Objects to outline (in the current context transform, e.g. a camera pass)
      */
-    public renderBounds(): void {
+    public renderBounds(objects: readonly BrioObject2D[]): void {
         const gameScale = this.#game.scale;
-        this.#assets.objects.forEach((gameObject) => {
+        for (let i = 0; i < objects.length; i++) {
+            const gameObject = objects[i];
             if (this.#ctx) {
                 const renderWidth =
                     gameObject.transform.renderSize.x || gameObject.transform.size.x;
@@ -327,7 +353,7 @@ export class BrioSpriteRenderer {
 
                 this.#ctx.restore();
             }
-        });
+        }
     }
 
     /**

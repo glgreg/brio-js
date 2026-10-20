@@ -20,6 +20,31 @@ export interface ParsedModelData {
     meshes: BrioMesh[];
     /** Array of surface materials decoded from the asset. */
     materials: BrioMaterial[];
+    /**
+     * Material name assigned to each entry of `meshes` (same order), for formats that bind materials
+     * per primitive (glTF `primitive.material`). `""` means no material.
+     */
+    meshMaterials?: string[];
+    /** Encoded images still to be decoded into `BrioMaterial.texture` (see `GLBLoader.decodeTextures`). */
+    pendingTextures?: PendingTexture[];
+    /** Non-fatal problems found while loading (e.g. textures that failed to decode). */
+    warnings?: string[];
+}
+
+/**
+ * Image referenced by a material that must be decoded asynchronously before rendering.
+ */
+export interface PendingTexture {
+    /** Material that receives the decoded texture. */
+    material: BrioMaterial;
+    /** Cache key shared by every material referencing the same image (decoded once). */
+    key: string;
+    /** Encoded bytes for embedded images (GLB `bufferView` or `data:` URI). */
+    bytes?: Uint8Array;
+    /** External image URI, relative to the model file. */
+    uri?: string;
+    /** Image MIME type (`"image/png"`, `"image/jpeg"`, ...). */
+    mimeType: string;
 }
 
 /**

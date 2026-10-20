@@ -122,21 +122,56 @@ export class BrioTransform3D implements Transform3D {
      *
      * @param storage Target ECS `ComponentStorage`
      * @param entityId Allocated entity ID
+     * @param adopt When `true`, adopts the values already stored in the slot (e.g. after a snapshot restore)
+     * instead of writing the local transform state into it (defaults to `false`)
      * @returns This `BrioTransform3D` instance
      */
-    public bindECS(storage: ComponentStorage, entityId: number): this {
+    public bindECS(storage: ComponentStorage, entityId: number, adopt: boolean = false): this {
         this.#ecsStorage = storage;
         this.#entityId = entityId;
         const base = storage.getTransform3DOffset(entityId);
         const buf = storage.transform3D;
 
-        this.#position.bindBuffer(buf, base);
-        this.#scale.bindBuffer(buf, base + 3);
-        this.#rotation.bindBuffer(buf, base + 6);
-        this.#quaternion.bindBuffer(buf, base + 9);
-        buf[base + 13] = this.#opacity;
-        buf[base + 14] = this.#layer;
+        this.#position.bindBuffer(buf, base, adopt);
+        this.#scale.bindBuffer(buf, base + 3, adopt);
+        this.#rotation.bindBuffer(buf, base + 6, adopt);
+        this.#quaternion.bindBuffer(buf, base + 9, adopt);
+        if (adopt) {
+            this.#opacity = buf[base + 13];
+            this.#layer = buf[base + 14];
+            this.#markLocalDirty();
+        } else {
+            buf[base + 13] = this.#opacity;
+            buf[base + 14] = this.#layer;
+        }
         return this;
+    }
+
+    /**
+     * Detaches this 3D transform from its ECS slot, keeping the last slot values as local state.
+     * Called when the owning object is destroyed so later writes cannot corrupt a recycled slot.
+     *
+     * @returns This `BrioTransform3D` instance
+     */
+    public unbindECS(): this {
+        if (!this.#ecsStorage || this.#entityId < 0) return this;
+        const base = this.#ecsStorage.getTransform3DOffset(this.#entityId);
+        const buf = this.#ecsStorage.transform3D;
+        this.#opacity = buf[base + 13];
+        this.#layer = buf[base + 14];
+
+        this.#position.unbindBuffer();
+        this.#scale.unbindBuffer();
+        this.#rotation.unbindBuffer();
+        this.#quaternion.unbindBuffer();
+        this.#ecsStorage = undefined;
+        this.#entityId = -1;
+        return this;
+    }
+
+    /** Whether this transform is currently bound to an ECS slot. */
+    public get isBoundToECS(): boolean {
+        return this.#ecsStorage !== undefined && this.#entityId >= 0;
     }
 
     /** Local 3D position `{ x, y, z }`. */

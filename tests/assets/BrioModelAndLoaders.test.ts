@@ -214,7 +214,8 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
 
             expect(parsed.materials.length).toBe(1);
             expect(parsed.materials[0].name).toBe("mat_ruby");
-            expect(parsed.materials[0].color).toBe("#e61a33");
+            // baseColorFactor is linear light (glTF spec); CSS colors are sRGB-encoded
+            expect(parsed.materials[0].color).toBe("#f3597c");
         });
 
         it("throws descriptive errors on invalid GLB magic or version", () => {
@@ -355,14 +356,18 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
 
             // Test checkpoint persistence with 3D models and objects
             game.createCheckPoint();
-            expect(game.cachedObjects.get("models")?.has("mod_fighter")).toBe(true);
-            expect(game.cachedObjects.get("objects3d")?.has("obj_player_ship")).toBe(true);
 
-            // Mutate and restore checkpoint
+            // Mutate and restore checkpoint: the handle re-adopts the restored slot values
             loadedShipObj!.transform.position.y = 999;
             const restored = game.restoreCheckPoint();
             expect(restored).toBe(true);
             expect(game.gameObjects3D.has("obj_player_ship")).toBe(true);
+            expect(loadedShipObj!.transform.position.y).toBe(5);
+            expect(game.ecsWorld.isAlive(loadedShipObj!.entityId, loadedShipObj!.entityGeneration)).toBe(true);
+
+            // Meshes and materials of preloaded models are registered for the 3D passes
+            expect(game.loadedMeshes.has("mesh_fighter")).toBe(true);
+            expect(game.loadedMaterials.has("mat_hull")).toBe(true);
 
             // Test model.instantiate
             const multiMeshModel = BrioModel.fromData(
@@ -373,6 +378,8 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
             const instantiatedRoot = multiMeshModel.instantiate("obj_robot");
             expect(instantiatedRoot.name).toBe("obj_robot");
             expect(instantiatedRoot.transform.children.length).toBe(2);
+            expect(instantiatedRoot.children.length).toBe(2);
+            expect(instantiatedRoot.children[0].mesh).toBe("head");
             expect(instantiatedRoot.collision).toBeDefined();
             expect(instantiatedRoot.collision?.shape).toBe("box");
         });

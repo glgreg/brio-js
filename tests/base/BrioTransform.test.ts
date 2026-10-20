@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import BrioTransform from "../../src/base/BrioTransform";
+import { BrioTransform2D } from "../../src/objects/BrioTransform2D";
 import { create } from "../../src/math/vec2";
 
-describe("BrioTransform", () => {
+describe("BrioTransform2D", () => {
     it("initializes position, size, initialSize, and renderSize properly", () => {
-        const transform = new BrioTransform(create(10, 20), create(64, 32));
+        const transform = new BrioTransform2D(create(10, 20), create(64, 32));
 
         expect(transform.position.x).toBe(10);
         expect(transform.position.y).toBe(20);
@@ -17,7 +17,7 @@ describe("BrioTransform", () => {
     });
 
     it("updates renderSize and flip when setting scale as an object or via individual x/y setters", () => {
-        const transform = new BrioTransform(create(0, 0), create(50, 40));
+        const transform = new BrioTransform2D(create(0, 0), create(50, 40));
 
         transform.scale = { x: 2, y: 3 };
         expect(transform.renderSize.x).toBe(100);
@@ -35,7 +35,7 @@ describe("BrioTransform", () => {
     });
 
     it("updates renderSize and flip when mutating size.x and size.y individually", () => {
-        const transform = new BrioTransform(create(0, 0), create(32, 32));
+        const transform = new BrioTransform2D(create(0, 0), create(32, 32));
         transform.scale = { x: 2, y: 2 };
 
         transform.size.x = 64;
@@ -47,7 +47,7 @@ describe("BrioTransform", () => {
     });
 
     it("clamps pivot and opacity values between 0 and 1 (both object assignment and individual x/y)", () => {
-        const transform = new BrioTransform(create(0, 0), create(32, 32));
+        const transform = new BrioTransform2D(create(0, 0), create(32, 32));
 
         transform.pivot = { x: -1, y: 5 };
         expect(transform.pivot.x).toBe(0);
@@ -65,7 +65,7 @@ describe("BrioTransform", () => {
     });
 
     it("normalizes negative layer values to positive", () => {
-        const transform = new BrioTransform(create(0, 0), create(32, 32));
+        const transform = new BrioTransform2D(create(0, 0), create(32, 32));
         transform.layer = -5;
         expect(transform.layer).toBe(5);
     });

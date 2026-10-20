@@ -1,7 +1,10 @@
 import { BrioMesh } from "../BrioMesh";
 import { BrioMaterial } from "../BrioMaterial";
-import { ParsedModelData } from "./OBJLoader";
+import { BrioTexture } from "../BrioTexture";
+import { ParsedModelData, PendingTexture } from "./OBJLoader";
 import { CSSColor } from "../../tools/base_types";
+import { Mat4, Matrix4 } from "../../math/index";
+import { linearToSrgb } from "../../rendering/color";
 
 /**
  * Reads and unpacks a typed array from glTF binary accessors and bufferViews.
@@ -160,6 +163,108 @@ function computeFlatNormals(positions: Float32Array, indices: Uint16Array | Uint
 }
 
 /**
+ * Converts a linear glTF `baseColorFactor` channel to an sRGB `0..255` byte for CSS colors.
+ */
+function linearFactorToByte(value: number | undefined): number {
+    const linear = Math.min(1, Math.max(0, value ?? 1));
+    return Math.round(linearToSrgb(linear) * 255);
+}
+
+/**
+ * Local matrix of a glTF node: its `matrix`, or the composition of `translation`, `rotation`, `scale`.
+ */
+function nodeLocalMatrix(node: any): Mat4 {
+    const out = Matrix4.create();
+    if (Array.isArray(node.matrix) && node.matrix.length === 16) {
+        out.set(node.matrix);
+        return out;
+    }
+    const t = node.translation ?? [0, 0, 0];
+    const r = node.rotation ?? [0, 0, 0, 1];
+    const sc = node.scale ?? [1, 1, 1];
+    return Matrix4.fromRotationTranslationScale(
+        out,
+        { x: r[0], y: r[1], z: r[2], w: r[3] },
+        { x: t[0], y: t[1], z: t[2] },
+        { x: sc[0], y: sc[1], z: sc[2] },
+    );
+}
+
+/**
+ * World matrix of the first scene node instancing each glTF mesh, keyed by mesh index.
+ * Skinned nodes are skipped: per the glTF spec their node transform is ignored, so their raw
+ * positions already are the bind pose.
+ */
+function collectMeshWorldMatrices(json: any): Map<number, Mat4> {
+    const result = new Map<number, Mat4>();
+    const nodes: any[] = json.nodes ?? [];
+    const scene = json.scenes?.[json.scene ?? 0];
+    const roots: number[] = scene?.nodes ?? nodes.map((_n, i) => i);
+
+    const visit = (index: number, parent: Mat4, depth: number): void => {
+        const node = nodes[index];
+        if (!node || depth > nodes.length) return;
+        const world = Matrix4.multiply(Matrix4.create(), parent, nodeLocalMatrix(node));
+        if (node.mesh !== undefined && node.skin === undefined && !result.has(node.mesh)) {
+            result.set(node.mesh, world);
+        }
+        for (const child of node.children ?? []) visit(child, world, depth + 1);
+    };
+    const identity = Matrix4.create();
+    for (const root of roots) visit(root, identity, 0);
+    return result;
+}
+
+/** Whether `m` is the identity matrix (within float tolerance). */
+function isIdentity(m: Mat4): boolean {
+    for (let i = 0; i < 16; i++) {
+        if (Math.abs(m[i] - (i % 5 === 0 ? 1 : 0)) > 1e-7) return false;
+    }
+    return true;
+}
+
+/**
+ * Bakes `world` into `positions` and `normals` in place (normals use the inverse-transpose 3x3 and are renormalized).
+ */
+function bakeTransform(positions: Float32Array, normals: Float32Array, world: Mat4): void {
+    const m = world;
+    for (let i = 0; i < positions.length; i += 3) {
+        const x = positions[i];
+        const y = positions[i + 1];
+        const z = positions[i + 2];
+        positions[i] = m[0] * x + m[4] * y + m[8] * z + m[12];
+        positions[i + 1] = m[1] * x + m[5] * y + m[9] * z + m[13];
+        positions[i + 2] = m[2] * x + m[6] * y + m[10] * z + m[14];
+    }
+    const normalMatrix = Matrix4.transpose(Matrix4.create(), Matrix4.invert(Matrix4.create(), world));
+    const n = normalMatrix;
+    for (let i = 0; i < normals.length; i += 3) {
+        const x = normals[i];
+        const y = normals[i + 1];
+        const z = normals[i + 2];
+        const nx = n[0] * x + n[4] * y + n[8] * z;
+        const ny = n[1] * x + n[5] * y + n[9] * z;
+        const nz = n[2] * x + n[6] * y + n[10] * z;
+        const len = Math.hypot(nx, ny, nz) || 1;
+        normals[i] = nx / len;
+        normals[i + 1] = ny / len;
+        normals[i + 2] = nz / len;
+    }
+}
+
+/**
+ * Decodes a `data:` URI with base64 payload into bytes (`undefined` for other URIs).
+ */
+function decodeDataUri(uri: string): Uint8Array | undefined {
+    const marker = uri.indexOf(";base64,");
+    if (!uri.startsWith("data:") || marker === -1 || typeof atob !== "function") return undefined;
+    const binary = atob(uri.substring(marker + 8));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+}
+
+/**
  * Zero-dependency Binary glTF 2.0 (`.glb`) container parser and loader.
  * Decodes the 12-byte header, JSON chunk (0) and BIN chunk (1), producing typed `BrioMesh` and `BrioMaterial` instances.
  *
@@ -242,6 +347,8 @@ export class GLBLoader {
     public static extractModelData(json: any, binBuffer: ArrayBuffer, modelName: string): ParsedModelData {
         const materials: BrioMaterial[] = [];
         const meshes: BrioMesh[] = [];
+        const meshMaterials: string[] = [];
+        const pendingTextures: PendingTexture[] = [];
 
         // Parse Materials
         if (Array.isArray(json.materials)) {
@@ -251,30 +358,48 @@ export class GLBLoader {
                 let color: CSSColor = "#ffffff";
                 let opacity = 1;
 
+                // baseColorFactor is linear light; CSS colors are sRGB
                 if (pbr?.baseColorFactor && Array.isArray(pbr.baseColorFactor)) {
                     const factor = pbr.baseColorFactor;
-                    const r = Math.min(255, Math.max(0, Math.round((factor[0] ?? 1) * 255)));
-                    const g = Math.min(255, Math.max(0, Math.round((factor[1] ?? 1) * 255)));
-                    const b = Math.min(255, Math.max(0, Math.round((factor[2] ?? 1) * 255)));
+                    const r = linearFactorToByte(factor[0]);
+                    const g = linearFactorToByte(factor[1]);
+                    const b = linearFactorToByte(factor[2]);
                     opacity = factor[3] ?? 1;
                     color = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
                 }
 
-                materials.push(
-                    new BrioMaterial(matDef.name || `${modelName}_mat_${i}`, {
-                        color,
-                        opacity,
-                        shading: "lambert",
-                    }),
-                );
+                // MASK maps to an alpha test; BLEND keeps the factor opacity, and when that is opaque the
+                // texture alpha is approximated with a 0.5 alpha test (no per-texel blending yet)
+                let alphaCutoff = 0;
+                if (matDef.alphaMode === "MASK") {
+                    alphaCutoff = matDef.alphaCutoff ?? 0.5;
+                } else if (matDef.alphaMode === "BLEND" && opacity >= 1) {
+                    alphaCutoff = 0.5;
+                }
+
+                const material = new BrioMaterial(matDef.name || `${modelName}_mat_${i}`, {
+                    color,
+                    opacity,
+                    shading: "lambert",
+                    doubleSided: matDef.doubleSided === true,
+                    alphaCutoff,
+                });
+                materials.push(material);
+
+                const pending = GLBLoader.#resolveTextureSource(json, binBuffer, pbr?.baseColorTexture?.index);
+                if (pending) pendingTextures.push({ ...pending, material });
             }
         }
+
+        const worldMatrices = collectMeshWorldMatrices(json);
 
         // Parse Meshes
         if (Array.isArray(json.meshes)) {
             for (let mIdx = 0; mIdx < json.meshes.length; mIdx++) {
                 const meshDef = json.meshes[mIdx];
                 const primitives = meshDef.primitives || [];
+                const world = worldMatrices.get(mIdx);
+                const bake = world !== undefined && !isIdentity(world);
 
                 for (let pIdx = 0; pIdx < primitives.length; pIdx++) {
                     const prim = primitives[pIdx];
@@ -316,21 +441,114 @@ export class GLBLoader {
                         uvs = new Float32Array(numVertices * 2);
                     }
 
+                    // Accessors are decoded into fresh copies, so baking never touches the source buffer
+                    if (bake) bakeTransform(positions, normals, world);
+
                     const meshName =
                         meshDef.name && primitives.length === 1
                             ? meshDef.name
                             : `${modelName}_mesh_${mIdx}_${pIdx}`;
 
                     meshes.push(new BrioMesh(meshName, positions, normals, uvs, indices));
+                    meshMaterials.push(
+                        prim.material !== undefined ? (materials[prim.material]?.name ?? "") : "",
+                    );
                 }
             }
         }
 
-        return { meshes, materials };
+        return { meshes, materials, meshMaterials, pendingTextures };
     }
 
     /**
-     * Asynchronously loads and decodes a `.glb` binary asset from a URL.
+     * Locates the encoded image behind glTF texture `textureIndex` (embedded `bufferView`, `data:` URI,
+     * or external URI).
+     */
+    static #resolveTextureSource(
+        json: any,
+        binBuffer: ArrayBuffer,
+        textureIndex: number | undefined,
+    ): Omit<PendingTexture, "material"> | undefined {
+        if (textureIndex === undefined) return undefined;
+        const sourceIndex = json.textures?.[textureIndex]?.source;
+        const image = json.images?.[sourceIndex];
+        if (!image) return undefined;
+        const key = `image${sourceIndex}`;
+
+        if (image.bufferView !== undefined) {
+            const view = json.bufferViews?.[image.bufferView];
+            if (!view) return undefined;
+            const start = view.byteOffset ?? 0;
+            const bytes = new Uint8Array(binBuffer, start, view.byteLength);
+            return { key, bytes, mimeType: image.mimeType ?? "image/png" };
+        }
+        if (typeof image.uri === "string") {
+            const bytes = decodeDataUri(image.uri);
+            if (bytes) {
+                const mimeType = image.uri.substring(5, image.uri.indexOf(";")) || "image/png";
+                return { key, bytes, mimeType };
+            }
+            return { key, uri: image.uri, mimeType: image.mimeType ?? "" };
+        }
+        return undefined;
+    }
+
+    /**
+     * Decodes every `pendingTextures` image once (off the main thread via `createImageBitmap`) and assigns
+     * it to `material.texture`. Runtimes without `createImageBitmap` (Node.js) keep materials untextured.
+     *
+     * @param data Parsed model data (its `pendingTextures` list is emptied as images are resolved)
+     * @param baseUrl Base URL for external image URIs (directory of the model file)
+     * @returns Messages describing images that failed to load or decode
+     * @example
+     * ```ts
+     * const data = GLBLoader.parse(buffer, "mod_ship");
+     * const failures = await GLBLoader.decodeTextures(data, "./assets/models/");
+     * ```
+     */
+    public static async decodeTextures(data: ParsedModelData, baseUrl: string = ""): Promise<string[]> {
+        const pending = data.pendingTextures ?? [];
+        if (pending.length === 0 || typeof createImageBitmap !== "function" || typeof Blob === "undefined") {
+            return [];
+        }
+
+        const failures: string[] = [];
+        const decoded = new Map<string, Promise<BrioTexture | undefined>>();
+        const decode = async (item: PendingTexture): Promise<BrioTexture | undefined> => {
+            try {
+                let blob: Blob;
+                if (item.bytes) {
+                    blob = new Blob([item.bytes as BlobPart], { type: item.mimeType });
+                } else {
+                    const response = await fetch(`${baseUrl}${item.uri}`);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    blob = await response.blob();
+                }
+                return await BrioTexture.fromBlob(`${item.material.name}#${item.key}`, blob);
+            } catch (err) {
+                failures.push(`Texture '${item.key}' of material '${item.material.name}' could not be decoded: ${(err as Error)?.message ?? err}`);
+                return undefined;
+            }
+        };
+
+        await Promise.all(
+            pending.map(async (item) => {
+                let promise = decoded.get(item.key);
+                if (!promise) {
+                    promise = decode(item);
+                    decoded.set(item.key, promise);
+                }
+                const texture = await promise;
+                if (texture) item.material.texture = texture;
+            }),
+        );
+        data.pendingTextures = [];
+        return failures;
+    }
+
+    /**
+     * Asynchronously loads and decodes a `.glb` binary asset from a URL, including its material textures
+     * (decode failures are reported in `warnings` instead of rejecting).
      *
      * @param url URL path to the `.glb` file
      * @param modelName Optional model identifier prefix
@@ -343,6 +561,8 @@ export class GLBLoader {
         }
         const buffer = await response.arrayBuffer();
         const resolvedName = modelName ?? url.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? "model";
-        return GLBLoader.parse(buffer, resolvedName);
+        const data = GLBLoader.parse(buffer, resolvedName);
+        data.warnings = await GLBLoader.decodeTextures(data, url.substring(0, url.lastIndexOf("/") + 1));
+        return data;
     }
 }

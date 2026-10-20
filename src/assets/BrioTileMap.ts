@@ -1,5 +1,4 @@
 import { BrioCollision } from "../math/BrioCollision";
-import { BrioObject } from "../objects/BrioObject";
 import { BrioObject2D } from "../objects/BrioObject2D";
 
 /**
@@ -221,7 +220,7 @@ export class BrioTileMap {
             obj.transform.size = { x: rect.width, y: rect.height };
             obj.transform.visibility = false;
             BrioCollision.addRectangle({
-                object: obj as unknown as BrioObject,
+                object: obj,
                 colliderType: "solid",
                 pos: { x: 0, y: 0 },
                 size: { x: rect.width, y: rect.height },

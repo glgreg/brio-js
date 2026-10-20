@@ -1,5 +1,5 @@
 import { Vec3 } from "../math/vec3";
-import { CollisionColliderType } from "./BrioObject";
+import { CollisionColliderType } from "./BrioObject2D";
 import { BrioTransform3D } from "./BrioTransform3D";
 
 /**
@@ -26,7 +26,8 @@ export interface Collision3DType {
 /**
  * Concrete 3D interactive entity within a scene (`BrioObject3D`).
  * Possesses a 3D spatial transform (`BrioTransform3D`), optional mesh and material identifiers,
- * an optional 3D collider (`Collision3DType`), and an ECS entity handle (`entityId`).
+ * an optional 3D collider (`Collision3DType`), an ECS entity handle (`entityId` + `entityGeneration`),
+ * and child `BrioObject3D` parts (`children`) rendered with the parent world matrix (e.g. multi-mesh models).
  *
  * @example
  * ```ts
@@ -41,7 +42,13 @@ export class BrioObject3D {
     #material: string;
     #transform: BrioTransform3D = new BrioTransform3D();
     #entityId: number = -1;
+    #parent?: BrioObject3D;
+    readonly #children: BrioObject3D[] = [];
+    /** Sequential 1-based instance ID when spawned via `game.instantiate()`, or `0` for a manually created object. */
     public instanceId: number = 0;
+    /** Generation of the `ECSWorld` slot captured when `entityId` was assigned. */
+    public entityGeneration: number = 0;
+    /** Optional 3D collider configuration. */
     public collision?: Collision3DType;
 
     static #emptyInstance?: BrioObject3D;
@@ -180,6 +187,55 @@ export class BrioObject3D {
             };
         }
         return copy;
+    }
+
+    /** Parent `BrioObject3D`, if this object is a child part. */
+    public get parent(): BrioObject3D | undefined {
+        return this.#parent;
+    }
+
+    /** Read-only list of child `BrioObject3D` parts attached via `addChild()`. */
+    public get children(): readonly BrioObject3D[] {
+        return this.#children;
+    }
+
+    /**
+     * Attaches `child` as a part of this object, linking both the object tree and the `BrioTransform3D` hierarchy.
+     * Children are rendered by `BrioGame` together with their root; they do not need to be returned from `load()`.
+     *
+     * @param child Child `BrioObject3D` part
+     * @returns This `BrioObject3D` instance
+     * @example
+     * ```ts
+     * ship.addChild(new BrioObject3D("obj_ship_wing", "mesh_wing", "mat_hull"));
+     * ```
+     */
+    public addChild(child: BrioObject3D): this {
+        if (child === this) {
+            throw new Error("BrioObject3D cannot be a child of itself.");
+        }
+        if (child.#parent === this) return this;
+        child.#parent?.removeChild(child);
+        child.#parent = this;
+        this.#children.push(child);
+        this.#transform.addChild(child.transform);
+        return this;
+    }
+
+    /**
+     * Detaches `child` from this object's parts.
+     *
+     * @param child Child `BrioObject3D` to remove
+     * @returns This `BrioObject3D` instance
+     */
+    public removeChild(child: BrioObject3D): this {
+        const idx = this.#children.indexOf(child);
+        if (idx !== -1) {
+            this.#children.splice(idx, 1);
+            child.#parent = undefined;
+            this.#transform.removeChild(child.transform);
+        }
+        return this;
     }
 
     /**

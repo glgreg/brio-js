@@ -3,7 +3,7 @@
     "version": "0.0.1",
     "type": "module",
     "sideEffects": false,
-    "description": "A simple JS/TS Game Library for making 2d games using HTML Canvas",
+    "description": "Zero-dependency 2D and 3D web game engine in TypeScript with an OOP API over a data-oriented ECS core",
     "main": "dist/index.js",
     "scripts": {
         "build:win": "cls & tsc & npx ts-add-js-extension --dir=dist",
@@ -14,21 +14,24 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/GustavoLGregorio/game-library.git"
+        "url": "git+https://github.com/GustavoLGregorio/brio-js.git"
     },
     "keywords": [
         "JavaScript",
         "TypeScript",
-        "Game-Library",
-        "Canvas-Manipulation",
+        "Game-Engine",
+        "2D",
+        "3D",
+        "ECS",
+        "Canvas",
         "Object-Oriented"
     ],
     "author": "Gustavo L. Gregorio",
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/GustavoLGregorio/game-library/issues"
+        "url": "https://github.com/GustavoLGregorio/brio-js/issues"
     },
-    "homepage": "https://github.com/GustavoLGregorio/game-library#readme",
+    "homepage": "https://github.com/GustavoLGregorio/brio-js#readme",
     "devDependencies": {
         "@types/jsdom": "^30.0.0",
         "jsdom": "^30.1.3",
@@ -41,11 +44,8 @@
     "types": "dist/index.d.ts",
     "exports": {
         ".": {
-            "import": "./dist/index.js",
-            "types": "./dist/index.d.ts"
-        },
-        "./types": {
-            "types": "./dist/types.d.ts"
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
         }
     }
 }

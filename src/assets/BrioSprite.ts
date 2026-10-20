@@ -21,7 +21,7 @@ export interface SpriteProperties {
 }
 
 /**
- * Represents a 2D image asset that can be preloaded by `BrioGame` and attached to `BrioObject` instances.
+ * Represents a 2D image asset that can be preloaded by `BrioGame` and attached to `BrioObject2D` instances.
  *
  * @example
  * ```ts
@@ -48,7 +48,7 @@ export class BrioSprite {
     /**
      * Creates a new `BrioSprite` asset instance.
      *
-     * @param name Unique identifier used to reference the sprite in `BrioObject` and `assets.getSprite(name)`
+     * @param name Unique identifier used to reference the sprite in `BrioObject2D` and `assets.getSprite(name)`
      * @param src Relative or absolute URL to the image resource
      * @example
      * ```ts

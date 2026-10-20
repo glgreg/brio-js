@@ -96,13 +96,38 @@ export class BrioVec2 implements Vec2 {
      *
      * @param buffer Target `Float32Array` component storage
      * @param offset Starting index in `buffer` (`offset`, `offset + 1`)
+     * @param adopt When `true`, reads the current slot values into this vector instead of overwriting the slot (defaults to `false`)
      * @returns This `BrioVec2` instance
      */
-    public bindBuffer(buffer: Float32Array, offset: number): this {
+    public bindBuffer(buffer: Float32Array, offset: number, adopt: boolean = false): this {
         this.#buffer = buffer;
         this.#offset = offset;
-        this.#buffer[offset] = this.#x;
-        this.#buffer[offset + 1] = this.#y;
+        if (adopt) {
+            this.#x = buffer[offset];
+            this.#y = buffer[offset + 1];
+        } else {
+            buffer[offset] = this.#x;
+            buffer[offset + 1] = this.#y;
+        }
+        return this;
+    }
+
+    /**
+     * Detaches this vector from its ECS buffer slot, keeping the last slot values as local state.
+     * Subsequent writes no longer touch the (possibly recycled) slot.
+     *
+     * @returns This `BrioVec2` instance
+     * @example
+     * ```ts
+     * position.unbindBuffer();
+     * ```
+     */
+    public unbindBuffer(): this {
+        if (this.#buffer) {
+            this.#x = this.#buffer[this.#offset];
+            this.#y = this.#buffer[this.#offset + 1];
+            this.#buffer = undefined;
+        }
         return this;
     }
 

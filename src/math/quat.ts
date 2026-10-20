@@ -122,15 +122,39 @@ export class BrioQuat implements Quat {
      *
      * @param buffer Target `Float32Array` component storage
      * @param offset Starting index in `buffer`
+     * @param adopt When `true`, reads the current slot values into this quaternion instead of overwriting the slot (defaults to `false`)
      * @returns This `BrioQuat` instance
      */
-    public bindBuffer(buffer: Float32Array, offset: number): this {
+    public bindBuffer(buffer: Float32Array, offset: number, adopt: boolean = false): this {
         this.#buffer = buffer;
         this.#offset = offset;
-        this.#buffer[offset] = this.#x;
-        this.#buffer[offset + 1] = this.#y;
-        this.#buffer[offset + 2] = this.#z;
-        this.#buffer[offset + 3] = this.#w;
+        if (adopt) {
+            this.#x = buffer[offset];
+            this.#y = buffer[offset + 1];
+            this.#z = buffer[offset + 2];
+            this.#w = buffer[offset + 3];
+        } else {
+            buffer[offset] = this.#x;
+            buffer[offset + 1] = this.#y;
+            buffer[offset + 2] = this.#z;
+            buffer[offset + 3] = this.#w;
+        }
+        return this;
+    }
+
+    /**
+     * Detaches this quaternion from its ECS buffer slot, keeping the last slot values as local state.
+     *
+     * @returns This `BrioQuat` instance
+     */
+    public unbindBuffer(): this {
+        if (this.#buffer) {
+            this.#x = this.#buffer[this.#offset];
+            this.#y = this.#buffer[this.#offset + 1];
+            this.#z = this.#buffer[this.#offset + 2];
+            this.#w = this.#buffer[this.#offset + 3];
+            this.#buffer = undefined;
+        }
         return this;
     }
 

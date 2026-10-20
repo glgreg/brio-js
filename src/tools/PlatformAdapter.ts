@@ -11,7 +11,7 @@ export interface PlatformCapabilities {
     platform: HostPlatformType;
     /** Whether `OffscreenCanvas` and `transferControlToOffscreen` are supported. */
     supportsOffscreenCanvas: boolean;
-    /** Whether `SharedArrayBuffer` is available and cross-origin isolated. */
+    /** Whether `SharedArrayBuffer` is available and, in browsers, the page is cross-origin isolated (required to share it with Workers). */
     supportsSharedArrayBuffer: boolean;
     /** Whether the `navigator.gpu` WebGPU API is available. */
     supportsWebGPU: boolean;
@@ -36,6 +36,8 @@ export interface PlatformCapabilities {
  * ```
  */
 export class PlatformAdapter {
+    /** Cached result of the last capability probe (probing creates WebGL contexts, which browsers cap at ~16). */
+    static #cachedCapabilities?: PlatformCapabilities;
     /**
      * Detects the host runtime platform (`"browser"`, `"electron"`, `"capacitor"`, or `"headless"`).
      *
@@ -61,21 +63,31 @@ export class PlatformAdapter {
 
     /**
      * Probes the current runtime for graphics, threading, audio, and storage capabilities.
+     * The result is cached: probe contexts are released immediately and only one probe runs per page,
+     * so repeated calls never evict live WebGL contexts.
      *
+     * @param forceRefresh Re-probes the runtime instead of returning the cached report (defaults to `false`)
      * @returns Complete `PlatformCapabilities` report
      * @example
      * ```ts
      * const caps = PlatformAdapter.detectCapabilities();
      * ```
      */
-    public static detectCapabilities(): PlatformCapabilities {
+    public static detectCapabilities(forceRefresh: boolean = false): PlatformCapabilities {
+        if (this.#cachedCapabilities && !forceRefresh) {
+            return this.#cachedCapabilities;
+        }
         const platform = this.detectPlatform();
         const supportsOffscreenCanvas =
             typeof OffscreenCanvas !== "undefined" &&
             typeof HTMLCanvasElement !== "undefined" &&
             typeof HTMLCanvasElement.prototype.transferControlToOffscreen === "function";
 
-        const supportsSharedArrayBuffer = typeof SharedArrayBuffer !== "undefined";
+        const isIsolated =
+            typeof window === "undefined" ||
+            platform === "electron" ||
+            (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated === true;
+        const supportsSharedArrayBuffer = typeof SharedArrayBuffer !== "undefined" && isIsolated;
         const supportsWebGPU =
             typeof navigator !== "undefined" &&
             "gpu" in navigator &&
@@ -86,14 +98,18 @@ export class PlatformAdapter {
 
         if (typeof document !== "undefined" && platform !== "headless") {
             try {
-                const probeCanvas = document.createElement("canvas");
-                supportsWebGL2 = Boolean(probeCanvas.getContext("webgl2"));
-                supportsWebGL1 =
-                    supportsWebGL2 ||
-                    Boolean(
-                        probeCanvas.getContext("webgl") ||
-                            probeCanvas.getContext("experimental-webgl"),
-                    );
+                const gl2 = document.createElement("canvas").getContext("webgl2");
+                supportsWebGL2 = Boolean(gl2);
+                PlatformAdapter.#releaseProbeContext(gl2);
+                if (supportsWebGL2) {
+                    supportsWebGL1 = true;
+                } else {
+                    const probe = document.createElement("canvas");
+                    const gl1 = (probe.getContext("webgl") ??
+                        probe.getContext("experimental-webgl")) as WebGLRenderingContext | null;
+                    supportsWebGL1 = Boolean(gl1);
+                    PlatformAdapter.#releaseProbeContext(gl1);
+                }
             } catch {
                 supportsWebGL2 = false;
                 supportsWebGL1 = false;
@@ -106,7 +122,7 @@ export class PlatformAdapter {
 
         const supportsIndexedDB = typeof indexedDB !== "undefined";
 
-        return {
+        this.#cachedCapabilities = {
             platform,
             supportsOffscreenCanvas,
             supportsSharedArrayBuffer,
@@ -116,5 +132,11 @@ export class PlatformAdapter {
             supportsWebAudio,
             supportsIndexedDB,
         };
+        return this.#cachedCapabilities;
+    }
+
+    /** Frees a probe WebGL context right away instead of waiting for garbage collection. */
+    static #releaseProbeContext(gl: WebGLRenderingContext | WebGL2RenderingContext | null): void {
+        gl?.getExtension("WEBGL_lose_context")?.loseContext();
     }
 }

@@ -2,39 +2,46 @@ import { BrioAudio } from "../assets/BrioAudio";
 import { BrioSprite } from "../assets/BrioSprite";
 import { BrioAtlas } from "../assets/BrioAtlas";
 import { BrioModel } from "../assets/BrioModel";
-import { BrioCamera } from "../not-implemented/BrioCamera";
-import { BrioMap } from "../not-implemented/BrioMap";
-import { BrioScene } from "../not-implemented/BrioScene";
-import { BrioObject } from "../objects/BrioObject";
+import { BrioMesh } from "../assets/BrioMesh";
+import { BrioMaterial } from "../assets/BrioMaterial";
+import { BrioTileMap } from "../assets/BrioTileMap";
+import { BrioCamera2D } from "../cameras/BrioCamera2D";
+import { BrioCamera3D } from "../cameras/BrioCamera3D";
+import { BrioRegistry } from "../core/BrioRegistry";
+import { BrioObject2D } from "../objects/BrioObject2D";
 import { BrioObject3D } from "../objects/BrioObject3D";
 
 /**
  * Contract describing the central asset and entity registries managed by `BrioGame`.
  */
 export interface BrioAssets {
-    /** Map of active `BrioObject` entities keyed by `name`. */
-    objects: Map<string, BrioObject>;
-    /** Map of active `BrioObject3D` entities keyed by `name`. */
-    objects3d: Map<string, BrioObject3D>;
+    /** Map of active `BrioObject2D` entities keyed by `name`. */
+    objects: Map<string, BrioObject2D>;
+    /** Registry of active `BrioObject3D` entities keyed by `name`. */
+    objects3d: BrioRegistry<BrioObject3D>;
     /** Map of preloaded `BrioSprite` assets keyed by `name`. */
     sprites: Map<string, BrioSprite>;
     /** Map of preloaded `BrioAudio` assets keyed by `name`. */
     audios: Map<string, BrioAudio>;
     /** Map of preloaded `BrioModel` 3D model assets keyed by `name`. */
     models: Map<string, BrioModel>;
-    /** Map of loaded `BrioMap` instances keyed by `name`. */
-    maps: Map<string, BrioMap>;
-    /** Map of loaded `BrioCamera` instances keyed by `name`. */
-    cameras: Map<string, BrioCamera>;
-    /** Map of registered `BrioScene` instances keyed by `name`. */
-    scenes: Map<string, BrioScene>;
+    /** Map of registered `BrioMesh` geometries keyed by `name` (from models or preloaded directly). */
+    meshes: Map<string, BrioMesh>;
+    /** Map of registered `BrioMaterial` surfaces keyed by `name` (from models or preloaded directly). */
+    materials: Map<string, BrioMaterial>;
+    /** Map of loaded `BrioTileMap` instances keyed by `name`. */
+    tileMaps: Map<string, BrioTileMap>;
+    /** Registry of `BrioCamera2D` instances keyed by `name`. */
+    cameras2D: BrioRegistry<BrioCamera2D>;
+    /** Registry of `BrioCamera3D` instances keyed by `name`. */
+    cameras3D: BrioRegistry<BrioCamera3D>;
     /** Map of preloaded `BrioAtlas` texture atlases keyed by `name`. */
     atlases: Map<string, BrioAtlas>;
 }
 
 /**
- * Central in-memory registry for all preloaded assets (`sprites`, `audios`, `atlases`, `models`)
- * and active scene objects (`objects`, `objects3d`, `maps`, `cameras`, `scenes`).
+ * Central in-memory registry for all preloaded assets (`sprites`, `audios`, `atlases`, `models`, `meshes`, `materials`)
+ * and active scene content (`objects`, `objects3d`, `tileMaps`, `cameras2D`, `cameras3D`).
  *
  * @example
  * ```ts
@@ -44,23 +51,25 @@ export interface BrioAssets {
  * ```
  */
 export class BrioAssetManager implements BrioAssets {
-    #objects = new Map<string, BrioObject>();
-    #objects3d = new Map<string, BrioObject3D>();
-    #sprites = new Map<string, BrioSprite>();
-    #audios = new Map<string, BrioAudio>();
-    #models = new Map<string, BrioModel>();
-    #maps = new Map<string, BrioMap>();
-    #cameras = new Map<string, BrioCamera>();
-    #scenes = new Map<string, BrioScene>();
-    #atlases = new Map<string, BrioAtlas>();
+    readonly #objects = new Map<string, BrioObject2D>();
+    readonly #objects3d = new BrioRegistry<BrioObject3D>();
+    readonly #sprites = new Map<string, BrioSprite>();
+    readonly #audios = new Map<string, BrioAudio>();
+    readonly #models = new Map<string, BrioModel>();
+    readonly #meshes = new Map<string, BrioMesh>();
+    readonly #materials = new Map<string, BrioMaterial>();
+    readonly #tileMaps = new Map<string, BrioTileMap>();
+    readonly #cameras2D = new BrioRegistry<BrioCamera2D>();
+    readonly #cameras3D = new BrioRegistry<BrioCamera3D>();
+    readonly #atlases = new Map<string, BrioAtlas>();
 
-    /** Map of active `BrioObject` entities keyed by `name`. */
-    public get objects(): Map<string, BrioObject> {
+    /** Map of active `BrioObject2D` entities keyed by `name`. */
+    public get objects(): Map<string, BrioObject2D> {
         return this.#objects;
     }
 
-    /** Map of active `BrioObject3D` entities keyed by `name`. */
-    public get objects3d(): Map<string, BrioObject3D> {
+    /** Registry of active `BrioObject3D` entities keyed by `name`. */
+    public get objects3d(): BrioRegistry<BrioObject3D> {
         return this.#objects3d;
     }
 
@@ -79,19 +88,29 @@ export class BrioAssetManager implements BrioAssets {
         return this.#models;
     }
 
-    /** Map of loaded `BrioMap` instances keyed by `name`. */
-    public get maps(): Map<string, BrioMap> {
-        return this.#maps;
+    /** Map of registered `BrioMesh` geometries keyed by `name`. */
+    public get meshes(): Map<string, BrioMesh> {
+        return this.#meshes;
     }
 
-    /** Map of loaded `BrioCamera` instances keyed by `name`. */
-    public get cameras(): Map<string, BrioCamera> {
-        return this.#cameras;
+    /** Map of registered `BrioMaterial` surfaces keyed by `name`. */
+    public get materials(): Map<string, BrioMaterial> {
+        return this.#materials;
     }
 
-    /** Map of registered `BrioScene` instances keyed by `name`. */
-    public get scenes(): Map<string, BrioScene> {
-        return this.#scenes;
+    /** Map of loaded `BrioTileMap` instances keyed by `name`. */
+    public get tileMaps(): Map<string, BrioTileMap> {
+        return this.#tileMaps;
+    }
+
+    /** Registry of `BrioCamera2D` instances keyed by `name`. */
+    public get cameras2D(): BrioRegistry<BrioCamera2D> {
+        return this.#cameras2D;
+    }
+
+    /** Registry of `BrioCamera3D` instances keyed by `name`. */
+    public get cameras3D(): BrioRegistry<BrioCamera3D> {
+        return this.#cameras3D;
     }
 
     /** Map of preloaded `BrioAtlas` texture atlases keyed by `name`. */
@@ -99,4 +118,3 @@ export class BrioAssetManager implements BrioAssets {
         return this.#atlases;
     }
 }
-

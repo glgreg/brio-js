@@ -46,6 +46,31 @@ export const RIGIDBODY_STRIDE = 10;
 export const VISUAL_STRIDE = 4;
 
 /**
+ * Bit flags describing which spatial transform buffers a `ComponentStorage` allocates.
+ * Stored in binary snapshots so a snapshot is only restored into a compatible storage layout.
+ */
+export enum StorageLayoutFlag {
+    TRANSFORM_2D = 1 << 0,
+    TRANSFORM_3D = 1 << 1,
+}
+
+/**
+ * Selects which spatial transform buffers are allocated by `ComponentStorage`.
+ * Disabling a dimension keeps its buffer empty so pure 2D games do not pay the memory cost of 3D transforms (ADR-0004).
+ *
+ * @example
+ * ```ts
+ * const storage2D = new ComponentStorage(4096, false, { transform2D: true, transform3D: false });
+ * ```
+ */
+export interface ComponentStorageLayout {
+    /** Allocates the `transform2D` buffer (defaults to `true`). */
+    transform2D?: boolean;
+    /** Allocates the `transform3D` buffer (defaults to `true`). */
+    transform3D?: boolean;
+}
+
+/**
  * Structure-of-Arrays (SoA) contiguous memory store for all ECS entities.
  * Allocates flat `TypedArrays` backed by `SharedArrayBuffer` (when supported and requested)
  * or standard `ArrayBuffer`, enabling zero-GC component access, $O(1)$ prefab slot cloning,
@@ -61,6 +86,7 @@ export const VISUAL_STRIDE = 4;
 export class ComponentStorage {
     readonly #capacity: number;
     readonly #isSharedMemory: boolean;
+    readonly #layoutFlags: number;
 
     /** Bitmask of active `ComponentMask` flags per entity (`Uint32Array(capacity)`). */
     public readonly componentMasks: Uint32Array;
@@ -71,10 +97,10 @@ export class ComponentStorage {
     /** Alive status per entity (`1` = active, `0` = pooled/free). */
     public readonly aliveFlags: Uint8Array;
 
-    /** Contiguous 2D transform float components (`capacity * TRANSFORM_2D_STRIDE`). */
+    /** Contiguous 2D transform float components (`capacity * TRANSFORM_2D_STRIDE`, empty when the layout disables 2D). */
     public readonly transform2D: Float32Array;
 
-    /** Contiguous 3D transform float components (`capacity * TRANSFORM_3D_STRIDE`). */
+    /** Contiguous 3D transform float components (`capacity * TRANSFORM_3D_STRIDE`, empty when the layout disables 3D). */
     public readonly transform3D: Float32Array;
 
     /** Contiguous 2D/3D collider float components (`capacity * COLLIDER_STRIDE`). */
@@ -91,11 +117,22 @@ export class ComponentStorage {
      *
      * @param capacity Maximum number of simultaneous entities (defaults to `4096`)
      * @param useSharedMemory Whether to attempt `SharedArrayBuffer` allocation for Worker zero-copy
+     * @param layout Which spatial transform buffers to allocate (defaults to both 2D and 3D)
      */
-    constructor(capacity: number = 4096, useSharedMemory: boolean = false) {
+    constructor(
+        capacity: number = 4096,
+        useSharedMemory: boolean = false,
+        layout: ComponentStorageLayout = {},
+    ) {
         this.#capacity = Math.max(1, Math.floor(capacity));
         const canShare = useSharedMemory && typeof SharedArrayBuffer !== "undefined";
         this.#isSharedMemory = canShare;
+
+        const has2D = layout.transform2D ?? true;
+        const has3D = layout.transform3D ?? true;
+        this.#layoutFlags =
+            (has2D ? StorageLayoutFlag.TRANSFORM_2D : 0) |
+            (has3D ? StorageLayoutFlag.TRANSFORM_3D : 0);
 
         const allocBuffer = (byteLength: number): ArrayBufferLike =>
             canShare ? new SharedArrayBuffer(byteLength) : new ArrayBuffer(byteLength);
@@ -110,10 +147,14 @@ export class ComponentStorage {
             allocBuffer(this.#capacity * Uint8Array.BYTES_PER_ELEMENT),
         );
         this.transform2D = new Float32Array(
-            allocBuffer(this.#capacity * TRANSFORM_2D_STRIDE * Float32Array.BYTES_PER_ELEMENT),
+            allocBuffer(
+                has2D ? this.#capacity * TRANSFORM_2D_STRIDE * Float32Array.BYTES_PER_ELEMENT : 0,
+            ),
         );
         this.transform3D = new Float32Array(
-            allocBuffer(this.#capacity * TRANSFORM_3D_STRIDE * Float32Array.BYTES_PER_ELEMENT),
+            allocBuffer(
+                has3D ? this.#capacity * TRANSFORM_3D_STRIDE * Float32Array.BYTES_PER_ELEMENT : 0,
+            ),
         );
         this.collider = new Float32Array(
             allocBuffer(this.#capacity * COLLIDER_STRIDE * Float32Array.BYTES_PER_ELEMENT),
@@ -134,6 +175,21 @@ export class ComponentStorage {
     /** Indicates whether the underlying TypedArrays are backed by `SharedArrayBuffer`. */
     public get isSharedMemory(): boolean {
         return this.#isSharedMemory;
+    }
+
+    /** Bitmask of allocated transform buffers (`StorageLayoutFlag`). */
+    public get layoutFlags(): number {
+        return this.#layoutFlags;
+    }
+
+    /** Whether the `transform2D` buffer is allocated. */
+    public get has2D(): boolean {
+        return (this.#layoutFlags & StorageLayoutFlag.TRANSFORM_2D) !== 0;
+    }
+
+    /** Whether the `transform3D` buffer is allocated. */
+    public get has3D(): boolean {
+        return (this.#layoutFlags & StorageLayoutFlag.TRANSFORM_3D) !== 0;
     }
 
     /**
@@ -234,15 +290,17 @@ export class ComponentStorage {
     }
 
     /**
-     * Clears all dirty flags across all entity slots in $O(1)$ using `TypedArray.fill`.
+     * Clears dirty flags of entity slots `0 .. limit - 1` in $O(limit)$ using a native `TypedArray.fill`.
+     * Pass the world high-water mark as `limit` to skip never-allocated slots.
      *
+     * @param limit Number of leading slots to clear (defaults to `capacity`)
      * @example
      * ```ts
-     * storage.clearAllDirty();
+     * storage.clearAllDirty(world.highWaterMark);
      * ```
      */
-    public clearAllDirty(): void {
-        this.dirtyFlags.fill(DirtyFlag.NONE);
+    public clearAllDirty(limit: number = this.#capacity): void {
+        this.dirtyFlags.fill(DirtyFlag.NONE, 0, limit);
     }
 
     /**
@@ -258,21 +316,25 @@ export class ComponentStorage {
         this.componentMasks[entityId] = ComponentMask.NONE;
         this.dirtyFlags[entityId] = DirtyFlag.TRANSFORM | DirtyFlag.RENDER;
 
-        const t2 = entityId * TRANSFORM_2D_STRIDE;
-        this.transform2D.fill(0, t2, t2 + TRANSFORM_2D_STRIDE);
-        // Default 2D scale (1, 1) and opacity (1)
-        this.transform2D[t2 + 4] = 1;
-        this.transform2D[t2 + 5] = 1;
-        this.transform2D[t2 + 13] = 1;
+        if (this.has2D) {
+            const t2 = entityId * TRANSFORM_2D_STRIDE;
+            this.transform2D.fill(0, t2, t2 + TRANSFORM_2D_STRIDE);
+            // Default 2D scale (1, 1) and opacity (1)
+            this.transform2D[t2 + 4] = 1;
+            this.transform2D[t2 + 5] = 1;
+            this.transform2D[t2 + 13] = 1;
+        }
 
-        const t3 = entityId * TRANSFORM_3D_STRIDE;
-        this.transform3D.fill(0, t3, t3 + TRANSFORM_3D_STRIDE);
-        // Default 3D scale (1, 1, 1), identity quaternion w = 1, and opacity (1)
-        this.transform3D[t3 + 3] = 1;
-        this.transform3D[t3 + 4] = 1;
-        this.transform3D[t3 + 5] = 1;
-        this.transform3D[t3 + 12] = 1;
-        this.transform3D[t3 + 13] = 1;
+        if (this.has3D) {
+            const t3 = entityId * TRANSFORM_3D_STRIDE;
+            this.transform3D.fill(0, t3, t3 + TRANSFORM_3D_STRIDE);
+            // Default 3D scale (1, 1, 1), identity quaternion w = 1, and opacity (1)
+            this.transform3D[t3 + 3] = 1;
+            this.transform3D[t3 + 4] = 1;
+            this.transform3D[t3 + 5] = 1;
+            this.transform3D[t3 + 12] = 1;
+            this.transform3D[t3 + 13] = 1;
+        }
 
         const c = entityId * COLLIDER_STRIDE;
         this.collider.fill(0, c, c + COLLIDER_STRIDE);
@@ -303,13 +365,17 @@ export class ComponentStorage {
         this.componentMasks[targetEntityId] = this.componentMasks[sourceEntityId];
         this.dirtyFlags[targetEntityId] = DirtyFlag.TRANSFORM | DirtyFlag.RENDER;
 
-        const srcT2 = sourceEntityId * TRANSFORM_2D_STRIDE;
-        const dstT2 = targetEntityId * TRANSFORM_2D_STRIDE;
-        this.transform2D.copyWithin(dstT2, srcT2, srcT2 + TRANSFORM_2D_STRIDE);
+        if (this.has2D) {
+            const srcT2 = sourceEntityId * TRANSFORM_2D_STRIDE;
+            const dstT2 = targetEntityId * TRANSFORM_2D_STRIDE;
+            this.transform2D.copyWithin(dstT2, srcT2, srcT2 + TRANSFORM_2D_STRIDE);
+        }
 
-        const srcT3 = sourceEntityId * TRANSFORM_3D_STRIDE;
-        const dstT3 = targetEntityId * TRANSFORM_3D_STRIDE;
-        this.transform3D.copyWithin(dstT3, srcT3, srcT3 + TRANSFORM_3D_STRIDE);
+        if (this.has3D) {
+            const srcT3 = sourceEntityId * TRANSFORM_3D_STRIDE;
+            const dstT3 = targetEntityId * TRANSFORM_3D_STRIDE;
+            this.transform3D.copyWithin(dstT3, srcT3, srcT3 + TRANSFORM_3D_STRIDE);
+        }
 
         const srcC = sourceEntityId * COLLIDER_STRIDE;
         const dstC = targetEntityId * COLLIDER_STRIDE;

@@ -1,4 +1,4 @@
-import { BrioObject } from "../objects/BrioObject";
+import { BrioObject2D } from "../objects/BrioObject2D";
 import { BrioGame } from "../game/BrioGame";
 
 /**
@@ -67,10 +67,10 @@ export class BrioUtils {
     }
 
     /**
-     * Clamps a scrolling background or map `BrioObject` so its edges never move inside the visible `BrioGame` viewport.
+     * Clamps a scrolling background or map `BrioObject2D` so its edges never move inside the visible `BrioGame` viewport.
      *
      * @param game Active `BrioGame` instance providing viewport `width`, `height`, and `scale`
-     * @param target Map or background `BrioObject` whose `transform.position` will be constrained
+     * @param target Map or background `BrioObject2D` whose `transform.position` will be constrained
      * @example
      * ```ts
      * game.update((updater, dt) => {
@@ -79,7 +79,7 @@ export class BrioUtils {
      * });
      * ```
      */
-    public static mapRestrainOffbound(game: BrioGame, target: BrioObject): void {
+    public static mapRestrainOffbound(game: BrioGame, target: BrioObject2D): void {
         if (target.transform.position.x >= 0) {
             target.transform.position.x = 0;
         } else if (

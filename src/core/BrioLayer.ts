@@ -1,5 +1,5 @@
 import { BrioVec2, Vec2 } from "../math/vec2";
-import { BrioObject } from "../objects/BrioObject";
+import { BrioObject2D } from "../objects/BrioObject2D";
 
 /**
  * Rendering and update policy for a `BrioLayer`:
@@ -9,6 +9,11 @@ import { BrioObject } from "../objects/BrioObject";
  * - `"ui"`: Renders in Screen Space (ignoring world camera offset/zoom), ordered by `order` for stacked UI (e.g. dialogue boxes under HUD overlays).
  */
 export type LayerPolicy = "static" | "parallax" | "dynamic" | "ui";
+
+/** Module-level comparator so in-place sorting never allocates a closure per frame. */
+function compareDepth(a: BrioObject2D, b: BrioObject2D): number {
+    return a.transform.layer - b.transform.layer;
+}
 
 /**
  * Configuration options for creating a `BrioLayer`.
@@ -46,7 +51,7 @@ export class BrioLayer {
     #visible: boolean;
     #dirty: boolean = true;
     #orderDirty: boolean = false;
-    readonly #objects: BrioObject[] = [];
+    readonly #objects: BrioObject2D[] = [];
 
     /**
      * Creates a new `BrioLayer`.
@@ -129,7 +134,7 @@ export class BrioLayer {
     }
 
     /**
-     * Adds a `BrioObject` to this layer and marks the internal object order as dirty.
+     * Adds a `BrioObject2D` to this layer and marks the internal object order as dirty.
      *
      * @param object Object to add
      * @example
@@ -137,7 +142,7 @@ export class BrioLayer {
      * hudLayer.addObject(healthBar);
      * ```
      */
-    public addObject(object: BrioObject): void {
+    public addObject(object: BrioObject2D): void {
         if (!this.#objects.includes(object)) {
             this.#objects.push(object);
             this.#orderDirty = true;
@@ -146,12 +151,12 @@ export class BrioLayer {
     }
 
     /**
-     * Removes a `BrioObject` from this layer.
+     * Removes a `BrioObject2D` from this layer.
      *
      * @param object Object to remove
      * @returns `true` if removed
      */
-    public removeObject(object: BrioObject): boolean {
+    public removeObject(object: BrioObject2D): boolean {
         const idx = this.#objects.indexOf(object);
         if (idx !== -1) {
             this.#objects.splice(idx, 1);
@@ -161,18 +166,44 @@ export class BrioLayer {
         return false;
     }
 
+    /** Number of objects assigned to this layer. */
+    public get objectCount(): number {
+        return this.#objects.length;
+    }
+
     /**
-     * Returns the objects in this layer sorted by `transform.layer`, re-sorting only when dirty.
-     * Eliminates per-frame `Array.from(...).sort(...)` allocations.
+     * Checks whether `object` is assigned to this layer.
      *
-     * @returns Read-only sorted array of `BrioObject` instances
+     * @param object Object to look up
+     * @returns `true` if assigned
      */
-    public getSortedObjects(): readonly BrioObject[] {
-        if (this.#orderDirty) {
-            this.#objects.sort((a, b) => a.transform.layer - b.transform.layer);
-            this.#orderDirty = false;
+    public hasObject(object: BrioObject2D): boolean {
+        return this.#objects.includes(object);
+    }
+
+    /**
+     * Returns the objects in this layer sorted by `transform.layer` (depth inside the layer).
+     * Sorting happens in place and only when the order is dirty or a depth changed, detected by an
+     * $O(n)$ allocation-free scan, so the game loop never allocates or sorts a fresh array per frame.
+     *
+     * @returns Read-only sorted array of `BrioObject2D` instances
+     */
+    public getSortedObjects(): readonly BrioObject2D[] {
+        const objects = this.#objects;
+        if (!this.#orderDirty) {
+            for (let i = 1; i < objects.length; i++) {
+                if (objects[i - 1].transform.layer > objects[i].transform.layer) {
+                    this.#orderDirty = true;
+                    break;
+                }
+            }
         }
-        return this.#objects;
+        if (this.#orderDirty) {
+            objects.sort(compareDepth);
+            this.#orderDirty = false;
+            this.#dirty = true;
+        }
+        return objects;
     }
 
     /**

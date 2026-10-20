@@ -1,7 +1,10 @@
 import { BrioViewport } from "../core/BrioViewport";
 import { clamp, lerp } from "../math/BrioMath";
 import { BrioVec2, Vec2 } from "../math/vec2";
-import { BrioObject } from "../objects/BrioObject";
+import { BrioObject2D } from "../objects/BrioObject2D";
+
+/** Distance (world pixels) under which a following camera snaps to its destination. */
+const FOLLOW_SNAP_EPSILON = 0.01;
 
 /**
  * Axis-aligned bounding rectangle confining a `BrioCamera2D` in world space.
@@ -38,7 +41,7 @@ export class BrioCamera2D {
     #rotation: number = 0;
     #viewport: BrioViewport;
 
-    #target?: BrioObject;
+    #target?: BrioObject2D;
     #followLerp: number = 1;
     #deadzone: Vec2 = { x: 0, y: 0 };
     #bounds?: CameraBounds2D;
@@ -84,6 +87,16 @@ export class BrioCamera2D {
         this.#applyBounds();
     }
 
+    /** Effective camera X position including active screen shake offset (allocation-free). */
+    public get renderX(): number {
+        return this.#pos.x + this.#shakeOffset.x;
+    }
+
+    /** Effective camera Y position including active screen shake offset (allocation-free). */
+    public get renderY(): number {
+        return this.#pos.y + this.#shakeOffset.y;
+    }
+
     /** Effective camera position including active screen shake offset. */
     public get renderPos(): Vec2 {
         return {
@@ -126,15 +139,15 @@ export class BrioCamera2D {
         this.#viewport = value;
     }
 
-    /** Currently followed `BrioObject` target, if any. */
-    public get target(): BrioObject | undefined {
+    /** Currently followed `BrioObject2D` target, if any. */
+    public get target(): BrioObject2D | undefined {
         return this.#target;
     }
 
     /**
      * Configures the camera to follow `target` with optional smooth interpolation (`lerpFactor`) and a `deadzone`.
      *
-     * @param target `BrioObject` to follow (or `undefined` to stop following)
+     * @param target `BrioObject2D` to follow (or `undefined` to stop following)
      * @param lerpFactor Smoothing factor in `(0, 1]` (`1` = instant lock, `0.1` = smooth lag)
      * @param deadzone Width (`x`) and height (`y`) of the center deadzone where target movement does not pan the camera
      * @example
@@ -143,7 +156,7 @@ export class BrioCamera2D {
      * ```
      */
     public follow(
-        target: BrioObject | undefined,
+        target: BrioObject2D | undefined,
         lerpFactor: number = 1,
         deadzone: Vec2 = { x: 0, y: 0 },
     ): void {
@@ -235,10 +248,15 @@ export class BrioCamera2D {
             const desiredPosX = desiredCenterX - viewW * 0.5;
             const desiredPosY = desiredCenterY - viewH * 0.5;
 
-            this.#pos.set(
-                lerp(this.#pos.x, desiredPosX, this.#followLerp),
-                lerp(this.#pos.y, desiredPosY, this.#followLerp),
-            );
+            // Snap once within a hundredth of a pixel: an asymptotic lerp would otherwise move the camera
+            // by sub-pixel amounts forever, invalidating cached "static" layers on every frame
+            let nextX = lerp(this.#pos.x, desiredPosX, this.#followLerp);
+            let nextY = lerp(this.#pos.y, desiredPosY, this.#followLerp);
+            if (Math.abs(desiredPosX - nextX) < FOLLOW_SNAP_EPSILON) nextX = desiredPosX;
+            if (Math.abs(desiredPosY - nextY) < FOLLOW_SNAP_EPSILON) nextY = desiredPosY;
+            if (nextX !== this.#pos.x || nextY !== this.#pos.y) {
+                this.#pos.set(nextX, nextY);
+            }
         }
 
         this.#applyBounds();
@@ -297,7 +315,7 @@ export class BrioCamera2D {
     /**
      * Performs 2D Frustum Culling to test whether `object` overlaps the visible camera rectangle.
      *
-     * @param object 2D `BrioObject` to test
+     * @param object 2D `BrioObject2D` to test
      * @returns `true` if `object` is visible and inside the camera frustum
      * @example
      * ```ts
@@ -306,10 +324,12 @@ export class BrioCamera2D {
      * }
      * ```
      */
-    public isVisible(object: BrioObject): boolean {
+    public isVisible(object: BrioObject2D): boolean {
         if (!object.transform.visibility || object.transform.opacity <= 0) return false;
 
-        const rp = this.renderPos;
+        // Reads the shake-adjusted position directly so per-object culling does not allocate
+        const rpX = this.#pos.x + this.#shakeOffset.x;
+        const rpY = this.#pos.y + this.#shakeOffset.y;
         const viewW = this.#size.x / this.#zoom;
         const viewH = this.#size.y / this.#zoom;
 
@@ -318,7 +338,7 @@ export class BrioCamera2D {
         const ow = object.transform.renderSize.x;
         const oh = object.transform.renderSize.y;
 
-        return !(ox + ow < rp.x || ox > rp.x + viewW || oy + oh < rp.y || oy > rp.y + viewH);
+        return !(ox + ow < rpX || ox > rpX + viewW || oy + oh < rpY || oy > rpY + viewH);
     }
 
     /**

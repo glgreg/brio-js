@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BrioGame } from "../../src/game/BrioGame";
-import { BrioObject } from "../../src/objects/BrioObject";
+import { BrioObject2D } from "../../src/objects/BrioObject2D";
 import { BrioSprite } from "../../src/assets/BrioSprite";
 import { BrioCollision } from "../../src/math/BrioCollision";
 
@@ -21,6 +21,8 @@ function createMockCanvasContext(): CanvasRenderingContext2D {
         moveTo: vi.fn(),
         lineTo: vi.fn(),
         rect: vi.fn(),
+        clip: vi.fn(),
+        fill: vi.fn(),
         arc: vi.fn(),
         stroke: vi.fn(),
         fillText: vi.fn(),
@@ -52,7 +54,7 @@ describe("BrioGame", () => {
         spr.size = { x: 16, y: 16 };
         game.loadedGameSprites.set("spr_bullet", spr);
 
-        const template = new BrioObject("obj_bullet", "spr_bullet", 1);
+        const template = new BrioObject2D("obj_bullet", "spr_bullet", 1);
         template.transform.size = { x: 16, y: 16 };
         BrioCollision.addSquare({
             object: template,
@@ -60,7 +62,7 @@ describe("BrioGame", () => {
             pos: { x: 0, y: 0 },
             size: 16,
         });
-        game.gameObjects.set(template.name, template);
+        game.addObject(template);
 
         const clone1 = game.instantiate(template);
         const clone2 = game.instantiate(template);
@@ -80,7 +82,7 @@ describe("BrioGame", () => {
 
     it("detects outbound objects on all four screen boundaries (left, right, top, bottom)", () => {
         const game = new BrioGame(640, 480, container);
-        const obj = new BrioObject("runner", "spr", 1);
+        const obj = new BrioObject2D("runner", "spr", 1);
         obj.transform.size = { x: 32, y: 32 };
 
         // Inside screen -> callback not called
@@ -122,11 +124,11 @@ describe("BrioGame", () => {
         spr.size = { x: 32, y: 32 };
         game.loadedGameSprites.set("spr_hero", spr);
 
-        const hero = new BrioObject("hero", "spr_hero", 1);
+        const hero = new BrioObject2D("hero", "spr_hero", 1);
         hero.transform.size = { x: 32, y: 32 };
         hero.transform.scale.x = 1.5;
         hero.transform.scale.y = 2;
-        game.gameObjects.set("hero", hero);
+        game.addObject(hero);
 
         expect(hero.transform.renderSize).toEqual({ x: 48, y: 64 });
 
@@ -169,13 +171,11 @@ describe("BrioGame", () => {
         expect(game.background.rendering).toBe("pixelated");
     });
 
-    it("provides zero-allocation BrioCamera pos/size and cancellable BrioUtils timers", async () => {
-        const { BrioCamera } = await import("../../src/not-implemented/BrioCamera");
-        const { BrioMap } = await import("../../src/not-implemented/BrioMap");
+    it("provides zero-allocation BrioCamera2D pos/size and cancellable BrioUtils timers", async () => {
+        const { BrioCamera2D } = await import("../../src/cameras/BrioCamera2D");
         const { BrioUtils } = await import("../../src/tools/BrioUtils");
 
-        const map = new BrioMap("map_1", 1000, 1000);
-        const cam = new BrioCamera("cam_1", { x: 10, y: 20 }, { x: 320, y: 240 }, map);
+        const cam = new BrioCamera2D("cam_1", { x: 10, y: 20 }, { x: 320, y: 240 });
 
         // Repeated access returns the same reactive vector reference (no closure allocations)
         expect(cam.pos).toBe(cam.pos);
@@ -200,5 +200,29 @@ describe("BrioGame", () => {
         vi.advanceTimersByTime(200);
         expect(waitStep).not.toHaveBeenCalled();
         vi.useRealTimers();
+    });
+
+    it("clamps deltaTime to maxDeltaTime after a throttled frame (default 0.1 s)", async () => {
+        const frames: Array<(t: number) => void> = [];
+        vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((cb) => {
+            frames.push(cb as (t: number) => void);
+            return frames.length;
+        });
+
+        const game = new BrioGame(640, 480, container);
+        const deltas: number[] = [];
+        game.update((_updater, dt) => deltas.push(dt));
+        await game.ready();
+
+        frames.shift()!(1000); // first frame: dt = 0
+        frames.shift()!(1016); // regular 16 ms frame
+        frames.shift()!(2032); // 1016 ms gap (rAF throttled to ~1 Hz)
+        expect(deltas[1]).toBeCloseTo(0.016, 5);
+        expect(deltas[2]).toBeCloseTo(0.1, 5);
+
+        game.maxDeltaTime = 0;
+        frames.shift()!(3032);
+        expect(deltas[3]).toBeCloseTo(1, 5);
+        game.pause();
     });
 });

@@ -30,6 +30,8 @@ export interface BrioCamera3DOptions {
     orthoSize?: number;
     /** Normalized screen `BrioViewport` (defaults to full-screen). */
     viewport?: BrioViewport;
+    /** Optional CSS color used to clear the viewport before the 3D pass (transparent clear when omitted). */
+    clearColor?: string;
 }
 
 /**
@@ -60,6 +62,9 @@ export class BrioCamera3D {
     #far: number;
     #orthoSize: number;
     #viewport: BrioViewport;
+
+    /** Optional CSS color used by `BrioGame` to clear this camera's viewport before rendering (transparent when `undefined`). */
+    public clearColor?: string;
 
     readonly #viewMatrix: Mat4 = Matrix4.create();
     readonly #projectionMatrix: Mat4 = Matrix4.create();
@@ -97,6 +102,7 @@ export class BrioCamera3D {
         this.#far = Math.max(this.#near + 1, options.far ?? 1000);
         this.#orthoSize = Math.max(0.01, options.orthoSize ?? 10);
         this.#viewport = options.viewport ?? new BrioViewport(0, 0, 1, 1);
+        this.clearColor = options.clearColor;
     }
 
     /** Unique camera identifier. */

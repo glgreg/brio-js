@@ -2,7 +2,7 @@ import { BrioMesh } from "./BrioMesh";
 import { BrioMaterial } from "./BrioMaterial";
 import { Vec3 } from "../math/vec3";
 import { BrioObject3D } from "../objects/BrioObject3D";
-import { OBJLoader } from "./loaders/OBJLoader";
+import { OBJLoader, ParsedModelData } from "./loaders/OBJLoader";
 import { GLBLoader } from "./loaders/GLBLoader";
 import { GLTFLoader } from "./loaders/GLTFLoader";
 
@@ -59,6 +59,9 @@ export class BrioModel {
     #format: ModelFormat;
     #meshes = new Map<string, BrioMesh>();
     #materials = new Map<string, BrioMaterial>();
+    /** Material name bound to each mesh by the source format (glTF `primitive.material`). */
+    #meshMaterials = new Map<string, string>();
+    #warnings: string[] = [];
     #boundingBox: ModelBoundingBox = {
         min: { x: 0, y: 0, z: 0 },
         max: { x: 0, y: 0, z: 0 },
@@ -129,6 +132,11 @@ export class BrioModel {
         return this.#boundingBox;
     }
 
+    /** Non-fatal problems reported by the last `load()` (e.g. textures that failed to decode). */
+    public get warnings(): readonly string[] {
+        return this.#warnings;
+    }
+
     /** Indicates whether this model's geometry and materials have finished loading. */
     public get isLoaded(): boolean {
         return this.#isLoaded;
@@ -156,7 +164,7 @@ export class BrioModel {
             this.#format = detectedFormat;
         }
 
-        let parsedData: { meshes: BrioMesh[]; materials: BrioMaterial[] };
+        let parsedData: ParsedModelData;
 
         if (detectedFormat === "glb") {
             parsedData = await GLBLoader.load(this.#url, this.#name);
@@ -180,6 +188,13 @@ export class BrioModel {
         for (const mat of parsedData.materials) {
             this.#materials.set(mat.name, mat);
         }
+
+        this.#meshMaterials.clear();
+        parsedData.meshMaterials?.forEach((matName, i) => {
+            const mesh = parsedData.meshes[i];
+            if (mesh && matName) this.#meshMaterials.set(mesh.name, matName);
+        });
+        this.#warnings = parsedData.warnings ?? [];
 
         this.#recomputeBoundingBox();
         this.#isLoaded = true;
@@ -252,12 +267,12 @@ export class BrioModel {
             return new BrioObject3D(objectName);
         }
 
+        // Formats that bind materials per primitive (glTF) win; otherwise materials pair with meshes by index
+        const materialFor = (mesh: BrioMesh, i: number): string =>
+            this.#meshMaterials.get(mesh.name) ?? (materialsArr[i] ?? materialsArr[0])?.name ?? "";
+
         if (meshesArr.length === 1) {
-            const root = new BrioObject3D(
-                objectName,
-                meshesArr[0].name,
-                materialsArr[0]?.name ?? "",
-            );
+            const root = new BrioObject3D(objectName, meshesArr[0].name, materialFor(meshesArr[0], 0));
             root.addCollider3D("box", "solid", this.#boundingBox.center, this.#boundingBox.size);
             return root;
         }
@@ -265,13 +280,8 @@ export class BrioModel {
         const root = new BrioObject3D(objectName);
         for (let i = 0; i < meshesArr.length; i++) {
             const mesh = meshesArr[i];
-            const mat = materialsArr[i] ?? materialsArr[0];
-            const child = new BrioObject3D(
-                `${objectName}_part_${i}`,
-                mesh.name,
-                mat?.name ?? "",
-            );
-            root.transform.addChild(child.transform);
+            const child = new BrioObject3D(`${objectName}_part_${i}`, mesh.name, materialFor(mesh, i));
+            root.addChild(child);
         }
 
         root.addCollider3D("box", "solid", this.#boundingBox.center, this.#boundingBox.size);

@@ -1,13 +1,13 @@
-import { BrioObject, CollisionColliderType } from "../objects/BrioObject";
+import { BrioObject2D, CollisionColliderType } from "../objects/BrioObject2D";
 import { BrioObject3D } from "../objects/BrioObject3D";
 import { Vec2 } from "./index";
 
 /**
- * Configuration object for attaching a rectangular AABB collider to a `BrioObject`.
+ * Configuration object for attaching a rectangular AABB collider to a `BrioObject2D`.
  */
 export type RectangleCollisionType = {
-    /** Target `BrioObject` that will receive the collider. */
-    object: BrioObject;
+    /** Target `BrioObject2D` that will receive the collider. */
+    object: BrioObject2D;
     /** Physical interaction mode (`"solid"` or `"trigger"`). */
     colliderType: CollisionColliderType;
     /** Local offset `{ x, y }` relative to `object.transform.position`. */
@@ -17,11 +17,11 @@ export type RectangleCollisionType = {
 };
 
 /**
- * Configuration object for attaching a square AABB collider to a `BrioObject`.
+ * Configuration object for attaching a square AABB collider to a `BrioObject2D`.
  */
 export type SquareCollisionType = {
-    /** Target `BrioObject` that will receive the collider. */
-    object: BrioObject;
+    /** Target `BrioObject2D` that will receive the collider. */
+    object: BrioObject2D;
     /** Physical interaction mode (`"solid"` or `"trigger"`). */
     colliderType: CollisionColliderType;
     /** Local offset `{ x, y }` relative to `object.transform.position`. */
@@ -31,11 +31,11 @@ export type SquareCollisionType = {
 };
 
 /**
- * Configuration object for attaching a circular collider to a `BrioObject`.
+ * Configuration object for attaching a circular collider to a `BrioObject2D`.
  */
 export type CircleCollisionType = {
-    /** Target `BrioObject` that will receive the collider. */
-    object: BrioObject;
+    /** Target `BrioObject2D` that will receive the collider. */
+    object: BrioObject2D;
     /** Physical interaction mode (`"solid"` or `"trigger"`). */
     colliderType: CollisionColliderType;
     /** Local offset `{ x, y }` of the circle's top-left bounding box relative to `object.transform.position`. */
@@ -64,7 +64,7 @@ export type CircleCollisionType = {
  */
 export class BrioCollision {
     /**
-     * Tests whether two `BrioObject` instances with active (`enabled: true`) collision masks are intersecting.
+     * Tests whether two `BrioObject2D` instances with active (`enabled: true`) collision masks are intersecting.
      * Supports Rectangle/Square vs Rectangle/Square, Circle vs Circle, and symmetric Circle vs Rectangle/Square.
      *
      * @param one First game object
@@ -77,7 +77,7 @@ export class BrioCollision {
      * }
      * ```
      */
-    public static isColliding(one: BrioObject, two: BrioObject): boolean {
+    public static isColliding(one: BrioObject2D, two: BrioObject2D): boolean {
         if (!one.collision || !two.collision) return false;
         if (!one.collision.enabled || !two.collision.enabled) return false;
 
@@ -163,8 +163,8 @@ export class BrioCollision {
      * Computes the Minimum Translation Vector (MTV) needed to push `one` out of penetration with `two`.
      * Returns `null` if the two objects are not colliding.
      *
-     * @param one Moving or primary `BrioObject`
-     * @param two Obstacle or secondary `BrioObject`
+     * @param one Moving or primary `BrioObject2D`
+     * @param two Obstacle or secondary `BrioObject2D`
      * @returns Translation vector `{ x, y }` to apply to `one`, or `null` if not overlapping
      * @example
      * ```ts
@@ -175,7 +175,7 @@ export class BrioCollision {
      * }
      * ```
      */
-    public static computeMTV(one: BrioObject, two: BrioObject): Vec2 | null {
+    public static computeMTV(one: BrioObject2D, two: BrioObject2D): Vec2 | null {
         if (!this.isColliding(one, two)) return null;
 
         const c1 = one.collision!;
@@ -231,15 +231,15 @@ export class BrioCollision {
      * Resolves physical penetration between `mover` and `obstacle` when both colliders are `"solid"`.
      * If either collider has `colliderType === "trigger"`, no displacement is applied and `null` is returned.
      *
-     * @param mover Dynamic `BrioObject` whose position will be adjusted
-     * @param obstacle Solid obstacle `BrioObject`
+     * @param mover Dynamic `BrioObject2D` whose position will be adjusted
+     * @param obstacle Solid obstacle `BrioObject2D`
      * @returns Applied MTV displacement `{ x, y }`, or `null` if no solid collision occurred
      * @example
      * ```ts
      * BrioCollision.resolveCollision(player, platform);
      * ```
      */
-    public static resolveCollision(mover: BrioObject, obstacle: BrioObject): Vec2 | null {
+    public static resolveCollision(mover: BrioObject2D, obstacle: BrioObject2D): Vec2 | null {
         if (!mover.collision || !obstacle.collision) return null;
         if (
             mover.collision.colliderType !== "solid" ||

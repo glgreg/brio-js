@@ -18,14 +18,39 @@ export class BrioTexture {
      * Creates a new `BrioTexture` for `src`.
      * Prefer `TextureRegistry.acquire(src)` to share instances by URI automatically.
      *
-     * @param src Image source URI
+     * @param src Image source URI, or a descriptive label when `bitmap` is given
+     * @param bitmap Already decoded image (e.g. an embedded glTF image); `src` is then not fetched
      */
-    constructor(src: string) {
+    constructor(src: string, bitmap?: ImageBitmap) {
         this.#src = src;
         this.#element = new Image();
-        if (src) {
+        if (bitmap) {
+            this.#bitmap = bitmap;
+            this.#decoded = true;
+        } else if (src) {
             this.#element.src = src;
         }
+    }
+
+    /**
+     * Decodes encoded image bytes (PNG, JPEG, WebP) off the main thread into a ready `BrioTexture`.
+     * Pixels are kept unpremultiplied and without color-space conversion, so GPU backends can sample
+     * them as sRGB data.
+     *
+     * @param label Descriptive identifier stored as `src` (not fetched)
+     * @param blob Encoded image data
+     * @returns Promise resolving to a decoded `BrioTexture`
+     * @example
+     * ```ts
+     * const tex = await BrioTexture.fromBlob("mod_ship#image0", new Blob([bytes], { type: "image/png" }));
+     * ```
+     */
+    public static async fromBlob(label: string, blob: Blob): Promise<BrioTexture> {
+        const bitmap = await createImageBitmap(blob, {
+            premultiplyAlpha: "none",
+            colorSpaceConversion: "none",
+        });
+        return new BrioTexture(label, bitmap);
     }
 
     /** Source URI of the texture. */

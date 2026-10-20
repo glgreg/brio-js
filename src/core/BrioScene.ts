@@ -2,11 +2,12 @@ import { BrioCamera2D } from "../cameras/BrioCamera2D";
 import { BrioCamera3D } from "../cameras/BrioCamera3D";
 import { ComponentMask } from "../ecs/ComponentStorage";
 import { ECSWorld } from "../ecs/ECSWorld";
-import { BrioObject } from "../objects/BrioObject";
 import { BrioObject2D } from "../objects/BrioObject2D";
 import { BrioObject3D } from "../objects/BrioObject3D";
 import { BrioSerializer } from "../storage/BrioSerializer";
+import { CompositorSource } from "../rendering/BrioCompositor";
 import { BrioLayer } from "./BrioLayer";
+import { BrioRegistry } from "./BrioRegistry";
 import { BrioTimer } from "./BrioTimer";
 
 /**
@@ -26,11 +27,12 @@ export class BrioScene {
     readonly #name: string;
     readonly #world: ECSWorld;
     readonly #timer: BrioTimer = new BrioTimer();
-    readonly #layers = new Map<string, BrioLayer>();
-    readonly #objects2D = new Map<string, BrioObject>();
-    readonly #objects3D = new Map<string, BrioObject3D>();
-    readonly #cameras2D = new Map<string, BrioCamera2D>();
-    readonly #cameras3D = new Map<string, BrioCamera3D>();
+    readonly #layers = new BrioRegistry<BrioLayer>();
+    readonly #objects2D = new Map<string, BrioObject2D>();
+    readonly #objects3D = new BrioRegistry<BrioObject3D>();
+    readonly #cameras2D = new BrioRegistry<BrioCamera2D>();
+    readonly #cameras3D = new BrioRegistry<BrioCamera3D>();
+    readonly #source: CompositorSource;
 
     #checkpointSnapshot?: Uint8Array;
     #paused: boolean = false;
@@ -45,6 +47,13 @@ export class BrioScene {
     constructor(name: string, maxEntities: number = 4096) {
         this.#name = name;
         this.#world = new ECSWorld(maxEntities);
+        this.#source = {
+            world: this.#world,
+            layers: this.#layers,
+            cameras2D: this.#cameras2D.list,
+            cameras3D: this.#cameras3D.list,
+            objects3D: this.#objects3D.list,
+        };
         this.addLayer(new BrioLayer({ name: "default", order: 0, policy: "dynamic" }));
     }
 
@@ -70,27 +79,35 @@ export class BrioScene {
 
     /** Map of registered `BrioLayer` instances in this scene. */
     public get layers(): ReadonlyMap<string, BrioLayer> {
-        return this.#layers;
+        return this.#layers.map;
+    }
+
+    /**
+     * Renderable view of this scene consumed by `BrioGame` while the scene is active
+     * (layers, cameras, and 3D objects backed by allocation-free arrays).
+     */
+    public get compositorSource(): CompositorSource {
+        return this.#source;
     }
 
     /** Map of registered 2D objects in this scene. */
-    public get objects2D(): ReadonlyMap<string, BrioObject> {
+    public get objects2D(): ReadonlyMap<string, BrioObject2D> {
         return this.#objects2D;
     }
 
     /** Map of registered 3D objects in this scene. */
     public get objects3D(): ReadonlyMap<string, BrioObject3D> {
-        return this.#objects3D;
+        return this.#objects3D.map;
     }
 
     /** Map of registered 2D cameras in this scene. */
     public get cameras2D(): ReadonlyMap<string, BrioCamera2D> {
-        return this.#cameras2D;
+        return this.#cameras2D.map;
     }
 
     /** Map of registered 3D cameras in this scene. */
     public get cameras3D(): ReadonlyMap<string, BrioCamera3D> {
-        return this.#cameras3D;
+        return this.#cameras3D.map;
     }
 
     /**
@@ -104,12 +121,12 @@ export class BrioScene {
      * ```
      */
     public addLayer(layer: BrioLayer): this {
-        this.#layers.set(layer.name, layer);
+        this.#layers.add(layer);
         return this;
     }
 
     /**
-     * Registers a 2D `BrioObject` or `BrioObject2D` in this scene and binds its `transform` to the scene's `ECSWorld`.
+     * Registers a `BrioObject2D` in this scene, binds its `transform` to the scene's `ECSWorld`, and assigns it to a `BrioLayer`.
      *
      * @param object 2D entity to register
      * @param layerName Optional layer name (defaults to `"default"`)
@@ -119,11 +136,10 @@ export class BrioScene {
      * scene.addObject2D(player);
      * ```
      */
-    public addObject2D<T extends BrioObject>(object: T, layerName: string = "default"): T {
+    public addObject2D<T extends BrioObject2D>(object: T, layerName: string = "default"): T {
         const entityId = this.#world.createEntity(ComponentMask.TRANSFORM_2D);
-        if (object instanceof BrioObject2D) {
-            object.entityId = entityId;
-        }
+        object.entityId = entityId;
+        object.entityGeneration = this.#world.generationOf(entityId);
         object.transform.bindECS(this.#world.storage, entityId);
         this.#objects2D.set(object.name, object);
 
@@ -147,9 +163,38 @@ export class BrioScene {
     public addObject3D(object: BrioObject3D): BrioObject3D {
         const entityId = this.#world.createEntity(ComponentMask.TRANSFORM_3D);
         object.entityId = entityId;
+        object.entityGeneration = this.#world.generationOf(entityId);
         object.transform.bindECS(this.#world.storage, entityId);
-        this.#objects3D.set(object.name, object);
+        this.#objects3D.add(object);
         return object;
+    }
+
+    /**
+     * Removes `object` from this scene, recycling its ECS slot and detaching its transform so stale references
+     * cannot write into a recycled slot.
+     *
+     * @param object 2D or 3D object to remove
+     * @returns `true` if the object was registered in this scene
+     * @example
+     * ```ts
+     * scene.removeObject(projectile);
+     * ```
+     */
+    public removeObject(object: BrioObject2D | BrioObject3D): boolean {
+        if (object instanceof BrioObject3D) {
+            if (!this.#objects3D.remove(object)) return false;
+        } else {
+            if (this.#objects2D.get(object.name) !== object) return false;
+            this.#objects2D.delete(object.name);
+            const layers = this.#layers.list;
+            for (let i = 0; i < layers.length; i++) {
+                layers[i].removeObject(object);
+            }
+        }
+        this.#world.destroyEntity(object.entityId);
+        object.transform.unbindECS();
+        object.entityId = -1;
+        return true;
     }
 
     /**
@@ -159,7 +204,7 @@ export class BrioScene {
      * @returns This `BrioScene` instance
      */
     public addCamera2D(camera: BrioCamera2D): this {
-        this.#cameras2D.set(camera.name, camera);
+        this.#cameras2D.add(camera);
         return this;
     }
 
@@ -170,7 +215,7 @@ export class BrioScene {
      * @returns This `BrioScene` instance
      */
     public addCamera3D(camera: BrioCamera3D): this {
-        this.#cameras3D.set(camera.name, camera);
+        this.#cameras3D.add(camera);
         return this;
     }
 
@@ -194,8 +239,9 @@ export class BrioScene {
         if (this.#paused || dt <= 0) return;
 
         this.#timer.update(dt);
-        for (const cam2D of this.#cameras2D.values()) {
-            cam2D.update(dt);
+        const cameras = this.#cameras2D.list;
+        for (let i = 0; i < cameras.length; i++) {
+            cameras[i].update(dt);
         }
         if (this.#onUpdate) {
             this.#onUpdate(this, dt);
@@ -231,6 +277,18 @@ export class BrioScene {
             throw new Error(`No checkpoint snapshot available to restore in scene "${this.#name}".`);
         }
         BrioSerializer.restoreSnapshot(this.#world, target);
+
+        // Restoring advances every slot generation: re-adopt the restored slot values in each handle
+        for (const obj of this.#objects2D.values()) {
+            if (obj.entityId < 0) continue;
+            obj.entityGeneration = this.#world.generationOf(obj.entityId);
+            obj.transform.bindECS(this.#world.storage, obj.entityId, true);
+        }
+        for (const obj of this.#objects3D.list) {
+            if (obj.entityId < 0) continue;
+            obj.entityGeneration = this.#world.generationOf(obj.entityId);
+            obj.transform.bindECS(this.#world.storage, obj.entityId, true);
+        }
     }
 
     /**
@@ -254,6 +312,14 @@ export class BrioScene {
      */
     public destroy(): void {
         this.#timer.clear();
+        for (const obj of this.#objects2D.values()) {
+            obj.transform.unbindECS();
+            obj.entityId = -1;
+        }
+        for (const obj of this.#objects3D.list) {
+            obj.transform.unbindECS();
+            obj.entityId = -1;
+        }
         this.#world.clear();
         this.#objects2D.clear();
         this.#objects3D.clear();

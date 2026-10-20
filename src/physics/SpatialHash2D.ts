@@ -1,4 +1,4 @@
-import { BrioObject } from "../objects/BrioObject";
+import { BrioObject2D } from "../objects/BrioObject2D";
 
 /**
  * Uniform 2D Spatial Hash Grid for broadphase collision partitioning.
@@ -16,7 +16,7 @@ import { BrioObject } from "../objects/BrioObject";
 export class SpatialHash2D {
     readonly #cellSize: number;
     readonly #invCellSize: number;
-    readonly #cells = new Map<string, BrioObject[]>();
+    readonly #cells = new Map<string, BrioObject2D[]>();
 
     /**
      * Creates a new `SpatialHash2D` broadphase structure.
@@ -46,7 +46,7 @@ export class SpatialHash2D {
     }
 
     /**
-     * Inserts a `BrioObject` into all spatial cells overlapped by its collider (or transform bounds).
+     * Inserts a `BrioObject2D` into all spatial cells overlapped by its collider (or transform bounds).
      *
      * @param object Object to insert
      * @example
@@ -54,7 +54,7 @@ export class SpatialHash2D {
      * grid.insert(obj);
      * ```
      */
-    public insert(object: BrioObject): void {
+    public insert(object: BrioObject2D): void {
         if (object.collision && !object.collision.enabled) return;
 
         const minX = object.transform.position.x + (object.collision ? object.collision.pos.x : 0);
@@ -84,14 +84,14 @@ export class SpatialHash2D {
      * Queries all unique objects sharing at least one spatial cell with `object` (excluding `object` itself).
      *
      * @param object Query target object
-     * @returns Array of nearby candidate `BrioObject` instances
+     * @returns Array of nearby candidate `BrioObject2D` instances
      * @example
      * ```ts
      * const nearby = grid.queryNear(player);
      * ```
      */
-    public queryNear(object: BrioObject): BrioObject[] {
-        const result = new Set<BrioObject>();
+    public queryNear(object: BrioObject2D): BrioObject2D[] {
+        const result = new Set<BrioObject2D>();
         const minX = object.transform.position.x + (object.collision ? object.collision.pos.x : 0);
         const minY = object.transform.position.y + (object.collision ? object.collision.pos.y : 0);
         const width = object.collision ? object.collision.size.x : object.transform.renderSize.x;
@@ -121,13 +121,13 @@ export class SpatialHash2D {
      * Populates the grid from `objects` and returns all unique candidate collision pairs `[a, b]`.
      *
      * @param objects Collection of 2D objects to partition
-     * @returns Array of unique candidate `[BrioObject, BrioObject]` pairs
+     * @returns Array of unique candidate `[BrioObject2D, BrioObject2D]` pairs
      * @example
      * ```ts
      * const pairs = grid.getPotentialPairs(sceneObjects);
      * ```
      */
-    public getPotentialPairs(objects: Iterable<BrioObject>): [BrioObject, BrioObject][] {
+    public getPotentialPairs(objects: Iterable<BrioObject2D>): [BrioObject2D, BrioObject2D][] {
         this.clear();
         for (const obj of objects) {
             if (obj.collision && obj.collision.enabled) {
@@ -136,7 +136,7 @@ export class SpatialHash2D {
         }
 
         const seenPairs = new Set<string>();
-        const pairs: [BrioObject, BrioObject][] = [];
+        const pairs: [BrioObject2D, BrioObject2D][] = [];
 
         for (const bucket of this.#cells.values()) {
             const len = bucket.length;

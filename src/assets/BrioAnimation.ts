@@ -1,4 +1,4 @@
-import { BrioObject } from "../objects/BrioObject";
+import { BrioObject2D } from "../objects/BrioObject2D";
 
 /**
  * Configuration options for creating a `BrioAnimation`.
@@ -181,14 +181,14 @@ export class BrioAnimation {
     /**
      * Advances the animation by `dt` seconds and assigns `currentFrame` directly to `target.sprite`.
      *
-     * @param target Target `BrioObject` whose `sprite` property will be updated
+     * @param target Target `BrioObject2D` whose `sprite` property will be updated
      * @param dt Elapsed frame delta time in seconds
      * @example
      * ```ts
      * runAnim.apply(player, dt);
      * ```
      */
-    public apply(target: BrioObject, dt: number): void {
+    public apply(target: BrioObject2D, dt: number): void {
         target.sprite = this.update(dt);
     }
 }

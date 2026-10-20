@@ -22,13 +22,21 @@ export interface BrioMaterialOptions {
     opacity?: number;
     /** Whether to render triangle edges as wireframe (defaults to `false`). */
     wireframe?: boolean;
-    /** Optional diffuse `BrioTexture`. */
+    /** Optional diffuse `BrioTexture`, multiplied by `color` (sRGB-encoded, like glTF `baseColorTexture`). */
     texture?: BrioTexture;
+    /** Renders both faces of every triangle instead of culling back faces (defaults to `false`). */
+    doubleSided?: boolean;
+    /**
+     * Alpha-test threshold in `[0, 1]`: fragments whose alpha falls below it are discarded
+     * (glTF `alphaMode: "MASK"`). `0` disables the test (defaults to `0`).
+     */
+    alphaCutoff?: number;
 }
 
 /**
  * Defines the surface appearance (`BrioMaterial`) of a 3D `BrioMesh`, specifying base `color`,
- * `shading` mode (`"unlit"`, `"flat"`, `"lambert"`), `opacity`, `wireframe`, and optional `texture`.
+ * `shading` mode (`"unlit"`, `"flat"`, `"lambert"`), `opacity`, `wireframe`, optional `texture`,
+ * face culling (`doubleSided`), and alpha testing (`alphaCutoff`).
  *
  * @example
  * ```ts
@@ -45,7 +53,9 @@ export class BrioMaterial {
     public shading: MaterialShadingMode;
     public wireframe: boolean;
     public texture?: BrioTexture;
+    public doubleSided: boolean;
     #opacity: number;
+    #alphaCutoff: number;
 
     /**
      * Creates a new `BrioMaterial`.
@@ -59,7 +69,9 @@ export class BrioMaterial {
         this.shading = options.shading ?? "lambert";
         this.wireframe = options.wireframe ?? false;
         this.texture = options.texture;
+        this.doubleSided = options.doubleSided ?? false;
         this.#opacity = clamp(options.opacity ?? 1, 0, 1);
+        this.#alphaCutoff = clamp(options.alphaCutoff ?? 0, 0, 1);
     }
 
     /** Unique identifier of the material. */
@@ -73,5 +85,13 @@ export class BrioMaterial {
     }
     public set opacity(value: number) {
         this.#opacity = clamp(value, 0, 1);
+    }
+
+    /** Alpha-test threshold clamped to `[0, 1]` (`0` = disabled). */
+    public get alphaCutoff(): number {
+        return this.#alphaCutoff;
+    }
+    public set alphaCutoff(value: number) {
+        this.#alphaCutoff = clamp(value, 0, 1);
     }
 }

@@ -61,7 +61,8 @@ export class GLTFLoader {
     }
 
     /**
-     * Asynchronously loads and decodes a `.gltf` JSON file and its companion `.bin` buffers.
+     * Asynchronously loads and decodes a `.gltf` JSON file, its companion `.bin` buffers, and its material
+     * textures (decode failures are reported in `warnings` instead of rejecting).
      *
      * @param url URL path to the `.gltf` file
      * @param modelName Optional model identifier prefix
@@ -100,6 +101,8 @@ export class GLTFLoader {
         }
 
         const resolvedName = modelName ?? url.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? "model";
-        return GLTFLoader.parse(gltfText, binBuffers, resolvedName);
+        const data = GLTFLoader.parse(gltfText, binBuffers, resolvedName);
+        data.warnings = await GLBLoader.decodeTextures(data, url.substring(0, url.lastIndexOf("/") + 1));
+        return data;
     }
 }

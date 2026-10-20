@@ -1,8 +1,12 @@
-import { ComponentMask, ComponentStorage } from "./ComponentStorage";
+import { ComponentMask, ComponentStorage, ComponentStorageLayout } from "./ComponentStorage";
 
 /**
  * Central Entity-Component-System (ECS) World managing entity lifecycles, component bitmasks,
  * fast queries, and transparent $O(1)$ Object Pooling via an internal free-list.
+ *
+ * Every slot carries a **generation** counter that is incremented whenever the slot is destroyed
+ * or the world is cleared. A handle is the pair `(entityId, generation)`: comparing the stored
+ * generation with `generationOf(entityId)` detects stale handles that point to a recycled slot.
  *
  * @example
  * ```ts
@@ -14,6 +18,7 @@ import { ComponentMask, ComponentStorage } from "./ComponentStorage";
  */
 export class ECSWorld {
     readonly #storage: ComponentStorage;
+    readonly #generations: Uint32Array;
     readonly #freeList: number[] = [];
     #nextEntityId: number = 0;
     #activeCount: number = 0;
@@ -23,9 +28,15 @@ export class ECSWorld {
      *
      * @param maxEntities Maximum number of simultaneous entities (defaults to `4096`)
      * @param useSharedMemory Whether to allocate `SharedArrayBuffer` for Worker threads
+     * @param layout Which spatial transform buffers to allocate (defaults to both 2D and 3D)
      */
-    constructor(maxEntities: number = 4096, useSharedMemory: boolean = false) {
-        this.#storage = new ComponentStorage(maxEntities, useSharedMemory);
+    constructor(
+        maxEntities: number = 4096,
+        useSharedMemory: boolean = false,
+        layout: ComponentStorageLayout = {},
+    ) {
+        this.#storage = new ComponentStorage(maxEntities, useSharedMemory, layout);
+        this.#generations = new Uint32Array(this.#storage.capacity);
     }
 
     /** Underlying Structure-of-Arrays `ComponentStorage`. */
@@ -46,6 +57,24 @@ export class ECSWorld {
     /** Number of recycled entity slots currently available in the free-list pool. */
     public get pooledCount(): number {
         return this.#freeList.length;
+    }
+
+    /**
+     * Returns the current generation of the slot `entityId`.
+     * Store it next to `entityId` when the entity is created and compare later via `isAlive(entityId, generation)`.
+     *
+     * @param entityId Entity slot to inspect
+     * @returns Current slot generation (starts at `0`)
+     * @example
+     * ```ts
+     * const id = world.createEntity();
+     * const gen = world.generationOf(id);
+     * world.destroyEntity(id);
+     * world.isAlive(id, gen); // false, even after the slot is recycled
+     * ```
+     */
+    public generationOf(entityId: number): number {
+        return this.#generations[entityId] ?? 0;
     }
 
     /**
@@ -118,6 +147,7 @@ export class ECSWorld {
 
         this.#storage.aliveFlags[entityId] = 0;
         this.#storage.componentMasks[entityId] = ComponentMask.NONE;
+        this.#generations[entityId]++;
         this.#freeList.push(entityId);
         this.#activeCount--;
         return true;
@@ -125,19 +155,22 @@ export class ECSWorld {
 
     /**
      * Checks whether `entityId` is currently alive in the world.
+     * When `generation` is provided, also verifies that the slot was not recycled since that generation was read.
      *
      * @param entityId Entity ID to inspect
-     * @returns `true` if alive
+     * @param generation Optional generation captured via `generationOf(entityId)`
+     * @returns `true` if alive (and, when `generation` is given, still owned by the same handle)
      * @example
      * ```ts
-     * if (world.isAlive(id)) { ... }
+     * if (world.isAlive(id, gen)) { ... }
      * ```
      */
-    public isAlive(entityId: number): boolean {
+    public isAlive(entityId: number, generation?: number): boolean {
         return (
             entityId >= 0 &&
             entityId < this.#nextEntityId &&
-            this.#storage.aliveFlags[entityId] === 1
+            this.#storage.aliveFlags[entityId] === 1 &&
+            (generation === undefined || this.#generations[entityId] === generation)
         );
     }
 
@@ -185,17 +218,21 @@ export class ECSWorld {
     }
 
     /**
-     * Returns an array of all alive `entityId`s whose component bitmask includes `requiredMask`.
+     * Returns all alive `entityId`s whose component bitmask includes `requiredMask`.
+     * Pass a reusable `out` array inside the game loop to avoid a per-call allocation.
      *
      * @param requiredMask Bitmask of required components
-     * @returns Array of matching `entityId` numbers
+     * @param out Optional array that is cleared and filled with the results
+     * @returns `out` (or a new array) with the matching `entityId` numbers
      * @example
      * ```ts
-     * const physicsEntities = world.query(ComponentMask.TRANSFORM_2D | ComponentMask.RIGIDBODY);
+     * const scratch: number[] = [];
+     * world.query(ComponentMask.TRANSFORM_2D | ComponentMask.RIGIDBODY, scratch);
      * ```
      */
-    public query(requiredMask: number): number[] {
-        const results: number[] = [];
+    public query(requiredMask: number, out: number[] = []): number[] {
+        const results = out;
+        results.length = 0;
         const alive = this.#storage.aliveFlags;
         const masks = this.#storage.componentMasks;
         const limit = this.#nextEntityId;
@@ -206,6 +243,18 @@ export class ECSWorld {
             }
         }
         return results;
+    }
+
+    /**
+     * Clears the dirty flags of all allocated slots (`0 .. highWaterMark - 1`).
+     *
+     * @example
+     * ```ts
+     * world.clearAllDirty(); // end of frame
+     * ```
+     */
+    public clearAllDirty(): void {
+        this.#storage.clearAllDirty(this.#nextEntityId);
     }
 
     /**
@@ -239,6 +288,7 @@ export class ECSWorld {
 
     /**
      * Clears all entities and resets the world allocator to its initial empty state.
+     * Generations of every previously allocated slot are incremented so old handles become stale.
      *
      * @example
      * ```ts
@@ -249,6 +299,9 @@ export class ECSWorld {
         this.#storage.aliveFlags.fill(0, 0, this.#nextEntityId);
         this.#storage.componentMasks.fill(0, 0, this.#nextEntityId);
         this.#storage.dirtyFlags.fill(0, 0, this.#nextEntityId);
+        for (let id = 0; id < this.#nextEntityId; id++) {
+            this.#generations[id]++;
+        }
         this.#freeList.length = 0;
         this.#nextEntityId = 0;
         this.#activeCount = 0;
