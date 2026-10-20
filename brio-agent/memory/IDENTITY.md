@@ -25,4 +25,4 @@ Para cumprir essa missao, a BrioJS combina:
 
 ## 4. Status Atual
 
-Em refatoracao arquitetural ativa na branch `refactor` (rumo a v1.0). O diagnostico completo do codigo inicial encontra-se em `./docs/architecture/CODEBASE_AUDIT.md`, a especificacao da nova arquitetura em `./docs/architecture/TARGET_ARCHITECTURE.md`, o vocabulario oficial em `./GLOSSARY.md`, as decisoes arquiteturais em `./docs/adr/` e a lista de pendencias em `./TODO.md`.
+Em refatoracao arquitetural ativa na branch `refactor` (rumo a v1.0). O diagnostico completo do codigo inicial encontra-se em `../../docs/architecture/CODEBASE_AUDIT.md`, a especificacao da nova arquitetura em `../../docs/architecture/TARGET_ARCHITECTURE.md`, o vocabulario oficial em `../../GLOSSARY.md`, as decisoes arquiteturais em `../../docs/adr/` e a lista de pendencias em `../../TODO.md` (caminhos relativos a `brio-agent/memory/`).

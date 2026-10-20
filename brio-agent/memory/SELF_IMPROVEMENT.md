@@ -14,3 +14,8 @@
 
 ## 4. Logs de Manutenção
 - *Log 001 - [TIMESTAMP]*: Inicialização do slot de aprendizado. Pronto para ingestão de dados.
+- *Log 002 - 2026-10-19*: Varredura inicial da branch `refactor` (tsc limpo, 60/60 testes). Heuristicas:
+  - Nao confiar em `[x]` do `TODO.md` sem verificar o call-site: varios modulos existem isolados (`BrioLayer`, `BrioViewport`, `Canvas2DBackend`) mas nao estao conectados ao loop de `BrioGame`.
+  - O loop 2D real roda sobre o legado `BrioObject` + `BrioSpriteRenderer`, e nao sobre `BrioObject2D` + `BrioRenderer`.
+  - Handles ECS nao possuem geracao/versao; validar sempre o ciclo `destroy -> instantiate` ao tocar em `ECSWorld`.
+  - `ARCHITECTURE.md` descreve a arquitetura alvo (Web Audio, Workers, WebGPU), nao o estado atual.
