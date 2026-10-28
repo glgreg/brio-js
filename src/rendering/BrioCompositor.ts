@@ -11,7 +11,9 @@ import { BrioSpriteRenderer } from "../game/BrioSpriteRenderer";
 import { BrioObject2D } from "../objects/BrioObject2D";
 import { BrioObject3D } from "../objects/BrioObject3D";
 import { Mat4 } from "../math/index";
+import { BrioLight } from "../objects/BrioLight";
 import { RenderBackend } from "./contracts/RenderBackend";
+import { buildLightingEnvironment, createLightingEnvironment } from "./lighting";
 
 type Context2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -30,6 +32,8 @@ export interface CompositorSource {
     readonly cameras3D: readonly BrioCamera3D[];
     /** Root 3D objects (children are rendered through `BrioObject3D.children`). */
     readonly objects3D: readonly BrioObject3D[];
+    /** Lights of the 3D passes; when empty or omitted, the default rig (`BrioLight.createDefaultRig()`) is used. */
+    readonly lights?: readonly BrioLight[];
 }
 
 /**
@@ -104,6 +108,8 @@ export class BrioCompositor {
     readonly #defaultMaterial = new BrioMaterial("mat_brio_default", { color: "#9ca3af" });
     readonly #defaultCamera = new BrioCamera2D("cam_brio_default");
     readonly #defaultCameraList: BrioCamera2D[] = [this.#defaultCamera];
+    readonly #defaultLights: readonly BrioLight[] = BrioLight.createDefaultRig();
+    readonly #lightEnvironment = createLightingEnvironment();
     readonly #staticCaches = new WeakMap<BrioLayer, Map<BrioCamera2D, StaticLayerCache>>();
     readonly #stats: CompositorStats = {
         passes2D: 0,
@@ -431,6 +437,10 @@ export class BrioCompositor {
     #render3DPasses(source: CompositorSource, width: number, height: number): void {
         const backend = this.#backend3D;
         if (!backend || source.cameras3D.length === 0 || source.objects3D.length === 0) return;
+        if (backend.setLights) {
+            const lights = source.lights && source.lights.length > 0 ? source.lights : this.#defaultLights;
+            backend.setLights(buildLightingEnvironment(lights, this.#lightEnvironment));
+        }
 
         for (let c = 0; c < source.cameras3D.length; c++) {
             const camera = source.cameras3D[c];

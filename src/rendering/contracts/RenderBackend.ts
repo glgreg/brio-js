@@ -2,6 +2,7 @@ import { BrioMaterial } from "../../assets/BrioMaterial";
 import { BrioMesh } from "../../assets/BrioMesh";
 import { ViewportRect } from "../../core/BrioViewport";
 import { Mat4 } from "../../math/mat4";
+import { LightingEnvironment } from "../lighting";
 
 /**
  * Supported rendering backend identifiers in priority order (`webgpu -> webgl2 -> webgl1 -> canvas2d`).
@@ -31,6 +32,14 @@ export interface RenderBackend {
      * @param clearColor Optional CSS background clear color
      */
     beginFrame(viewport: ViewportRect, clearColor?: string): void;
+
+    /**
+     * Sets the lights used by the following `renderMesh3D()` calls (called by the compositor before each 3D pass).
+     * Backends without lighting support may omit it; until it is called, the default rig is used.
+     *
+     * @param environment Lights of the pass reduced to linear-light shader values
+     */
+    setLights?(environment: LightingEnvironment): void;
 
     /**
      * Renders a 3D `BrioMesh` with `BrioMaterial` transformed by `worldMatrix` and `viewProjMatrix`.
