@@ -15,8 +15,10 @@ demo/
 tests/
 vitest.config.ts
 
-# docs and agent
+# docs
 docs/
-brio-agent/
 TODO.md
 GLOSSARY.md
+# keystone context
+.keystone/
+.stone.*.md

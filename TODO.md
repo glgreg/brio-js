@@ -349,7 +349,7 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 ## 11. Sessao de 2026-10-27 (P0 da v0.1.0)
 
 ### 11.1. Concluido
-- [x] Itens P0 do `brio-agent/memory/SESSION_HANDOFF.md`: cascata com fallback real, cena unificada, Web Audio, `BrioLight`, passo fixo + `BrioRandom`, bugs de 7.2, `screenToRay`/`createCylinder`, limites dos loaders, exemplos publicos, CI e `package.json` (`files`, URLs `glgreg/brio-js`, `build` multiplataforma, `prepack`, `check`)
+- [x] Itens P0 do handoff de sessao: cascata com fallback real, cena unificada, Web Audio, `BrioLight`, passo fixo + `BrioRandom`, bugs de 7.2, `screenToRay`/`createCylinder`, limites dos loaders, exemplos publicos, CI e `package.json` (`files`, URLs `glgreg/brio-js`, `build` multiplataforma, `prepack`, `check`)
 - [x] Bug encontrado e corrigido: `BrioMesh.createSphere` gerava triangulos em sentido horario vistos de fora (com backface culling, a esfera mostrava a face interna); teste de winding cobre todas as primitivas
 - [x] `npm pack` validado: 196 arquivos (`dist/` + README, LICENSE, GLOSSARY, package.json); tipos e import em Node conferidos num projeto consumidor
 - [x] Exemplos validados no Chrome: WebGL2 e `?backend=canvas2d`, picking, luzes, cenas, retry, Web Audio desbloqueado

@@ -10,6 +10,10 @@
 
 ## Conventions
 
-- Commit messages: `<type>(<scope>): summary` in Portuguese, without emojis.
+- Commit messages: `<type>(<scope>): summary` in English, without emojis. Pull requests and all new project text
+  are written in English too.
 - Before pushing: `npm run check` (type check, Vitest, build).
-- Agent memory and session handoff live in `brio-agent/` (start at `brio-agent/SOUL.md`).
+
+## Keystone
+
+This project uses Keystone for architectural context. Before planning or changing code, read `.keystone/protocol.md` and follow it.

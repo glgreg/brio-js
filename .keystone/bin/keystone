@@ -1,0 +1,28 @@
+#!/bin/sh
+# Keystone portable launcher.
+# Runs the bundled CLI (keystone.js, installed by 'keystone init') or the
+# TypeScript sources, with Bun when available and Node otherwise
+# (Node >= 22.18 for the sources, which relies on native type stripping).
+# Usage: .keystone/bin/keystone stone <command> [options]
+
+set -e
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -f "$SCRIPT_DIR/keystone.js" ]; then
+  ENTRY="$SCRIPT_DIR/keystone.js"
+else
+  ENTRY="$SCRIPT_DIR/../operations/stone.ts"
+fi
+
+if command -v bun >/dev/null 2>&1; then
+  exec bun "$ENTRY" "$@"
+fi
+
+if command -v node >/dev/null 2>&1; then
+  exec node --no-warnings "$ENTRY" "$@"
+fi
+
+echo "keystone: neither 'bun' nor 'node' was found on PATH." >&2
+echo "Install Bun (https://bun.sh) or Node.js >= 22.18, or use a compiled 'keystone' binary." >&2
+echo "Stones are plain Markdown: you can still read .stone.*.md files directly." >&2
+exit 127
