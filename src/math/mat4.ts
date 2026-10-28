@@ -5,7 +5,13 @@ import { Quat } from "./quat";
 
 /**
  * Column-major 4x4 transformation matrix stored as a contiguous 16-element `Float32Array`.
- * Compatible directly with WebGPU, WebGL2, WebGL1 uniform buffers, and the Software 3D Projector.
+ * The memory layout uploads as-is to WebGL2, WebGL1 and WebGPU uniform buffers and feeds the
+ * Software 3D Projector.
+ *
+ * Projection helpers follow two depth conventions: `perspective` and `orthographic` map view depth
+ * to the OpenGL clip range `[-1, 1]` (WebGL, Canvas 2D projector), while `perspectiveZO` and
+ * `orthographicZO` map it to `[0, 1]` (WebGPU, Vulkan, Metal, D3D). Using an OpenGL-depth matrix
+ * on a `[0, 1]` backend clips the near half of the frustum.
  *
  * @example
  * ```ts
@@ -265,13 +271,14 @@ export function fromRotationTranslationScale(out: Mat4, q: Quat, v: Vec3, s: Vec
 }
 
 /**
- * Generates a right-handed perspective projection matrix in `out`.
+ * Generates a right-handed perspective projection matrix in `out` with OpenGL clip depth
+ * `[-1, 1]` (WebGL). Use `perspectiveZO` for `[0, 1]` depth backends such as WebGPU.
  *
  * @param out Destination matrix
  * @param fovyRad Vertical field of view in radians
  * @param aspect Viewport aspect ratio (`width / height`)
  * @param near Near clipping plane distance (must be `> 0`)
- * @param far Far clipping plane distance
+ * @param far Far clipping plane distance (`Infinity` for an infinite far plane)
  * @returns `out`
  * @example
  * ```ts
@@ -303,7 +310,8 @@ export function perspective(
 }
 
 /**
- * Generates a right-handed orthographic projection matrix in `out`.
+ * Generates a right-handed orthographic projection matrix in `out` with OpenGL clip depth
+ * `[-1, 1]` (WebGL). Use `orthographicZO` for `[0, 1]` depth backends such as WebGPU.
  *
  * @param out Destination matrix
  * @param left Left plane coordinate
@@ -338,6 +346,86 @@ export function orthographic(
     out[12] = (left + right) * lr;
     out[13] = (top + bottom) * bt;
     out[14] = (far + near) * nf;
+    out[15] = 1;
+    return out;
+}
+
+/**
+ * Generates a right-handed perspective projection matrix in `out` with zero-to-one clip depth
+ * `[0, 1]` (WebGPU, Vulkan, Metal, D3D): `near` maps to depth `0` and `far` to depth `1`.
+ *
+ * @param out Destination matrix
+ * @param fovyRad Vertical field of view in radians
+ * @param aspect Viewport aspect ratio (`width / height`)
+ * @param near Near clipping plane distance (must be `> 0`)
+ * @param far Far clipping plane distance (`Infinity` for an infinite far plane)
+ * @returns `out`
+ * @example
+ * ```ts
+ * Matrix4.perspectiveZO(proj, Math.PI / 3, 640 / 480, 0.1, 1000);
+ * ```
+ */
+export function perspectiveZO(
+    out: Mat4,
+    fovyRad: number,
+    aspect: number,
+    near: number,
+    far: number,
+): Mat4 {
+    const f = 1.0 / Math.tan(fovyRad * 0.5);
+    out.fill(0);
+    out[0] = f / aspect;
+    out[5] = f;
+    out[11] = -1;
+
+    if (far !== Infinity) {
+        const nf = 1 / (near - far);
+        out[10] = far * nf;
+        out[14] = far * near * nf;
+    } else {
+        out[10] = -1;
+        out[14] = -near;
+    }
+    return out;
+}
+
+/**
+ * Generates a right-handed orthographic projection matrix in `out` with zero-to-one clip depth
+ * `[0, 1]` (WebGPU, Vulkan, Metal, D3D): `near` maps to depth `0` and `far` to depth `1`.
+ *
+ * @param out Destination matrix
+ * @param left Left plane coordinate
+ * @param right Right plane coordinate
+ * @param bottom Bottom plane coordinate
+ * @param top Top plane coordinate
+ * @param near Near clipping plane distance
+ * @param far Far clipping plane distance
+ * @returns `out`
+ * @example
+ * ```ts
+ * Matrix4.orthographicZO(proj, -320, 320, -240, 240, 0.1, 1000);
+ * ```
+ */
+export function orthographicZO(
+    out: Mat4,
+    left: number,
+    right: number,
+    bottom: number,
+    top: number,
+    near: number,
+    far: number,
+): Mat4 {
+    const lr = 1 / (left - right);
+    const bt = 1 / (bottom - top);
+    const nf = 1 / (near - far);
+
+    out.fill(0);
+    out[0] = -2 * lr;
+    out[5] = -2 * bt;
+    out[10] = nf;
+    out[12] = (left + right) * lr;
+    out[13] = (top + bottom) * bt;
+    out[14] = near * nf;
     out[15] = 1;
     return out;
 }

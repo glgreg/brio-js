@@ -1,8 +1,12 @@
 import { BrioObject3D } from "../objects/BrioObject3D";
 
 /**
- * 3D Spatial Grid/Octree broadphase structure for partitioning `BrioObject3D` colliders in 3D space.
- * Eliminates $O(N^2)$ pair checks by hashing 3D bounding volumes into uniform 3D spatial cells.
+ * Uniform 3D spatial hash grid for broadphase partitioning of `BrioObject3D` colliders.
+ * Avoids $O(N^2)$ pair checks by hashing 3D bounding volumes into uniform cubic cells of
+ * `cellSize` world units; it is the 3D counterpart of `SpatialHash2D`.
+ *
+ * Despite its name, this is not a hierarchical octree: every cell has the same size and there is
+ * no subdivision. The name is kept for backward compatibility.
  *
  * @example
  * ```ts
@@ -14,6 +18,10 @@ export class SpatialOctree3D {
     readonly #cellSize: number;
     readonly #invCellSize: number;
     readonly #cells = new Map<string, BrioObject3D[]>();
+    /** Insertion index of each object since the last `clear()`, used for identity-based pair keys. */
+    readonly #indices = new Map<BrioObject3D, number>();
+    /** Numeric pair keys already emitted by `getPotentialPairs`; reused between calls. */
+    readonly #seenPairs = new Set<number>();
 
     /**
      * Creates a new `SpatialOctree3D` instance.
@@ -35,6 +43,7 @@ export class SpatialOctree3D {
      */
     public clear(): void {
         this.#cells.clear();
+        this.#indices.clear();
     }
 
     /**
@@ -44,6 +53,7 @@ export class SpatialOctree3D {
      */
     public insert(object: BrioObject3D): void {
         if (!object.collision || !object.collision.enabled) return;
+        if (!this.#indices.has(object)) this.#indices.set(object, this.#indices.size);
 
         const minX = object.transform.position.x + object.collision.pos.x;
         const minY = object.transform.position.y + object.collision.pos.y;
@@ -77,6 +87,8 @@ export class SpatialOctree3D {
 
     /**
      * Partitions `objects` and returns all unique candidate 3D collision pairs `[a, b]`.
+     * Pairs are deduplicated by object identity, so objects that share a `name` are still paired.
+     * The grid is cleared and rebuilt on every call.
      *
      * @param objects Iterable collection of `BrioObject3D` instances
      * @returns Array of unique candidate `[BrioObject3D, BrioObject3D]` pairs
@@ -89,7 +101,10 @@ export class SpatialOctree3D {
             }
         }
 
-        const seen = new Set<string>();
+        const seen = this.#seenPairs;
+        const indices = this.#indices;
+        const count = indices.size;
+        seen.clear();
         const pairs: [BrioObject3D, BrioObject3D][] = [];
 
         for (const bucket of this.#cells.values()) {
@@ -100,8 +115,11 @@ export class SpatialOctree3D {
                 for (let j = i + 1; j < len; j++) {
                     const a = bucket[i];
                     const b = bucket[j];
-                    const key =
-                        a.name < b.name ? `${a.name}::${b.name}` : `${b.name}::${a.name}`;
+                    if (a === b) continue;
+                    // Identity-based key: objects sharing a name still yield distinct pairs.
+                    const ia = indices.get(a)!;
+                    const ib = indices.get(b)!;
+                    const key = ia < ib ? ia * count + ib : ib * count + ia;
                     if (!seen.has(key)) {
                         seen.add(key);
                         pairs.push([a, b]);
