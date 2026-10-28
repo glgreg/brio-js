@@ -4,7 +4,9 @@
 
 ## 1. Estado atual
 
-- **Branch:** `develop`, alinhada com `origin/develop` (`9e6959c`, merge do PR #6, feito pelo autor em 2026-10-27). **Todas as mudanças desta sessão estão no working tree, sem commit.** Fazer commit/branch/PR só a pedido do autor.
+- **Branch:** `feat/v0.1.0` (a partir da `develop` em `9e6959c`), com commits por área e PR aberto para a `develop`. O `origin` local ainda aponta para `GustavoLGregorio/brio-js` (o GitHub redireciona; trocar com `git remote set-url origin https://github.com/glgreg/brio-js.git`).
+- **Lançamento:** pacote `brio-js@0.1.0` pronto (nome livre no npm; `publint` limpo; `attw` só avisa que o pacote é ESM-only, o que é intencional; 133 arquivos, sem `.d.ts.map`). Falta o autor fazer `npm login` e publicar após o merge (ver §5).
+- **Atribuição:** nenhum commit do histórico menciona Claude; `CLAUDE.md` e `.claude/settings.json` versionados proíbem coautoria de IA também em sessões na nuvem.
 - **Validação:** `npx tsc --noEmit` limpo; Vitest com 35 arquivos e 187 testes passando (antes: 25 e 115); `npm run build` OK; `npm pack` validado num projeto consumidor (tipos e import em Node).
 - **Navegador:** os dois exemplos foram testados no Chrome via MCP (WebGL2, `?backend=canvas2d`, picking, luzes, cenas, retry, Web Audio). Nesta máquina a janela de automação recebe ~1 frame de `requestAnimationFrame` por segundo; para testar, use `game.pause()` + `game.step(1/60)` com eventos sintéticos.
 
@@ -35,7 +37,13 @@
 - **P1 (sem mudança):** frustum culling por objeto, perda de contexto testada no navegador, `renderStats` unificado, testes visuais, `BrioInputMap`, controles de câmera prontos, UI em tela, `BrioTileMap` em chunks.
 - **Ainda do handoff anterior:** `origin` local aponta para `GustavoLGregorio/brio-js` (o redirecionamento funciona); o bundle de backup pré-reescrita sumiu do `/tmp`.
 
-## 5. Como retomar
+## 5. Publicação da v0.1.0 (passos do autor)
+
+1. Fazer merge do PR `feat/v0.1.0` na `develop` e da `develop` na `main`.
+2. `npm login` (conta dona do pacote) e, na `main` atualizada: `npm run check && npm publish` (o `prepublishOnly` roda typecheck e testes; o `prepack` faz o build).
+3. Criar a tag e o release no GitHub: `git tag v0.1.0 && git push origin v0.1.0 && gh release create v0.1.0 --notes-file CHANGELOG.md` (sem atribuição de IA).
+
+## 6. Como retomar
 
 1. Executar o boot do `SOUL.md`, ler este arquivo e conferir `git status` (o trabalho desta sessão pode ainda estar sem commit).
 2. Antes de qualquer push: `npm run check`.
