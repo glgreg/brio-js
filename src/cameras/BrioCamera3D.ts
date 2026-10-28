@@ -7,6 +7,16 @@ import { BrioVec3, Mat4, Matrix4, Vec3, Vector3 } from "../math/index";
 export type CameraProjection3D = "perspective" | "orthographic";
 
 /**
+ * Half-line in 3D world space (`origin + t * direction`, `t >= 0`), returned by `BrioCamera3D.screenToRay()`.
+ */
+export interface BrioRay3D {
+    /** Start point on the camera near plane. */
+    origin: Vec3;
+    /** Unit direction pointing away from the camera. */
+    direction: Vec3;
+}
+
+/**
  * Configuration options for creating a `BrioCamera3D`.
  */
 export interface BrioCamera3DOptions {
@@ -36,7 +46,8 @@ export interface BrioCamera3DOptions {
 
 /**
  * Perspective and orthographic 3D observer (`BrioCamera3D`) that computes `viewMatrix`, `projectionMatrix`,
- * and `viewProjectionMatrix` (`Mat4`) for a target `BrioViewport` and provides 3D sphere frustum culling.
+ * and `viewProjectionMatrix` (`Mat4`) for a target `BrioViewport`, provides 3D sphere frustum culling, and
+ * converts screen pixels into world rays (`screenToRay`) for picking.
  *
  * @example
  * ```ts
@@ -69,6 +80,7 @@ export class BrioCamera3D {
     readonly #viewMatrix: Mat4 = Matrix4.create();
     readonly #projectionMatrix: Mat4 = Matrix4.create();
     readonly #viewProjectionMatrix: Mat4 = Matrix4.create();
+    readonly #inverseViewProjection: Mat4 = Matrix4.create();
     #viewDirty: boolean = true;
     #projDirty: boolean = true;
 
@@ -274,6 +286,56 @@ export class BrioCamera3D {
     public projectToNDC(worldPoint: Vec3): Vec3 {
         const out = Vector3.create();
         return Matrix4.transformPoint(out, worldPoint, this.viewProjectionMatrix);
+    }
+
+    /**
+     * Builds the world-space ray through a point given in Normalized Device Coordinates of this camera
+     * (`x`, `y` in `[-1, 1]`, `+y` up), from the near plane toward the far plane.
+     *
+     * @param ndcX Horizontal NDC coordinate
+     * @param ndcY Vertical NDC coordinate
+     * @returns Ray with origin on the near plane and unit direction
+     * @example
+     * ```ts
+     * const ray = camera3D.ndcToRay(0, 0); // through the viewport center
+     * ```
+     */
+    public ndcToRay(ndcX: number, ndcY: number): BrioRay3D {
+        const inverse = Matrix4.invert(this.#inverseViewProjection, this.viewProjectionMatrix);
+        const near = Matrix4.transformPoint(Vector3.create(), { x: ndcX, y: ndcY, z: -1 }, inverse);
+        const far = Matrix4.transformPoint(Vector3.create(), { x: ndcX, y: ndcY, z: 1 }, inverse);
+        const direction = Vector3.normalizeSelf(Vector3.subtract(Vector3.create(), far, near));
+        return { origin: near, direction };
+    }
+
+    /**
+     * Builds the world-space ray under a canvas pixel (e.g. the mouse position), honoring this camera's
+     * `viewport` (split-screen, minimaps). Use it for picking, aiming, and placing objects with the mouse.
+     *
+     * @param screenX Canvas X in pixels (left = `0`)
+     * @param screenY Canvas Y in pixels (top = `0`)
+     * @param canvasWidth Canvas width in pixels (`game.width`)
+     * @param canvasHeight Canvas height in pixels (`game.height`)
+     * @returns Ray with origin on the near plane and unit direction
+     * @example
+     * ```ts
+     * const ray = camera3D.screenToRay(game.mouse.position.x, game.mouse.position.y, game.width, game.height);
+     * ```
+     */
+    public screenToRay(
+        screenX: number,
+        screenY: number,
+        canvasWidth: number,
+        canvasHeight: number,
+    ): BrioRay3D {
+        const vp = this.#viewport;
+        const left = vp.x * canvasWidth;
+        const top = vp.y * canvasHeight;
+        const width = Math.max(1e-6, vp.width * canvasWidth);
+        const height = Math.max(1e-6, vp.height * canvasHeight);
+        const ndcX = ((screenX - left) / width) * 2 - 1;
+        const ndcY = 1 - ((screenY - top) / height) * 2;
+        return this.ndcToRay(ndcX, ndcY);
     }
 
     /**
