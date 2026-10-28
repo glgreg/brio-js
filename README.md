@@ -11,21 +11,94 @@ BrioJS is a modular, zero-dependency 2D and 3D Web Game Engine written in TypeSc
 4. **Multi-Platform Ready**: Built to run across Web Browsers, Desktop apps (Electron), and Mobile apps (Capacitor) with automatic feature detection and platform fallbacks.
 5. **Agent Context Optimization (ACO)**: Comprehensive JSDoc/TSDoc coverage across every public class, method, function, and property, alongside a strict Ubiquitous Language.
 
-## Implementation Status (`refactor` branch)
+## Getting Started
+
+> BrioJS is not published to npm yet. Until the first release, build it from source and import `dist/`,
+> or install the packed tarball (`npm pack`) into your project.
+
+```bash
+git clone https://github.com/glgreg/brio-js.git
+cd brio-js
+npm install
+npm run build        # compiles src/ into dist/ (ES modules + .d.ts)
+npm pack             # optional: brio-js-<version>.tgz to `npm install` elsewhere
+```
+
+A minimal 2D game (`index.html` + `main.js`, served by any static server):
+
+```html
+<div id="game"></div>
+<script type="module" src="./main.js"></script>
+```
+
+```js
+import { BrioGame, BrioSprite, BrioObject2D } from "brio-js"; // or "./dist/index.js"
+
+const game = new BrioGame({ width: 640, height: 360, container: document.getElementById("game") });
+game.useKeyboard();
+
+game.preload(() => [new BrioSprite("spr_player", "./player.png")])
+    .load(() => [new BrioObject2D("obj_player", "spr_player")])
+    .update((updater, dt) => {
+        const player = updater.getObject("obj_player");
+        if (game.keyboard.isDown("ArrowRight")) player.transform.position.x += 200 * dt;
+        if (game.keyboard.isDown("ArrowLeft")) player.transform.position.x -= 200 * dt;
+    });
+```
+
+A minimal 3D scene uses the `"3d"` preset, procedural meshes, a camera, and lights:
+
+```js
+import { BrioGame, BrioMesh, BrioMaterial, BrioObject3D, BrioCamera3D, BrioLight } from "brio-js";
+
+const game = new BrioGame({ width: 800, height: 450, container: document.getElementById("game"), dimension: "3d" });
+
+game.preload(() => [BrioMesh.createBox("mesh_box"), new BrioMaterial("mat_orange", { color: "#f97316" })])
+    .load(() => [
+        new BrioCamera3D("cam", { position: { x: 3, y: 3, z: 5 }, clearColor: "#0b1220" }),
+        new BrioLight("sun", "directional", { direction: { x: -1, y: -2, z: -1 }, intensity: 2 }),
+        new BrioLight("sky", "hemisphere", { color: "#9cc3ff", groundColor: "#2b2118", intensity: 0.6 }),
+        new BrioObject3D("obj_box", "mesh_box", "mat_orange"),
+    ])
+    .update((updater, dt) => {
+        game.gameObjects3D.get("obj_box").transform.rotation.y += dt;
+    });
+```
+
+Key concepts:
+
+- **Lifecycle**: `preload()` (async assets) -> `load()` (initial content) -> `update()` (per frame). Add `fixedUpdate()`
+  for simulation at a fixed rate (`fixedTimestep`, optional render `interpolate`), and `game.step(dt)` to advance
+  frames manually (tests, tools).
+- **Scenes**: `new BrioScene(name).preload(...).load(...)`, `game.addScene()` / `game.setScene()`; `scene.restart()`
+  and `game.createCheckPoint()` / `restoreCheckPoint()` cover the active scene.
+- **Rendering**: 2D layers (`static`, `parallax`, `dynamic`, `ui`) and split-screen cameras; 3D through the backend
+  cascade (WebGL2, falling back to the Canvas2D rasterizer when a backend fails to initialize).
+- **Audio**: `BrioAudio` plays through Web Audio buses (`BrioAudioMixer`: master, bgm, sfx) and unlocks on the
+  first user gesture; it falls back to `HTMLAudioElement` where Web Audio is missing.
+- **Determinism**: `game.random` is a seeded `BrioRandom` (`seed` option) saved in checkpoints.
+
+Complete runnable examples live in [`examples/`](./examples/): a 2D game (*Star Catcher*) and a 3D scene
+(*Orbit Gallery*), with no binary assets.
+
+## Implementation Status
 
 The philosophy above describes the target architecture. Current state:
 
 | Area | Status |
 | --- | --- |
 | SoA ECS, O(1) pooling, generational handles, binary snapshots (v2, layout-aware) | Implemented |
+| `BrioScene` lifecycle (`preload` / `load` / `restart`) unified with `BrioGame` checkpoints | Implemented |
 | `BrioLayer` compositor (`static` cache, `parallax`, `dynamic`, `ui`) and multi-viewport `BrioCamera2D` passes | Implemented and wired into `BrioGame` |
-| `WebGL2Backend` for 3D passes (GPU-resident meshes, sRGB textures, smooth Lambert lighting, double-sided materials) | Implemented; selected by the cascade when WebGL2 is available |
-| Canvas2D backend with software 3D rasterizer (fallback for 3D passes) | Implemented |
+| `WebGL2Backend` for 3D passes (GPU-resident meshes, sRGB textures, `BrioLight` uniform buffer, double-sided materials) | Implemented; selected by the cascade when WebGL2 is available |
+| Canvas2D backend with software 3D rasterizer (near-plane clipping, lights approximated by luminance) | Implemented; fallback when GPU backends fail to initialize |
+| Lights (`BrioLight`: directional, ambient, hemisphere) | Implemented; point/spot lights, PBR, and shadows not yet |
 | WebGPU and WebGL1 backends | Not implemented; `BrioRenderer` only selects implemented backends, so WebGPU-capable browsers currently get `webgl2` |
-| glTF/GLB loading (meshes, `baseColorTexture`, `doubleSided`, alpha modes, node transforms) | Implemented; skinning and animations not yet |
+| glTF/GLB/OBJ loading (meshes, `baseColorTexture`, `doubleSided`, alpha modes, node transforms, resource limits) | Implemented; skinning and animations not yet |
+| Web Audio in `BrioAudio` (Master/BGM/SFX buses, autoplay unlock, `HTMLAudioElement` fallback) | Implemented; 3D positional audio not yet |
+| Fixed timestep with render interpolation, seeded `BrioRandom` | Implemented |
 | MCP server for agentic game authoring | Studied and proposed ([ADR-0006](./docs/adr/0006-mcp-agentic-game-authoring.md)); not implemented |
 | `RenderWorker` / `PhysicsWorker` (`OffscreenCanvas`, `SharedArrayBuffer`) | Not implemented; capability detection only |
-| Web Audio API in `BrioAudio` | Not implemented; `HTMLAudioElement` only |
 | `BrioTileMap` rendering | Collider generation only; render tiles as objects on a `"static"` layer |
 
 ## Project Documentation
@@ -44,10 +117,14 @@ The philosophy above describes the target architecture. Current state:
   - [ADR-0005: Binary ECS State Serialization for Checkpoints and Scene Snapshots](./docs/adr/0005-binary-ecs-state-serialization.md)
   - [ADR-0006: MCP Server and Runtime Bridge for Agentic Game Authoring](./docs/adr/0006-mcp-agentic-game-authoring.md) (Proposed)
 
-Demos (`demo/`) and their assets (`assets/`) are kept local only and are not versioned in the remote repository.
+Public examples live in `examples/`. Older demos (`demo/`) and their assets (`assets/`) are kept local only and are not versioned in the remote repository.
 
 ## Build & Documentation Scripts
 
-- Build (Linux/macOS): `npm run build:lin`
-- Build (Windows): `npm run build:win`
+- Build (any OS): `npm run build`
+- Type check: `npm run typecheck`
+- Tests (Vitest): `npm test`
+- Everything CI runs (type check, tests, build): `npm run check`
+- Package tarball: `npm pack` (builds first through `prepack`)
+- Legacy builds: `npm run build:lin` / `npm run build:win`
 - Generate API Documentation (TypeDoc into `./docs/api/`): `npm run doc`
