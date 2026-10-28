@@ -7,7 +7,7 @@
 - **Mensagens de Commit**:
   - **Formato**: `<tipo>(<escopo>): <resumo curto>`
   - **Tipos**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`.
-- **Regra de Push**: Sempre testar e validar a compilacao do projeto (`npx tsc --noEmit` / `npm run build:lin`) antes de realizar `git push`.
+- **Regra de Push**: Sempre testar e validar a compilacao do projeto (`npm run check`: type check, testes e build) antes de realizar `git push`.
 
 ## 2. Linguagem Ubiqua Estrita (Domain Modeling)
 

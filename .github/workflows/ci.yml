@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Type check, tests, build (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Validate the npm package contents
+        run: |
+          npm pack --dry-run --json --ignore-scripts > pack.json
+          node -e '
+            const data = JSON.parse(require("fs").readFileSync("pack.json", "utf8"));
+            // npm 10 prints an array, npm 11+ an object keyed by package name
+            const pkg = Array.isArray(data) ? data[0] : Object.values(data)[0];
+            const files = pkg.files.map((f) => f.path);
+            const stray = files.filter((p) => !p.startsWith("dist/") && !["package.json", "README.md", "LICENSE.txt", "GLOSSARY.md", "CHANGELOG.md"].includes(p));
+            if (!files.includes("dist/index.js") || !files.includes("dist/index.d.ts")) throw new Error("dist entry points missing from the package");
+            if (stray.length) throw new Error("unexpected files in the package: " + stray.join(", "));
+            console.log(`${files.length} files, ${pkg.size} bytes packed`);
+          '

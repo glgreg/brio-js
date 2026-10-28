@@ -87,7 +87,7 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 
 ### 5.1. Cenas e Transformacoes (`BrioScene`, `BrioTransform2D`, `BrioTransform3D`)
 - [x] Implementar `BrioScene` completa com ciclo proprio (`step`, `pause`, `resume`, `createCheckpoint`, `restoreCheckpoint`, `destroy`); o conteudo registrado direto no `BrioGame` atua como cena padrao e a `BrioScene` ativa e composta apos ele *(revisado em 2026-10-19: antes a cena ativa nunca era renderizada)*
-- [ ] Unificar `BrioScene.preload/load/restart` com o ciclo de vida do `BrioGame` (hoje a cena possui `ECSWorld` proprio e nao participa de `game.createCheckPoint()`)
+- [x] Unificar `BrioScene.preload/load/restart` com o ciclo de vida do `BrioGame` *(2026-10-27: `setScene` roda `preload`/`load` na primeira ativacao; `game.createCheckPoint`/`restoreCheckPoint`/`restart` cobrem a cena ativa, inclusive objetos criados/removidos)*
 - [x] Implementar `baseSize`, `renderSize`, `visibility`, `opacity` e `layer` reativos em `BrioTransform2D`
 - [x] Implementar hierarquia Pai-Filho (`parent` / `children`) com calculo automatico de `localTransform` e `worldTransform` (via matrizes `Mat3` em 2D e `Mat4` em 3D)
 
@@ -96,11 +96,11 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [x] Implementar `BrioAtlas` (mapeamento de sub-regioes nomeadas arbitrarias e factory de `BrioSprite`)
 - [x] Implementar `BrioSpriteSheet` como factory de `BrioSprite` e `BrioAnimation` a partir de grades uniformes (linhas x colunas / largura x altura de celula)
 - [x] Implementar `BrioAnimation` / `BrioAnimator` para controle de animacoes de sprites (frame rate, loop, ping-pong, callbacks de fim de animacao)
-- [x] Implementar `BrioMesh` (primitivas 3D Box, Sphere, Plane, Cylinder e parser leve para `.obj` / `.gltf`) e `BrioMaterial` / `BrioLight` *(reaberto parcialmente em 2026-10-20: `BrioMesh.createCylinder` e `BrioLight` nao existem no codigo; ver 9.1 e 9.6)*
+- [x] Implementar `BrioMesh` (primitivas 3D Box, Sphere, Plane, Cylinder e parser leve para `.obj` / `.gltf`) e `BrioMaterial` / `BrioLight` *(2026-10-27: `createCylinder` e `BrioLight` implementados; ver 9.1 e 9.6)*
 
 ### 5.3. Cameras e Mapas (`BrioCamera2D`, `BrioCamera3D`, `BrioTileMap`)
 - [x] Implementar `BrioCamera2D` desacoplada de `BrioMap` (suporte a `follow` com `lerp` e `deadzone`, `zoom`, `rotation`, `setBounds`, `shake`, `screenToWorld`, `worldToScreen` e *Frustum Culling* 2D)
-- [x] Implementar `BrioCamera3D` (projecao `perspective` e `orthographic`, `fov`, `near`, `far`, `lookAt`, `screenToRay` e *Frustum Culling* 3D) *(reaberto parcialmente em 2026-10-20: `screenToRay` nao existe; ver 9.5)*
+- [x] Implementar `BrioCamera3D` (projecao `perspective` e `orthographic`, `fov`, `near`, `far`, `lookAt`, `screenToRay` e *Frustum Culling* 3D) *(2026-10-27: `screenToRay` implementado; ver 9.5)*
 - [x] Implementar `BrioTileMap` (suporte a matrizes 2D e mesclagem automatica de colliders adjacentes)
 - [ ] Implementar renderizacao de `BrioTileMap` em chunks sobre uma camada `"static"` e importacao de JSON Tiled/LDtk *(reaberto em 2026-10-19: nao havia metodo de renderizacao nem importador)*
 
@@ -114,7 +114,7 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [x] Implementar `BrioMouse` (posicao em tela e no mundo, cliques, scroll wheel, cursor lock)
 - [x] Implementar `BrioTouch` (eventos multi-touch e gestos basicos para Web Mobile e Capacitor)
 - [x] Implementar `BrioGamepad` (polling unificado da Gamepad API, mapeamento padrao de botoes/eixos, deadzone e vibracao)
-- [ ] Refatorar `BrioAudio` para utilizar **Web Audio API** (`AudioContext`, `AudioBuffer`, `GainNode` para canais Master/BGM/SFX, desbloqueio automatico de autoplay mobile) com fallback para `HTMLAudioElement`
+- [x] Refatorar `BrioAudio` para utilizar **Web Audio API** (`AudioContext`, `AudioBuffer`, `GainNode` para canais Master/BGM/SFX, desbloqueio automatico de autoplay mobile) com fallback para `HTMLAudioElement` *(2026-10-27: `BrioAudioMixer` com barramentos Master/BGM/SFX, desbloqueio no primeiro gesto, `maxVoices`, `stop()`)*
 - [x] Implementar `BrioSerializer` com serializacao **binaria pura** (`ArrayBuffer` / `Uint8Array`) dos buffers do ECS para `createCheckpoint()`, `restoreCheckpoint()` e `restart()`, alem de tradutor opcional para JSON (`toJSON` / `fromJSON`)
 - [x] Remover a logica antiga de `#cachedObjects`, `#cachedSprites` e `JSON.stringify` de dentro de `BrioGame`
 - [x] Implementar `BrioStorage` multiplataforma (`state` em memoria, `session` via `sessionStorage`, `local` via `localStorage`, e `db` via `IndexedDB` suportando armazenamento direto dos snapshots binarios do `BrioSerializer`)
@@ -162,21 +162,22 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [x] Testes: `WebGL2Backend.test.ts` (contexto GL falso), `GLBMaterialsAndNodes.test.ts`
 
 ### 7.2. Pendencias identificadas
-- [ ] Tornar o lerp de `BrioCamera2D.follow` independente de framerate (`1 - (1 - lerp)^(dt * 60)`)
+- [x] Tornar o lerp de `BrioCamera2D.follow` independente de framerate (`1 - (1 - lerp)^(dt * 60)`)
 - [ ] Avaliar renomear `transform.layer` (profundidade dentro de uma `BrioLayer`) para `transform.depth`, evitando colisao com o termo canonico `Layer` do `GLOSSARY.md`
 - [ ] `demo-2d-shooter--18-10-26`: `soldier.png` e uma spritesheet 900x700 desenhada inteira em 64x64; usar `BrioSpriteSheet` para recortar o frame
 - [ ] Decidir sobre os 231 assets binarios versionados em `demo/demo-2d-shooter--18-10-26/assets/` (o `.gitignore` cobre apenas `/assets/` na raiz)
 - [ ] `test-3d-glb-scene--18-10-26` depende de GLBs ausentes localmente em `assets/3d/glb/` (`gwen_tennyson.glb`, `spider_gwen.glb`)
 - [x] `GLBLoader`: carregar `baseColorTexture` (embutido via `bufferView`, `data:` URI ou URI externa), decodificado uma vez por imagem com `createImageBitmap`
 - [x] `GLBLoader` / `BrioModel.instantiate`: associar material por `primitive.material` em vez do indice da parte
-- [ ] Prefixar nomes de malhas/materiais com o nome do modelo para evitar colisoes no registro global (`"Face"`, `"Hair"`)
+- [x] Prefixar nomes de malhas/materiais com o nome do modelo para evitar colisoes no registro global (`"Face"`, `"Hair"`) *(formato `"<modelo>/<nome>"` em GLB, glTF, OBJ e MTL)*
 - [x] `GLBLoader`: aplicar as transformacoes dos nos (`matrix` / TRS) em malhas sem skin (malhas com skin ignoram o no, conforme a spec)
 - [ ] `GLBLoader`: skinning (`JOINTS_0` / `WEIGHTS_0`) e animacoes; hoje o modelo fica no bind pose
 - [x] `Canvas2DBackend`: shading `"lambert"` com a media das 3 normais e suporte a `doubleSided`
-- [ ] `Canvas2DBackend`: clipping no near plane (triangulos com vertices atras da camera sao projetados sem recorte); sem amostragem de textura
+- [x] `Canvas2DBackend`: clipping no near plane (Sutherland-Hodgman em clip space, gera 1 ou 2 triangulos)
+- [ ] `Canvas2DBackend`: amostragem de textura
 - [ ] `WebGL2Backend`: frustum culling por objeto (bounding sphere, como `Frustum.intersectsObject` do three.js), luzes configuraveis/IBL, `alphaMode: "BLEND"` por texel, malhas mutaveis (versionamento de buffers)
 - [ ] `WebGPU` e `WebGL1` backends (cascata ADR-0001) *(detalhado em 8.1)*
-- [ ] `BrioModel.instantiate`: partes filhas nao sao registradas no ECS (apenas a raiz), entao checkpoints nao cobrem transforms das partes
+- [x] `BrioModel.instantiate`: partes filhas registradas no ECS (cada parte tem slot proprio, coberto por checkpoints de jogo e cena)
 
 ---
 
@@ -186,7 +187,7 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 
 ### 8.1. Pipeline Grafico
 - [ ] `WebGPUBackend` (WGSL escrito a mao com variantes por feature, cache de pipelines com `createRenderPipelineAsync`, bind groups por frequencia de atualizacao: frame/material/objeto, mipmaps por render pass, timestamp queries); registrar na cascata
-- [ ] Cascata com fallback real: se `init()` do backend escolhido falhar (ex.: `requestAdapter()` retorna `null`), tentar o **proximo** da cascata (`webgpu -> webgl2 -> webgl1 -> canvas2d`), nao direto o `canvas2d`
+- [x] Cascata com fallback real: se `init()` do backend escolhido falhar (ex.: `requestAdapter()` retorna `null`), tentar o **proximo** da cascata (`webgpu -> webgl2 -> webgl1 -> canvas2d`), nao direto o `canvas2d`
 - [ ] Camada comum `GpuResourceCache` / render list compartilhada entre `WebGL2Backend` e `WebGPUBackend` (equivalente a `src/renderers/common` do three.js): ordenacao, culling e chaves de feature escritas uma vez
 - [ ] `WebGL1Backend` (sem VAO nativo: `OES_vertex_array_object`; indices Uint32 via `OES_element_index_uint`; sem sRGB nativo: `EXT_sRGB` ou conversao no shader)
 - [ ] Frustum culling por objeto nos passes 3D (`BrioCamera3D` ja tem culling por esfera; falta bounding sphere em `BrioMesh` e uso no `BrioCompositor.#render3DPasses`)
@@ -208,15 +209,15 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [ ] glTF: morph targets, `KHR_materials_emissive_strength`, `KHR_texture_transform`, `KHR_materials_unlit`, `KHR_mesh_quantization`, `EXT_meshopt_compression`, `KHR_draco_mesh_compression` (avaliar custo vs zero-dependency)
 - [ ] glTF: normal map, metallic-roughness, occlusion e emissive textures (requer o modelo PBR de 9.1)
 - [ ] glTF: preservar a hierarquia de nos como `BrioObject3D` filhos (hoje as transformacoes sao "assadas" nas malhas) e instancias de malha compartilhada
-- [ ] Prefixar nomes de malhas/materiais com o nome do modelo (colisoes no registro global, ex.: `"Face"`, `"Hair"`)
-- [ ] Partes filhas de `BrioModel.instantiate` registradas no ECS (checkpoints nao cobrem as partes)
-- [ ] Limites de recursos ao parsear glTF/GLB (tamanho de buffers, dimensoes de imagens) contra arquivos hostis
+- [x] Prefixar nomes de malhas/materiais com o nome do modelo (colisoes no registro global, ex.: `"Face"`, `"Hair"`)
+- [x] Partes filhas de `BrioModel.instantiate` registradas no ECS (checkpoints nao cobrem as partes)
+- [x] Limites de recursos ao parsear glTF/GLB (tamanho de buffers, dimensoes de imagens) contra arquivos hostis *(`ModelLoaderLimits`: arquivo, JSON, componentes por accessor, dimensao de imagem lida do cabecalho, profundidade de nos; indices fora do intervalo descartam a primitiva com aviso)*
 - [ ] Carregamento de assets em Worker (parse de GLB e decode de imagens fora da Main Thread) e progresso de preload (`onProgress`)
 - [ ] Liberacao de assets (`dispose`) e contagem de referencias entre cenas
 
 ### 8.3. Core, ECS e Desempenho
-- [ ] Simulacao em passo fixo (`fixedTimestep`) com interpolacao de render, separada do `requestAnimationFrame`
-- [ ] Gerador pseudoaleatorio com semente (`BrioRandom`) para replays deterministicos (requisito do MCP, 10.1)
+- [x] Simulacao em passo fixo (`fixedTimestep`) com interpolacao de render, separada do `requestAnimationFrame` *(`game.fixedUpdate()`, `interpolate`, `maxFixedSteps`, `game.step(dt)`)*
+- [x] Gerador pseudoaleatorio com semente (`BrioRandom`) para replays deterministicos (requisito do MCP, 10.1) *(xoshiro128\*\*; `game.random` salvo nos checkpoints e usado no shake da camera)*
 - [ ] Componentes customizados do usuario no ECS (registro de componentes SoA alem de transform/fisica)
 - [ ] Sistemas (`BrioSystem`) com ordem de execucao declarada (pre-update, update, post-update, render)
 - [ ] Benchmarks automatizados (entidades/frame, triangulos/frame, alocacoes por frame) rodando no CI
@@ -224,7 +225,9 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 
 ### 8.4. Qualidade, Testes e Tooling
 - [ ] Testes visuais automatizados (imagem dourada por demo, comparacao com tolerancia) no navegador headless
-- [ ] Pipeline de CI (GitHub Actions): `tsc`, Vitest, build, testes visuais
+- [x] Pipeline de CI (GitHub Actions): `tsc`, Vitest, build e validacao do conteudo do pacote (Node 22 e 24)
+- [ ] CI: testes visuais
+- [x] Exemplos publicos versionados em `examples/` (2D e 3D, assets procedurais sem binarios) *(as demos antigas seguem locais em `demo/`)*
 - [ ] Mover as demos para um repositorio/pacote de exemplos com assets proprios (a pasta `demo/` passou a ser apenas local em 2026-10-20) ou hospedar os assets em um bucket
 - [ ] Tornar o `TODO.md` compativel com Prettier (o arquivo ja divergia do formatador antes desta revisao)
 
@@ -233,8 +236,9 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 ## 9. Novas Funcionalidades Necessarias
 
 ### 9.1. Iluminacao e Materiais
-- [ ] `BrioLight` (ECS): `directional`, `point`, `spot`, `hemisphere`, `ambient`, com cor, intensidade (unidades fisicas opcionais), alcance e decaimento
-- [ ] Upload de luzes por Uniform Buffer Object (WebGL2) / bind group (WebGPU) com hash de estado para evitar reenvio
+- [x] `BrioLight`: `directional`, `hemisphere`, `ambient` com cor e intensidade, registrada em `BrioGame`/`BrioScene` e respeitada no Canvas2D
+- [ ] `BrioLight`: `point` e `spot` com alcance e decaimento
+- [x] Upload de luzes por Uniform Buffer Object (WebGL2) / bind group (WebGPU) com hash de estado para evitar reenvio
 - [ ] Modelo de material PBR (metallic-roughness, GGX, Fresnel-Schlick) alinhado ao glTF, mantendo `lambert`/`unlit`/`flat` para estilos simples
 - [ ] Image-Based Lighting: mapa de ambiente (HDR equirectangular), pre-filtragem (PMREM) e ambiente procedural padrao (equivalente ao `RoomEnvironment`)
 - [ ] Sombras: shadow maps direcionais (cascaded para cenas grandes), spot e point; PCF/soft shadows
@@ -243,7 +247,7 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [ ] Iluminacao 2D (luzes pontuais e normal maps em sprites) para as camadas 2D na GPU
 
 ### 9.2. Audio
-- [ ] `BrioAudio` sobre Web Audio API (`AudioContext`, `AudioBuffer`, barramentos Master/BGM/SFX com `GainNode`, desbloqueio de autoplay mobile) com fallback para `HTMLAudioElement` (item 5.5 em aberto)
+- [x] `BrioAudio` sobre Web Audio API (`AudioContext`, `AudioBuffer`, barramentos Master/BGM/SFX com `GainNode`, desbloqueio de autoplay mobile) com fallback para `HTMLAudioElement` (item 5.5 em aberto)
 - [ ] Audio 3D espacial: `PannerNode` (HRTF) por `BrioObject3D`, `AudioListener` acoplado a `BrioCamera3D`, atenuacao por distancia, cones direcionais
 - [ ] Audio 2D posicional (pan estereo por posicao no mundo relativa a `BrioCamera2D`)
 - [ ] Efeitos: reverb por zona (`ConvolverNode`), filtros (oclusao com `BiquadFilterNode`), ducking da musica
@@ -264,14 +268,16 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [ ] Joints simples (distancia, dobradica) como fase futura
 
 ### 9.5. Input e Interacao
-- [ ] `BrioCamera3D.screenToRay` (marcado como feito em 5.3, mas inexistente) e picking de objetos 3D
+- [x] `BrioCamera3D.screenToRay` / `ndcToRay` (respeitam o `viewport` da camera)
+- [ ] Picking de objetos 3D na engine (hoje o exemplo 3D faz raio x esfera no codigo do jogo)
 - [ ] Mapeamento de acoes (`BrioInputMap`: "jump" -> Space/A/toque) com rebinding em tempo de execucao
 - [ ] Controles de camera prontos: orbit, first-person, third-person (pointer lock)
 - [ ] Controles virtuais na tela para mobile (joystick e botoes)
 - [ ] Injecao de input sintetico independente do DOM (requisito do MCP, 10.1)
 
 ### 9.6. Conteudo, Cenas e UI
-- [ ] `BrioMesh.createCylinder`, `createCapsule`, `createCone`, `createTorus` (cylinder marcado como feito em 5.2, mas inexistente)
+- [x] `BrioMesh.createCylinder` (cobre cone e tronco de cone com `radiusTop`/`radiusBottom`) e `createPlane` subdividido
+- [ ] `BrioMesh.createCapsule`, `createTorus`
 - [ ] Formato declarativo de cena e prefab (`BrioSceneDocument`, JSON com schema gerado dos tipos TypeScript): salvar, carregar, diff (requisito do MCP, 10.1)
 - [ ] Sistema de UI em tela (texto com fontes, botoes, paineis, barras, layout ancorado, foco por teclado/gamepad) sobre a camada `"ui"`
 - [ ] Sistema de dialogos estilo visual novel (o `TARGET_ARCHITECTURE` cita caixas estilo *Persona*)
@@ -337,3 +343,23 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [ ] Publicacao em registros MCP e configuracoes prontas para Claude Code, Claude Desktop, Codex, Cursor, VS Code/Copilot e Gemini CLI
 - [ ] Suite de avaliacao: agentes constroem N jogos de referencia e sao pontuados por testes, desempenho e regressao visual
 - [ ] Decidir as questoes abertas do estudo (cena declarativa como formato primario, scripting de comportamento, fidelidade do screenshot headless, distribuicao `npx` vs binario)
+
+---
+
+## 11. Sessao de 2026-10-27 (P0 da v0.1.0)
+
+### 11.1. Concluido
+- [x] Itens P0 do `brio-agent/memory/SESSION_HANDOFF.md`: cascata com fallback real, cena unificada, Web Audio, `BrioLight`, passo fixo + `BrioRandom`, bugs de 7.2, `screenToRay`/`createCylinder`, limites dos loaders, exemplos publicos, CI e `package.json` (`files`, URLs `glgreg/brio-js`, `build` multiplataforma, `prepack`, `check`)
+- [x] Bug encontrado e corrigido: `BrioMesh.createSphere` gerava triangulos em sentido horario vistos de fora (com backface culling, a esfera mostrava a face interna); teste de winding cobre todas as primitivas
+- [x] `npm pack` validado: 196 arquivos (`dist/` + README, LICENSE, GLOSSARY, package.json); tipos e import em Node conferidos num projeto consumidor
+- [x] Exemplos validados no Chrome: WebGL2 e `?backend=canvas2d`, picking, luzes, cenas, retry, Web Audio desbloqueado
+
+### 11.2. Pendencias identificadas
+- [ ] `BrioKeyboard.isPressed`/`isUp` perdem toques mais curtos que um frame (keydown e keyup entre dois frames); bufferizar as transicoes por frame
+- [ ] `Canvas2DBackend`: o Painter's Algorithm ordena pelo centroide do triangulo, entao superficies grandes cobrem objetos; subdividir (`createPlane(..., segments)`) ou avaliar um z-buffer por tiles
+- [ ] `BrioCamera2D` registradas em `BrioScene` nao recebem `game.random` automaticamente (so via `game.addCamera`)
+- [x] `declarationMap` gerava `.d.ts.map` apontando para `src/`, que nao vai no pacote: opcao desligada
+- [ ] Carregar a pilha 3D sob demanda: `BrioGame` importa estaticamente WebGL2 e loaders, entao um jogo 2D empacota ~144 kB minificados (a engine inteira tem ~162 kB)
+- [ ] `BrioMouse`: o item 5.5 cita "cursor lock", mas nao ha suporte a Pointer Lock no codigo
+- [ ] Publicar a v0.1.0 no npm como `brio-js` (nome livre em 2026-10-27; requer `npm login`)
+

@@ -85,7 +85,7 @@ describe("GLBLoader materials, textures and node transforms", () => {
         const { json, bin } = createDocument();
         const data = GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "mod_doc");
 
-        expect(data.meshMaterials).toEqual(["mat_cloth", "mat_skin"]);
+        expect(data.meshMaterials).toEqual(["mod_doc/mat_cloth", "mod_doc/mat_skin"]);
         const [skin, cloth, lace] = data.materials;
         expect(skin.doubleSided).toBe(true);
         expect(skin.alphaCutoff).toBe(0);
@@ -114,8 +114,8 @@ describe("GLBLoader materials, textures and node transforms", () => {
         const data = GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "m");
 
         expect(data.pendingTextures!.map((p) => [p.material.name, p.key, p.mimeType])).toEqual([
-            ["mat_skin", "image0", "image/png"],
-            ["mat_cloth", "image0", "image/png"],
+            ["m/mat_skin", "image0", "image/png"],
+            ["m/mat_cloth", "image0", "image/png"],
         ]);
         expect(Array.from(data.pendingTextures![0].bytes!)).toEqual(Array.from(FAKE_PNG));
     });
@@ -166,10 +166,22 @@ describe("GLBLoader materials, textures and node transforms", () => {
         const root = model.instantiate("obj_doc");
 
         expect(root.children.map((c) => [c.mesh, c.material])).toEqual([
-            ["mesh_a", "mat_cloth"],
-            ["mesh_b", "mat_skin"],
+            ["mod_doc/mesh_a", "mod_doc/mat_cloth"],
+            ["mod_doc/mesh_b", "mod_doc/mat_skin"],
         ]);
-        expect(model.materials.get("mat_skin")!.texture).toBeDefined();
+        expect(model.materials.get("mod_doc/mat_skin")!.texture).toBeDefined();
         expect(model.warnings).toEqual([]);
+    });
+});
+
+describe("Model-namespaced mesh and material names", () => {
+    it("lets two models with the same source names coexist in the shared registries", () => {
+        const { json, bin } = createDocument();
+        const a = GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "mod_gwen");
+        const b = GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "mod_spider");
+        const names = new Set([...a.meshes, ...b.meshes, ...a.materials, ...b.materials].map((x) => x.name));
+        expect(names.size).toBe(a.meshes.length * 2 + a.materials.length * 2);
+        expect(a.materials[0].name).toBe("mod_gwen/mat_skin");
+        expect(b.materials[0].name).toBe("mod_spider/mat_skin");
     });
 });

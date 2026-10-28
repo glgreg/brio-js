@@ -1,6 +1,7 @@
 import { BrioMesh } from "../BrioMesh";
 import { BrioMaterial } from "../BrioMaterial";
 import { CSSColor } from "../../tools/base_types";
+import { assertByteLimit, fetchLimited, getModelLoaderLimits } from "./limits";
 
 /**
  * Options configuring `OBJLoader` operations.
@@ -63,9 +64,10 @@ export class OBJLoader {
      * Parses Wavefront MTL material library text into `BrioMaterial` instances.
      *
      * @param mtlText Raw `.mtl` file content
+     * @param namePrefix Optional prefix added to every material name (`OBJLoader.parse` passes `"<model>/"`)
      * @returns Array of parsed `BrioMaterial` instances
      */
-    public static parseMTL(mtlText: string): BrioMaterial[] {
+    public static parseMTL(mtlText: string, namePrefix: string = ""): BrioMaterial[] {
         const materials: BrioMaterial[] = [];
         let currentName = "";
         let currentColor: CSSColor = "#ffffff";
@@ -74,7 +76,7 @@ export class OBJLoader {
         const flushCurrent = () => {
             if (currentName) {
                 materials.push(
-                    new BrioMaterial(currentName, {
+                    new BrioMaterial(`${namePrefix}${currentName}`, {
                         color: currentColor,
                         opacity: currentOpacity,
                         shading: "lambert",
@@ -121,7 +123,10 @@ export class OBJLoader {
      * @returns Decoded `ParsedModelData`
      */
     public static parse(objText: string, mtlText?: string, modelName: string = "model"): ParsedModelData {
-        const materials: BrioMaterial[] = mtlText ? OBJLoader.parseMTL(mtlText) : [];
+        const maxBytes = getModelLoaderLimits().maxFileBytes;
+        assertByteLimit("OBJ text", objText.length, maxBytes);
+        if (mtlText) assertByteLimit("MTL text", mtlText.length, maxBytes);
+        const materials: BrioMaterial[] = mtlText ? OBJLoader.parseMTL(mtlText, `${modelName}/`) : [];
         const rawPos: [number, number, number][] = [];
         const rawUV: [number, number][] = [];
         const rawNorm: [number, number, number][] = [];
@@ -137,7 +142,7 @@ export class OBJLoader {
 
         const groups: GroupAccumulator[] = [];
         let currentGroup: GroupAccumulator = {
-            name: `${modelName}_default`,
+            name: `${modelName}/default`,
             positions: [],
             normals: [],
             uvs: [],
@@ -190,7 +195,7 @@ export class OBJLoader {
                     parseFloat(tokens[3]) || 0,
                 ]);
             } else if (keyword === "o" || keyword === "g") {
-                const groupName = tokens[1] ? `${modelName}_${tokens[1]}` : `${modelName}_group_${groups.length}`;
+                const groupName = tokens[1] ? `${modelName}/${tokens[1]}` : `${modelName}/group_${groups.length}`;
                 if (currentGroup.positions.length > 0) {
                     currentGroup = {
                         name: groupName,
@@ -300,11 +305,8 @@ export class OBJLoader {
      * @returns Decoded `ParsedModelData`
      */
     public static async load(url: string, options: OBJLoaderOptions = {}): Promise<ParsedModelData> {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch OBJ asset from '${url}': HTTP ${response.status}`);
-        }
-        const objText = await response.text();
+        const decoder = new TextDecoder("utf-8");
+        const objText = decoder.decode(await fetchLimited(url, "OBJ asset"));
 
         let mtlText: string | undefined;
         if (options.mtlSource) {
@@ -312,10 +314,7 @@ export class OBJLoader {
                 mtlText = options.mtlSource;
             } else {
                 try {
-                    const mtlResponse = await fetch(options.mtlSource);
-                    if (mtlResponse.ok) {
-                        mtlText = await mtlResponse.text();
-                    }
+                    mtlText = decoder.decode(await fetchLimited(options.mtlSource, "MTL file"));
                 } catch {
                     // Fall back to no MTL if fetch fails
                 }
@@ -328,10 +327,7 @@ export class OBJLoader {
                 const baseUrl = url.substring(0, url.lastIndexOf("/") + 1);
                 const mtlUrl = `${baseUrl}${mtlFilename}`;
                 try {
-                    const mtlResponse = await fetch(mtlUrl);
-                    if (mtlResponse.ok) {
-                        mtlText = await mtlResponse.text();
-                    }
+                    mtlText = decoder.decode(await fetchLimited(mtlUrl, "MTL file"));
                 } catch {
                     // Ignore missing companion MTL
                 }

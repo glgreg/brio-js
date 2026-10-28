@@ -43,6 +43,11 @@ export class BrioCamera2D {
 
     #target?: BrioObject2D;
     #followLerp: number = 1;
+    /**
+     * Random source of the screen shake (`Math.random` when unset). `BrioGame.addCamera()` assigns `game.random`,
+     * so shakes are reproducible with a fixed seed.
+     */
+    public random?: { next(): number };
     #deadzone: Vec2 = { x: 0, y: 0 };
     #bounds?: CameraBounds2D;
 
@@ -148,7 +153,8 @@ export class BrioCamera2D {
      * Configures the camera to follow `target` with optional smooth interpolation (`lerpFactor`) and a `deadzone`.
      *
      * @param target `BrioObject2D` to follow (or `undefined` to stop following)
-     * @param lerpFactor Smoothing factor in `(0, 1]` (`1` = instant lock, `0.1` = smooth lag)
+     * @param lerpFactor Fraction of the remaining distance covered per 60 Hz frame, in `(0, 1]` (`1` = instant lock,
+     * `0.1` = smooth lag); applied framerate-independently as `1 - (1 - lerpFactor)^(dt * 60)`
      * @param deadzone Width (`x`) and height (`y`) of the center deadzone where target movement does not pan the camera
      * @example
      * ```ts
@@ -250,8 +256,12 @@ export class BrioCamera2D {
 
             // Snap once within a hundredth of a pixel: an asymptotic lerp would otherwise move the camera
             // by sub-pixel amounts forever, invalidating cached "static" layers on every frame
-            let nextX = lerp(this.#pos.x, desiredPosX, this.#followLerp);
-            let nextY = lerp(this.#pos.y, desiredPosY, this.#followLerp);
+            // `lerpFactor` is the fraction covered per 60 Hz frame; raising its complement to `dt * 60` covers
+            // the same distance per second at any framerate (120 Hz takes two smaller steps, 30 Hz one larger)
+            const t =
+                this.#followLerp >= 1 ? 1 : 1 - Math.pow(1 - this.#followLerp, Math.max(0, dt) * 60);
+            let nextX = lerp(this.#pos.x, desiredPosX, t);
+            let nextY = lerp(this.#pos.y, desiredPosY, t);
             if (Math.abs(desiredPosX - nextX) < FOLLOW_SNAP_EPSILON) nextX = desiredPosX;
             if (Math.abs(desiredPosY - nextY) < FOLLOW_SNAP_EPSILON) nextY = desiredPosY;
             if (nextX !== this.#pos.x || nextY !== this.#pos.y) {
@@ -270,8 +280,10 @@ export class BrioCamera2D {
             } else {
                 const decay = 1 - this.#shakeElapsed / this.#shakeDuration;
                 const currentMag = this.#shakeIntensity * decay;
-                this.#shakeOffset.x = (Math.random() * 2 - 1) * currentMag;
-                this.#shakeOffset.y = (Math.random() * 2 - 1) * currentMag;
+                const rx = this.random ? this.random.next() : Math.random();
+                const ry = this.random ? this.random.next() : Math.random();
+                this.#shakeOffset.x = (rx * 2 - 1) * currentMag;
+                this.#shakeOffset.y = (ry * 2 - 1) * currentMag;
             }
         }
     }

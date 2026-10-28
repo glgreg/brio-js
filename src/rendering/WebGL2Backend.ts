@@ -2,19 +2,25 @@ import { BrioMaterial } from "../assets/BrioMaterial";
 import { BrioMesh } from "../assets/BrioMesh";
 import { BrioTexture } from "../assets/BrioTexture";
 import { ViewportRect } from "../core/BrioViewport";
-import { Mat4, Vec3, Vector3 } from "../math/index";
+import { Mat4 } from "../math/index";
+import { BrioLight } from "../objects/BrioLight";
 import { parseCanvasColor, srgbToLinear } from "./color";
 import { RenderBackend, RenderBackendType } from "./contracts/RenderBackend";
+import {
+    buildLightingEnvironment,
+    createLightingEnvironment,
+    LightingEnvironment,
+    MAX_DIRECTIONAL_LIGHTS,
+} from "./lighting";
 
 type Context2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-/** Directional light shared with the Canvas2D backend, so both backends light scenes from the same side. */
-const LIGHT_DIRECTION: Vec3 = Vector3.normalizeSelf(Vector3.create(0.4, 0.8, 0.44));
-/** Linear-light radiance of the directional light. */
-const SUN_COLOR = [0.78, 0.76, 0.72] as const;
-/** Hemisphere ambient: sky color (normals pointing up) and ground color (normals pointing down). */
-const SKY_COLOR = [0.56, 0.58, 0.62] as const;
-const GROUND_COLOR = [0.26, 0.25, 0.24] as const;
+/** Uniform buffer binding point of the `BrioLights` block. */
+const LIGHTS_BINDING = 0;
+/** `BrioLights` std140 layout: ambient, sky, ground, count (vec4 each), then directions and colors (vec4 per light). */
+const LIGHTS_FLOATS = 16 + MAX_DIRECTIONAL_LIGHTS * 8;
+/** `gl.INVALID_INDEX`: returned by `getUniformBlockIndex` when a program does not use the block. */
+const INVALID_INDEX = 0xffffffff;
 /** Upper bound of anisotropic filtering samples requested for textures. */
 const MAX_ANISOTROPY = 8;
 
@@ -55,10 +61,16 @@ in vec2 vUv;
 uniform vec4 uColor;
 uniform sampler2D uMap;
 uniform float uAlphaCutoff;
-uniform vec3 uLightDirection;
-uniform vec3 uSunColor;
-uniform vec3 uSkyColor;
-uniform vec3 uGroundColor;
+#ifdef USE_LIGHTING
+layout(std140) uniform BrioLights {
+    vec4 uAmbient;
+    vec4 uSkyColor;
+    vec4 uGroundColor;
+    vec4 uLightCount;
+    vec4 uDirLightDirection[${MAX_DIRECTIONAL_LIGHTS}];
+    vec4 uDirLightColor[${MAX_DIRECTIONAL_LIGHTS}];
+};
+#endif
 out vec4 fragColor;
 
 vec3 linearToSrgb(vec3 c) {
@@ -82,9 +94,12 @@ void main() {
     vec3 normal = normalize(vNormal);
     normal = gl_FrontFacing ? normal : -normal;
 #endif
-    float hemisphere = dot(normal, vec3(0.0, 1.0, 0.0)) * 0.5 + 0.5;
-    vec3 irradiance = mix(uGroundColor, uSkyColor, hemisphere);
-    irradiance += uSunColor * max(dot(normal, uLightDirection), 0.0);
+    float hemisphere = normal.y * 0.5 + 0.5;
+    vec3 irradiance = uAmbient.rgb + mix(uGroundColor.rgb, uSkyColor.rgb, hemisphere);
+    for (int i = 0; i < ${MAX_DIRECTIONAL_LIGHTS}; i++) {
+        if (float(i) >= uLightCount.x) break;
+        irradiance += uDirLightColor[i].rgb * max(dot(normal, uDirLightDirection[i].xyz), 0.0);
+    }
     color *= irradiance;
 #endif
     // Premultiplied output, matching the canvas compositor and the ONE / ONE_MINUS_SRC_ALPHA blend
@@ -145,7 +160,8 @@ function compareTransparent(a: DrawItem, b: DrawItem): number {
  * depth (front-to-back) and transparent items back-to-front, draws them with redundant GL state changes
  * skipped, and copies the viewport onto the 2D canvas so 2D layers and UI keep compositing on top.
  *
- * Shading: hemisphere ambient plus one directional light (Lambert), per-pixel normals (`"lambert"`),
+ * Shading: ambient, hemisphere, and up to `MAX_DIRECTIONAL_LIGHTS` directional lights (Lambert) from
+ * `setLights()`, uploaded once per change into the `BrioLights` uniform buffer; per-pixel normals (`"lambert"`),
  * derivative normals (`"flat"`), or none (`"unlit"`). `BrioMaterial.texture` is sampled as sRGB data with
  * mipmaps and anisotropic filtering, lighting runs in linear space, and output is sRGB-encoded.
  * Mesh geometry is treated as immutable after the first draw.
@@ -200,10 +216,46 @@ export class WebGL2Backend implements RenderBackend {
     #depthMask: boolean | null = null;
     #frontFaceCW: boolean | null = null;
 
+    /** `BrioLights` uniform buffer and its CPU copy (std140). */
+    #lightsUbo: WebGLBuffer | null = null;
+    readonly #lightData = new Float32Array(LIGHTS_FLOATS);
+    #lightsKey: string | undefined;
+    #lightsDirty = true;
+
     readonly #normalMatrix = new Float32Array(9);
     readonly #colorScratch = new Float32Array(4);
     #drawCalls = 0;
     #trianglesRendered = 0;
+
+    constructor() {
+        this.setLights(buildLightingEnvironment(BrioLight.createDefaultRig(), createLightingEnvironment()));
+    }
+
+    /**
+     * Sets the lights of the following draws; the uniform buffer is only re-uploaded when they changed.
+     *
+     * @param environment Lights reduced by `buildLightingEnvironment()`
+     */
+    public setLights(environment: LightingEnvironment): void {
+        if (environment.key === this.#lightsKey) return;
+        this.#lightsKey = environment.key;
+        const data = this.#lightData;
+        data.fill(0);
+        data.set(environment.ambient, 0);
+        data.set(environment.sky, 4);
+        data.set(environment.ground, 8);
+        data[12] = environment.directionalCount;
+        for (let i = 0; i < environment.directionalCount; i++) {
+            data.set(environment.directions.subarray(i * 3, i * 3 + 3), 16 + i * 4);
+            data.set(environment.colors.subarray(i * 3, i * 3 + 3), 16 + MAX_DIRECTIONAL_LIGHTS * 4 + i * 4);
+        }
+        this.#lightsDirty = true;
+    }
+
+    /** Light values currently uploaded (or pending upload) to the `BrioLights` block (std140 layout). */
+    public get lightData(): Readonly<Float32Array> {
+        return this.#lightData;
+    }
 
     /**
      * Creates an internal WebGL2 canvas matching `surface`; each pass is composited onto `surface`'s 2D context.
@@ -371,6 +423,11 @@ export class WebGL2Backend implements RenderBackend {
 
         this.#drawCalls = 0;
         this.#trianglesRendered = 0;
+        if (this.#lightsDirty && this.#lightsUbo) {
+            gl.bindBuffer(gl.UNIFORM_BUFFER, this.#lightsUbo);
+            gl.bufferSubData(gl.UNIFORM_BUFFER, 0, this.#lightData);
+            this.#lightsDirty = false;
+        }
         this.#opaque.sort(compareOpaque);
         this.#transparent.sort(compareTransparent);
 
@@ -400,6 +457,7 @@ export class WebGL2Backend implements RenderBackend {
             for (const vao of this.#ownedVaos) gl.deleteVertexArray(vao);
             for (const texture of this.#ownedTextures) gl.deleteTexture(texture);
             for (const info of this.#programs.values()) gl.deleteProgram(info.program);
+            if (this.#lightsUbo) gl.deleteBuffer(this.#lightsUbo);
         }
         this.#resetResources();
         this.#gl = null;
@@ -418,6 +476,11 @@ export class WebGL2Backend implements RenderBackend {
         // Constant values used when a mesh has no normals / UVs (that attribute array stays disabled)
         gl.vertexAttrib3f(ATTR_NORMAL, 0, 1, 0);
         gl.vertexAttrib2f(ATTR_UV, 0, 0);
+        this.#lightsUbo = gl.createBuffer();
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.#lightsUbo);
+        gl.bufferData(gl.UNIFORM_BUFFER, this.#lightData, gl.DYNAMIC_DRAW);
+        gl.bindBufferBase(gl.UNIFORM_BUFFER, LIGHTS_BINDING, this.#lightsUbo);
+        this.#lightsDirty = false;
         const ext =
             gl.getExtension("EXT_texture_filter_anisotropic") ??
             gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
@@ -439,6 +502,8 @@ export class WebGL2Backend implements RenderBackend {
         this.#ownedVaos = [];
         this.#ownedTextures = [];
         this.#programs.clear();
+        this.#lightsUbo = null;
+        this.#lightsDirty = true;
         this.#currentProgram = null;
         this.#currentVao = null;
         this.#cullEnabled = null;
@@ -696,18 +761,11 @@ export class WebGL2Backend implements RenderBackend {
             uMap: gl.getUniformLocation(program, "uMap"),
             uAlphaCutoff: gl.getUniformLocation(program, "uAlphaCutoff"),
         };
-        // Light uniforms are constant per program: set once at link time
-        gl.useProgram(program);
-        this.#currentProgram = program;
-        gl.uniform3f(
-            gl.getUniformLocation(program, "uLightDirection"),
-            LIGHT_DIRECTION.x,
-            LIGHT_DIRECTION.y,
-            LIGHT_DIRECTION.z,
-        );
-        gl.uniform3fv(gl.getUniformLocation(program, "uSunColor"), SUN_COLOR);
-        gl.uniform3fv(gl.getUniformLocation(program, "uSkyColor"), SKY_COLOR);
-        gl.uniform3fv(gl.getUniformLocation(program, "uGroundColor"), GROUND_COLOR);
+        // Lit programs read the shared BrioLights uniform buffer
+        const blockIndex = gl.getUniformBlockIndex(program, "BrioLights");
+        if (typeof blockIndex === "number" && blockIndex !== INVALID_INDEX) {
+            gl.uniformBlockBinding(program, blockIndex, LIGHTS_BINDING);
+        }
         this.#programs.set(features, info);
         return info;
     }

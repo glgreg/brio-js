@@ -1,5 +1,15 @@
 import { GLBLoader } from "./GLBLoader";
 import { ParsedModelData } from "./OBJLoader";
+import { assertByteLimit, fetchLimited, getModelLoaderLimits } from "./limits";
+
+/** Decodes a base64 `data:` URI payload, rejecting payloads above `maxFileBytes`. */
+function decodeDataBuffer(uri: string): ArrayBuffer | undefined {
+    const base64Index = uri.indexOf(";base64,");
+    if (base64Index === -1) return undefined;
+    const base64Data = uri.substring(base64Index + 8);
+    assertByteLimit("glTF data: buffer", Math.floor((base64Data.length * 3) / 4), getModelLoaderLimits().maxFileBytes);
+    return decodeBase64(base64Data).buffer as ArrayBuffer;
+}
 
 /**
  * Decodes a base64-encoded string into a `Uint8Array` in both Browser and Node.js environments.
@@ -43,17 +53,14 @@ export class GLTFLoader {
         binBuffers: ArrayBuffer[] = [],
         modelName: string = "model",
     ): ParsedModelData {
+        assertByteLimit("glTF JSON", gltfText.length, getModelLoaderLimits().maxJsonBytes);
         const json = JSON.parse(gltfText);
         let primaryBinBuffer: ArrayBuffer = binBuffers[0] ?? new ArrayBuffer(0);
 
         if (primaryBinBuffer.byteLength === 0 && Array.isArray(json.buffers) && json.buffers.length > 0) {
             const firstBuf = json.buffers[0];
             if (typeof firstBuf.uri === "string" && firstBuf.uri.startsWith("data:")) {
-                const base64Index = firstBuf.uri.indexOf(";base64,");
-                if (base64Index !== -1) {
-                    const base64Data = firstBuf.uri.substring(base64Index + 8);
-                    primaryBinBuffer = decodeBase64(base64Data).buffer as ArrayBuffer;
-                }
+                primaryBinBuffer = decodeDataBuffer(firstBuf.uri) ?? primaryBinBuffer;
             }
         }
 
@@ -69,11 +76,9 @@ export class GLTFLoader {
      * @returns Decoded `ParsedModelData`
      */
     public static async load(url: string, modelName?: string): Promise<ParsedModelData> {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch glTF asset from '${url}': HTTP ${response.status}`);
-        }
-        const gltfText = await response.text();
+        const gltfBytes = await fetchLimited(url, "glTF asset");
+        assertByteLimit("glTF JSON", gltfBytes.byteLength, getModelLoaderLimits().maxJsonBytes);
+        const gltfText = new TextDecoder("utf-8").decode(gltfBytes);
         const json = JSON.parse(gltfText);
 
         const binBuffers: ArrayBuffer[] = [];
@@ -84,17 +89,10 @@ export class GLTFLoader {
                 const buf = json.buffers[i];
                 if (typeof buf.uri === "string") {
                     if (buf.uri.startsWith("data:")) {
-                        const base64Index = buf.uri.indexOf(";base64,");
-                        if (base64Index !== -1) {
-                            const base64Data = buf.uri.substring(base64Index + 8);
-                            binBuffers.push(decodeBase64(base64Data).buffer as ArrayBuffer);
-                        }
+                        const decoded = decodeDataBuffer(buf.uri);
+                        if (decoded) binBuffers.push(decoded);
                     } else {
-                        const binUrl = `${baseUrl}${buf.uri}`;
-                        const binResp = await fetch(binUrl);
-                        if (binResp.ok) {
-                            binBuffers.push(await binResp.arrayBuffer());
-                        }
+                        binBuffers.push(await fetchLimited(`${baseUrl}${buf.uri}`, "glTF buffer"));
                     }
                 }
             }
@@ -102,7 +100,8 @@ export class GLTFLoader {
 
         const resolvedName = modelName ?? url.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? "model";
         const data = GLTFLoader.parse(gltfText, binBuffers, resolvedName);
-        data.warnings = await GLBLoader.decodeTextures(data, url.substring(0, url.lastIndexOf("/") + 1));
+        const failures = await GLBLoader.decodeTextures(data, url.substring(0, url.lastIndexOf("/") + 1));
+        data.warnings = [...(data.warnings ?? []), ...failures];
         return data;
     }
 }
