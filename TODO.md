@@ -361,5 +361,5 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [x] `declarationMap` gerava `.d.ts.map` apontando para `src/`, que nao vai no pacote: opcao desligada
 - [ ] Carregar a pilha 3D sob demanda: `BrioGame` importa estaticamente WebGL2 e loaders, entao um jogo 2D empacota ~144 kB minificados (a engine inteira tem ~162 kB)
 - [ ] `BrioMouse`: o item 5.5 cita "cursor lock", mas nao ha suporte a Pointer Lock no codigo
-- [ ] Publicar a v0.1.0 no npm como `brio-js` (nome livre em 2026-10-27; requer `npm login`)
+- [ ] Publicar a v0.1.0 no npm como `@brio-js/core` (o npm recusou `brio-js` por semelhanca com `uri-js`; requer a org `brio-js` no npm)
 

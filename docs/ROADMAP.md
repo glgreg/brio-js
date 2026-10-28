@@ -15,7 +15,7 @@ Last updated: 2026-10-27 (v0.1.0).
 | Canvas2D 3D fallback | No texture sampling: textured materials render with their base color. | Use the WebGL2 backend (the default where available). |
 | Cameras | A `BrioCamera2D` registered directly in a `BrioScene` keeps using `Math.random()` for shakes. | Assign `camera.random = game.random` for reproducible shakes. |
 | Scenes | `game.setScene()` for a scene with `preload()` / `load()` completes asynchronously. | `await game.ready()` before touching the scene content. |
-| Packaging | ESM only: `require("brio-js")` from CommonJS fails. | Use `import` (or `await import("brio-js")` from CommonJS). |
+| Packaging | ESM only: `require("@brio-js/core")` from CommonJS fails. | Use `import` (or `await import("@brio-js/core")` from CommonJS). |
 | Bundle size | `BrioGame` statically imports the whole 3D stack, so a 2D-only game bundles about 144 kB minified (the full engine is about 162 kB). | None yet; see "Lazy 3D stack" below. |
 | glTF | Skinned meshes render in their bind pose; animations are ignored. | Bake animations or use static meshes. |
 

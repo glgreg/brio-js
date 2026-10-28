@@ -1,5 +1,5 @@
 {
-    "name": "brio-js",
+    "name": "@brio-js/core",
     "version": "0.1.0",
     "description": "Zero-dependency 2D and 3D web game engine in TypeScript: an approachable object-oriented API over a data-oriented ECS core, with WebGL2 rendering, Canvas2D fallback, Web Audio, scenes, and binary save states.",
     "keywords": [

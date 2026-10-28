@@ -4,8 +4,8 @@
 
 ## 1. Estado atual
 
-- **Branch:** `feat/v0.1.0` (a partir da `develop` em `9e6959c`), com commits por área e PR aberto para a `develop`. O `origin` local ainda aponta para `GustavoLGregorio/brio-js` (o GitHub redireciona; trocar com `git remote set-url origin https://github.com/glgreg/brio-js.git`).
-- **Lançamento:** pacote `brio-js@0.1.0` pronto (nome livre no npm; `publint` limpo; `attw` só avisa que o pacote é ESM-only, o que é intencional; 133 arquivos, sem `.d.ts.map`). Falta o autor fazer `npm login` e publicar após o merge (ver §5).
+- **Branch:** `feat/v0.1.0` mergeada (PR #7 na `develop`, PR #8 na `main`); a troca do nome do pacote está na branch `chore/npm-scope`. O `origin` local ainda aponta para `GustavoLGregorio/brio-js` (o GitHub redireciona; trocar com `git remote set-url origin https://github.com/glgreg/brio-js.git`).
+- **Lançamento:** pacote `@brio-js/core@0.1.0` pronto (o npm recusou `brio-js` por semelhança com `uri-js`; o escopo exige a org `brio-js` no npm; `publint` limpo; `attw` só avisa que o pacote é ESM-only, o que é intencional; 133 arquivos, sem `.d.ts.map`). Falta o autor fazer `npm login` e publicar após o merge (ver §5).
 - **Atribuição:** nenhum commit do histórico menciona Claude; `CLAUDE.md` e `.claude/settings.json` versionados proíbem coautoria de IA também em sessões na nuvem.
 - **Validação:** `npx tsc --noEmit` limpo; Vitest com 35 arquivos e 187 testes passando (antes: 25 e 115); `npm run build` OK; `npm pack` validado num projeto consumidor (tipos e import em Node).
 - **Navegador:** os dois exemplos foram testados no Chrome via MCP (WebGL2, `?backend=canvas2d`, picking, luzes, cenas, retry, Web Audio). Nesta máquina a janela de automação recebe ~1 frame de `requestAnimationFrame` por segundo; para testar, use `game.pause()` + `game.step(1/60)` com eventos sintéticos.
@@ -39,9 +39,10 @@
 
 ## 5. Publicação da v0.1.0 (passos do autor)
 
-1. Fazer merge do PR `feat/v0.1.0` na `develop` e da `develop` na `main`.
-2. `npm login` (conta dona do pacote) e, na `main` atualizada: `npm run check && npm publish` (o `prepublishOnly` roda typecheck e testes; o `prepack` faz o build).
-3. Criar a tag e o release no GitHub: `git tag v0.1.0 && git push origin v0.1.0 && gh release create v0.1.0 --notes-file CHANGELOG.md` (sem atribuição de IA).
+1. Criar a organização gratuita `brio-js` em npmjs.com (dona do escopo `@brio-js`) com a conta `glgreg`.
+2. Fazer merge da branch `chore/npm-scope` até a `main`.
+3. `npm login` e, na `main` atualizada: `npm publish` (o `prepublishOnly` roda typecheck e testes; o `prepack` faz o build; `publishConfig.access` já é `public`, exigido em pacotes com escopo).
+4. Criar a tag e o release no GitHub: `git tag v0.1.0 && git push origin v0.1.0 && gh release create v0.1.0 --notes-file CHANGELOG.md` (sem atribuição de IA).
 
 ## 6. Como retomar
 
