@@ -239,6 +239,23 @@ export class BrioObject3D {
     }
 
     /**
+     * Calls `visit` for every descendant part (children, grandchildren, ...), depth-first, excluding this object.
+     *
+     * @param visit Callback receiving each descendant
+     * @example
+     * ```ts
+     * ship.forEachDescendant((part) => (part.transform.visibility = false));
+     * ```
+     */
+    public forEachDescendant(visit: (part: BrioObject3D) => void): void {
+        for (let i = 0; i < this.#children.length; i++) {
+            const child = this.#children[i];
+            visit(child);
+            child.forEachDescendant(visit);
+        }
+    }
+
+    /**
      * Returns a shared singleton fallback `BrioObject3D` instance.
      */
     public static getEmptyInstance(): BrioObject3D {

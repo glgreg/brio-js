@@ -28,6 +28,14 @@ import { PlatformAdapter } from "./tools/PlatformAdapter";
 import { BrioCamera2D as Camera2D } from "./cameras/BrioCamera2D";
 import { BrioCamera3D as Camera3D } from "./cameras/BrioCamera3D";
 import { BrioAudio as Audio } from "./assets/BrioAudio";
+import { BrioAudioMixer as AudioMixer } from "./audio/BrioAudioMixer";
+import { BrioLight as Light } from "./objects/BrioLight";
+import { BrioRandom as Random } from "./math/BrioRandom";
+import {
+    configureModelLoaderLimits,
+    getModelLoaderLimits,
+    ModelLimitError,
+} from "./assets/loaders/limits";
 import { BrioCollision as Collision } from "./math/BrioCollision";
 import { BrioRigidBody as RigidBody } from "./physics/BrioRigidBody";
 import { SpatialHash2D } from "./physics/SpatialHash2D";
@@ -79,7 +87,18 @@ export type {
     ParsedModelData,
     OBJLoaderOptions,
 } from "./assets/loaders/OBJLoader";
-export type { StartingTime, IterationTypes, PlayTogetherConfig } from "./assets/BrioAudio";
+export type {
+    StartingTime,
+    IterationTypes,
+    PlayTogetherConfig,
+    BrioAudioOptions,
+} from "./assets/BrioAudio";
+export type { AudioBusName } from "./audio/BrioAudioMixer";
+export type { BrioLightType, BrioLightOptions } from "./objects/BrioLight";
+export type { LightingEnvironment } from "./rendering/lighting";
+export type { BrioRandomSeed } from "./math/BrioRandom";
+export type { ModelLoaderLimits } from "./assets/loaders/limits";
+export type { SceneContent, BrioSceneState } from "./core/BrioScene";
 export type {
     KeyActions,
     CollisionType,
@@ -99,7 +118,7 @@ export type {
 } from "./math/BrioCollision";
 export type { BrioRigidBodyOptions } from "./physics/BrioRigidBody";
 export type { CameraBounds2D } from "./cameras/BrioCamera2D";
-export type { CameraProjection3D, BrioCamera3DOptions } from "./cameras/BrioCamera3D";
+export type { CameraProjection3D, BrioCamera3DOptions, BrioRay3D } from "./cameras/BrioCamera3D";
 export type { LayerPolicy, BrioLayerOptions } from "./core/BrioLayer";
 export type { ViewportRect } from "./core/BrioViewport";
 export type { MouseButton } from "./input/BrioMouse";
@@ -165,6 +184,12 @@ export {
     Camera2D as BrioCamera2D,
     Camera3D as BrioCamera3D,
     Audio as BrioAudio,
+    AudioMixer as BrioAudioMixer,
+    Light as BrioLight,
+    Random as BrioRandom,
+    configureModelLoaderLimits,
+    getModelLoaderLimits,
+    ModelLimitError,
     Collision as BrioCollision,
     RigidBody as BrioRigidBody,
     SpatialHash2D,
@@ -228,6 +253,9 @@ const Brio = {
     Camera2D,
     Camera3D,
     Audio,
+    AudioMixer,
+    Light,
+    Random,
     Collision,
     RigidBody,
     SpatialHash2D,
