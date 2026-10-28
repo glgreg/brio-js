@@ -38,7 +38,7 @@ jobs:
             // npm 10 prints an array, npm 11+ an object keyed by package name
             const pkg = Array.isArray(data) ? data[0] : Object.values(data)[0];
             const files = pkg.files.map((f) => f.path);
-            const stray = files.filter((p) => !p.startsWith("dist/") && !["package.json", "README.md", "LICENSE.txt", "GLOSSARY.md"].includes(p));
+            const stray = files.filter((p) => !p.startsWith("dist/") && !["package.json", "README.md", "LICENSE.txt", "GLOSSARY.md", "CHANGELOG.md"].includes(p));
             if (!files.includes("dist/index.js") || !files.includes("dist/index.d.ts")) throw new Error("dist entry points missing from the package");
             if (stray.length) throw new Error("unexpected files in the package: " + stray.join(", "));
             console.log(`${files.length} files, ${pkg.size} bytes packed`);
