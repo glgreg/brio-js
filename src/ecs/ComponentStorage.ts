@@ -46,6 +46,12 @@ export const RIGIDBODY_STRIDE = 10;
 export const VISUAL_STRIDE = 4;
 
 /**
+ * Index inside an entity's `visual` stride that holds the visibility flag (`1` visible, `0` hidden).
+ * Bound `BrioTransform2D` / `BrioTransform3D` read and write `visibility` here, so snapshots capture it.
+ */
+export const VISUAL_VISIBILITY_OFFSET = 2;
+
+/**
  * Bit flags describing which spatial transform buffers a `ComponentStorage` allocates.
  * Stored in binary snapshots so a snapshot is only restored into a compatible storage layout.
  */
@@ -345,7 +351,7 @@ export class ComponentStorage {
 
         const v = entityId * VISUAL_STRIDE;
         this.visual.fill(0, v, v + VISUAL_STRIDE);
-        this.visual[v + 2] = 1; // default visibility = true
+        this.visual[v + VISUAL_VISIBILITY_OFFSET] = 1; // default visibility = true
     }
 
     /**

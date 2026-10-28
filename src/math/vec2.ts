@@ -67,29 +67,43 @@ export class BrioVec2 implements Vec2 {
         this.#y = y;
         this.#onChange = onChange;
 
-        Object.defineProperties(this, {
-            x: {
-                enumerable: true,
-                configurable: true,
-                get: (): number => (this.#buffer ? this.#buffer[this.#offset] : this.#x),
-                set: (value: number): void => {
-                    this.#x = value;
-                    if (this.#buffer) this.#buffer[this.#offset] = value;
-                    if (this.#onChange) this.#onChange(this.x, this.y);
-                },
-            },
-            y: {
-                enumerable: true,
-                configurable: true,
-                get: (): number => (this.#buffer ? this.#buffer[this.#offset + 1] : this.#y),
-                set: (value: number): void => {
-                    this.#y = value;
-                    if (this.#buffer) this.#buffer[this.#offset + 1] = value;
-                    if (this.#onChange) this.#onChange(this.x, this.y);
-                },
-            },
-        });
+        // Own enumerable accessors keep `{ ...v }`, `JSON.stringify` and deep equality working like
+        // a plain `Vec2`, while the descriptor functions are shared by every instance (no closures).
+        Object.defineProperties(this, BrioVec2.#ACCESSORS);
     }
+
+    /** Fires the change listener with the current components. */
+    #notify(): void {
+        if (this.#onChange) this.#onChange(this.x, this.y);
+    }
+
+    /** Accessor descriptors shared by all instances; created once per class, not per instance. */
+    static readonly #ACCESSORS: PropertyDescriptorMap = {
+        x: {
+            enumerable: true,
+            configurable: true,
+            get(this: BrioVec2): number {
+                return this.#buffer ? this.#buffer[this.#offset] : this.#x;
+            },
+            set(this: BrioVec2, value: number): void {
+                this.#x = value;
+                if (this.#buffer) this.#buffer[this.#offset] = value;
+                this.#notify();
+            },
+        },
+        y: {
+            enumerable: true,
+            configurable: true,
+            get(this: BrioVec2): number {
+                return this.#buffer ? this.#buffer[this.#offset + 1] : this.#y;
+            },
+            set(this: BrioVec2, value: number): void {
+                this.#y = value;
+                if (this.#buffer) this.#buffer[this.#offset + 1] = value;
+                this.#notify();
+            },
+        },
+    };
 
     /**
      * Binds this vector directly to a 2-float slot in an ECS `Float32Array` buffer.
@@ -392,14 +406,18 @@ export function normalize(out: Vec2, v: Readonly<Vec2>): Vec2 {
  * @param out Target vector to clamp in-place
  * @param min Minimum component bounds
  * @param max Maximum component bounds
- * @returns The clamped `out` vector, or `undefined` if `min` exceeds `max`
+ * @returns The clamped `out` vector
+ * @throws {Error} When a component of `min` is strictly greater than the same component of `max`
+ * (same contract as `BrioMath.clamp`); `out` is left untouched in that case
  * @example
  * ```ts
  * Vector2.clamp(pos, { x: 0, y: 0 }, { x: 640, y: 480 });
  * ```
  */
-export function clamp(out: Vec2, min: Readonly<Vec2>, max: Readonly<Vec2>): Vec2 | undefined {
-    if (min.x > max.x || min.y > max.y) return undefined;
+export function clamp(out: Vec2, min: Readonly<Vec2>, max: Readonly<Vec2>): Vec2 {
+    if (min.x > max.x || min.y > max.y) {
+        throw new Error("clamp.min was set to higher than clamp.max");
+    }
 
     out.x = Math.max(min.x, Math.min(max.x, out.x));
     out.y = Math.max(min.y, Math.min(max.y, out.y));
@@ -551,4 +569,3 @@ export function normalizeSelf(self: Vec2): Vec2 {
 }
 
 // #endregion VEC2-SELF
-

@@ -23,6 +23,7 @@ import {
 import { BrioRenderer } from "../rendering/BrioRenderer";
 import { RenderBackend, RenderBackendType } from "../rendering/contracts/RenderBackend";
 import { BrioAudio } from "../assets/BrioAudio";
+import { BrioAudioMixer } from "../audio/BrioAudioMixer";
 import { BrioConsole } from "../debugging/BrioConsole";
 import { BrioSpriteRenderer } from "./BrioSpriteRenderer";
 import { BrioDebugger } from "../debugging/BrioDebugger";
@@ -64,7 +65,12 @@ export interface BrioGameConfig {
      * Prevents huge simulation steps after the tab was throttled or hidden.
      */
     maxDeltaTime?: number;
-    /** Preferred graphics backend for 3D passes (`"auto"` by default; unimplemented backends fall back to `"canvas2d"`). */
+    /**
+     * Preferred graphics backend for 3D passes (`"auto"` by default). The preferred backend is tried first when it
+     * is implemented and supported; if it is unavailable or fails to initialize, `BrioRenderer.initBackend()` tries
+     * every other usable backend of the cascade (`webgpu -> webgl2 -> webgl1 -> canvas2d`) in order. When none
+     * initializes, 3D passes stay disabled.
+     */
     renderBackend?: RenderBackendType | "auto";
     /**
      * Fixed simulation step in seconds for `fixedUpdate()` callbacks (e.g. `1 / 60`). Defaults to `1 / 60` once a
@@ -159,6 +165,19 @@ export interface CanvasRendering {
     smoothness: ImageSmoothingQuality;
 }
 
+/** Simulated position of an object temporarily replaced by its interpolated one (pooled, reused every frame). */
+interface InterpolatedRecord {
+    object: BrioObject2D | BrioObject3D | undefined;
+    x: number;
+    y: number;
+    z: number;
+}
+
+/** Stops every voice of `audio` (module-level so `end()` passes no new closure to `Map.forEach`). */
+function stopAudio(audio: BrioAudio): void {
+    audio.stop();
+}
+
 // #endregion --> TYPES-INTERFACES
 
 /**
@@ -225,8 +244,13 @@ export class BrioGame {
     // #region - COMPOSITION-OBJECTS
     #renderer: BrioSpriteRenderer;
     #compositor: BrioCompositor;
-    /** 3D backend chosen by `BrioRenderer.createBackend()` (only for `"3d"` and `"hybrid"` games). */
+    /**
+     * 3D backend initialized by `BrioRenderer.initBackend()` through the backend cascade (only for `"3d"` and
+     * `"hybrid"` games; disposed by `end()`).
+     */
     #backend3D?: RenderBackend;
+    /** Incremented by `end()`, so a backend that finishes initializing after the game ended is disposed. */
+    #session: number = 0;
     #debugger: BrioDebugger;
     #console: BrioConsole;
     #updater: BrioUpdater;
@@ -279,8 +303,21 @@ export class BrioGame {
     /** Position before the latest fixed step, per object (render interpolation). */
     #previousPositions = new WeakMap<BrioObject2D | BrioObject3D, { x: number; y: number; z: number }>();
     /** Objects whose position was replaced by an interpolated one for the current render, with the real value. */
-    #interpolated: Array<{ object: BrioObject2D | BrioObject3D; x: number; y: number; z: number }> = [];
+    #interpolated: InterpolatedRecord[] = [];
+    /** Number of live records in `#interpolated` this frame (records past it are pooled for reuse). */
+    #interpolatedCount: number = 0;
+    /** `interpolationAlpha` of the frame being rendered, read by `#applyInterpolationVisitor`. */
+    #interpolationFrameAlpha: number = 0;
+    /** Visitors bound once, so `#forEachInterpolable` creates no closures per frame. */
+    readonly #rememberPositionVisitor = (object: BrioObject2D | BrioObject3D): void => {
+        this.#rememberPosition(object);
+    };
+    readonly #applyInterpolationVisitor = (object: BrioObject2D | BrioObject3D): void => {
+        this.#interpolateObject(object);
+    };
     #random: BrioRandom = new BrioRandom();
+    /** Whether `pause()` suspended the shared `BrioAudioMixer`, so `resume()` / `end()` release it. */
+    #audioSuspended: boolean = false;
     // #endregion - UPDATE-LOGIC
 
     // #region - INPUT-LOGIC
@@ -416,7 +453,10 @@ export class BrioGame {
         };
 
         if (this.#dimension !== "2d") {
+            // Captured now: end() may run before the queued stage starts
+            const session = this.#session;
             this.#chainLifecycle(async () => {
+                if (session !== this.#session) return;
                 // Walks the cascade: a backend that fails to initialize (blocklisted driver, context limit,
                 // test doubles) hands over to the next one instead of jumping straight to the software rasterizer
                 const backend = await BrioRenderer.initBackend(
@@ -429,7 +469,10 @@ export class BrioGame {
                         );
                     },
                 );
-                if (backend) {
+                if (backend && session !== this.#session) {
+                    // end() ran while the backend was initializing: release it instead of rendering with it
+                    backend.dispose();
+                } else if (backend) {
                     this.#backend3D = backend;
                     this.#compositor.configure3D(
                         backend,
@@ -816,7 +859,7 @@ export class BrioGame {
      * @example
      * ```ts
      * game.useMouse();
-     * if (game.mouse.isPressed(0)) {
+     * if (game.mouse.isPressed("left")) {
      *     console.log(game.mouse.position);
      * }
      * ```
@@ -1248,12 +1291,12 @@ export class BrioGame {
         this.renderFrame();
         if (interpolating) this.#restoreInterpolation();
 
-        // Snapshot current keyboard/mouse state into previous state for next frame's isPressed / isUp
-        this.#keyboardPrevState.clear();
-        for (const state of this.#keyboardState) {
-            this.#keyboardPrevState.set(state[0], state[1]);
-        }
+        // Close the input frame: consume latched edges and snapshot the current state into the previous-frame
+        // state for next frame's isPressed / isUp (without a keyboard controller the maps never change)
+        this.#keyboardInstance?.endFrame();
         this.#mouseInstance?.endFrame();
+        // Global key states (BrioKeyboard.globalIsUp) roll over at the same point as the per-instance ones
+        BrioKeyboard.syncGlobalFrame();
     }
 
     /** Runs as many fixed steps as the accumulated time allows (at most `maxFixedSteps`). */
@@ -1263,7 +1306,7 @@ export class BrioGame {
         this.#fixedAccumulator += deltaTime;
         let steps = 0;
         while (this.#fixedAccumulator >= step && steps < this.#maxFixedSteps) {
-            if (this.#interpolate) this.#forEachInterpolable((object) => this.#rememberPosition(object));
+            if (this.#interpolate) this.#forEachInterpolable(this.#rememberPositionVisitor);
             this.#fixedCallback(this.#updater, step);
             this.#fixedAccumulator -= step;
             steps++;
@@ -1300,42 +1343,65 @@ export class BrioGame {
 
     /** Moves every object that moved during the last fixed step to `lerp(previous, current, alpha)` for rendering. */
     #applyInterpolation(): void {
-        const alpha = this.interpolationAlpha;
-        this.#interpolated.length = 0;
-        this.#forEachInterpolable((object) => {
-            const previous = this.#previousPositions.get(object);
-            if (!previous) return;
-            const position = object.transform.position as { x: number; y: number; z?: number };
-            const z = position.z ?? 0;
-            if (previous.x === position.x && previous.y === position.y && previous.z === z) return;
-            this.#interpolated.push({ object, x: position.x, y: position.y, z });
-            const ix = previous.x + (position.x - previous.x) * alpha;
-            const iy = previous.y + (position.y - previous.y) * alpha;
-            if (object instanceof BrioObject3D) {
-                object.transform.position.x = ix;
-                object.transform.position.y = iy;
-                object.transform.position.z = previous.z + (z - previous.z) * alpha;
-            } else {
-                // Silent write: the real position is restored right after rendering
-                (object.transform.position as BrioVec2).setSilent(ix, iy);
-            }
-        });
+        this.#interpolationFrameAlpha = this.interpolationAlpha;
+        this.#interpolatedCount = 0;
+        this.#forEachInterpolable(this.#applyInterpolationVisitor);
+    }
+
+    /** Interpolates one object and records its simulated position in a pooled record. */
+    #interpolateObject(object: BrioObject2D | BrioObject3D): void {
+        const previous = this.#previousPositions.get(object);
+        if (!previous) return;
+        const position = object.transform.position as { x: number; y: number; z?: number };
+        const z = position.z ?? 0;
+        if (previous.x === position.x && previous.y === position.y && previous.z === z) return;
+
+        // Records are pooled: the array only grows when more objects move than in any earlier frame
+        const records = this.#interpolated;
+        let record = records[this.#interpolatedCount];
+        if (!record) {
+            record = { object: undefined, x: 0, y: 0, z: 0 };
+            records.push(record);
+        }
+        this.#interpolatedCount++;
+        record.object = object;
+        record.x = position.x;
+        record.y = position.y;
+        record.z = z;
+
+        const alpha = this.#interpolationFrameAlpha;
+        const ix = previous.x + (position.x - previous.x) * alpha;
+        const iy = previous.y + (position.y - previous.y) * alpha;
+        if (object instanceof BrioObject3D) {
+            object.transform.position.x = ix;
+            object.transform.position.y = iy;
+            object.transform.position.z = previous.z + (z - previous.z) * alpha;
+        } else {
+            // Silent write: the real position is restored right after rendering
+            (object.transform.position as BrioVec2).setSilent(ix, iy);
+        }
     }
 
     /** Restores the simulated positions replaced by `#applyInterpolation()`. */
     #restoreInterpolation(): void {
-        for (const { object, x, y, z } of this.#interpolated) {
+        const records = this.#interpolated;
+        const count = this.#interpolatedCount;
+        for (let i = 0; i < count; i++) {
+            const record = records[i];
+            const object = record.object!;
             if (object instanceof BrioObject3D) {
-                object.transform.position.x = x;
-                object.transform.position.y = y;
-                object.transform.position.z = z;
+                object.transform.position.x = record.x;
+                object.transform.position.y = record.y;
+                object.transform.position.z = record.z;
             } else {
-                (object.transform.position as BrioVec2).setSilent(x, y);
+                (object.transform.position as BrioVec2).setSilent(record.x, record.y);
                 // Cached "static" layers rasterized the interpolated position: redraw them next frame
                 object.transform.markDirty();
             }
+            // Drop the reference so a pooled record does not keep a destroyed object alive
+            record.object = undefined;
         }
-        this.#interpolated.length = 0;
+        this.#interpolatedCount = 0;
     }
 
     /**
@@ -1652,6 +1718,8 @@ export class BrioGame {
      * ```
      */
     public addScene(scene: BrioScene): this {
+        // Narrows the scene world to the preset so "2d" scenes allocate no 3D buffer (ADR 0004).
+        scene.useLayout({ transform2D: true, transform3D: this.#dimension !== "2d" });
         this.#scenes.set(scene.name, scene);
         if (!this.#activeScene && !this.#pendingScene) {
             this.setScene(scene.name);
@@ -1878,6 +1946,8 @@ export class BrioGame {
 
     /**
      * Pauses the active `update()` game loop and resets the frame timer so resuming does not cause a `deltaTime` spike.
+     * Also suspends the shared `BrioAudioMixer` context (`BrioAudioMixer.suspend()`), so music and effects stop with
+     * the game and a user gesture does not auto-unlock audio while the game stays paused.
      *
      * @example
      * ```ts
@@ -1894,12 +1964,16 @@ export class BrioGame {
             this.#updateIsRunning = false;
             this.#deltaTimePreviousTime = 0;
             cancelAnimationFrame(this.#updateFrameId);
+            this.#audioSuspended = true;
+            BrioAudioMixer.suspend().catch(() => {});
             this.#console.out("info", "Game stopped!");
         }
     }
 
     /**
-     * Resumes the `update()` game loop if it was previously paused.
+     * Resumes the `update()` game loop if it was previously paused, and resumes the `BrioAudioMixer` context that
+     * `pause()` suspended (`BrioAudioMixer.resume()`). Browsers only allow resuming audio during or after a user
+     * gesture: when called outside one, audio starts on the next gesture instead.
      *
      * @example
      * ```ts
@@ -1918,13 +1992,16 @@ export class BrioGame {
             if (this.#updateLoopLogic) {
                 this.#updateFrameId = requestAnimationFrame(this.#updateLoopLogic);
             }
+            this.#releaseAudio();
             this.#console.out("info", "Game resumed!");
         }
     }
 
     /**
-     * Terminates the game session, cancelling the animation loop, detaching input listeners,
-     * and clearing all registered assets, layers, cameras, and entities.
+     * Terminates the game session: cancels the animation loop, detaches input listeners, stops every registered
+     * `BrioAudio`, clears all registered assets (sprites, atlases, audios, models, meshes, materials), layers,
+     * cameras, lights and entities, and disposes the 3D backend (3D passes stay disabled afterwards). The shared
+     * `BrioAudioMixer` is left unsuspended so another game can play audio.
      *
      * @example
      * ```ts
@@ -1954,8 +2031,24 @@ export class BrioGame {
             this.#detachObject3D(object);
         }
 
+        // Silencing this session's sounds, then releasing the mixer hold taken by pause()
+        this.#assets.audios.forEach(stopAudio);
+        this.#releaseAudio();
+
+        // Releasing the 3D backend (GPU buffers, textures, programs); a backend still initializing is
+        // disposed when it resolves, because the session counter no longer matches
+        this.#session++;
+        if (this.#backend3D) {
+            this.#backend3D.dispose();
+            this.#backend3D = undefined;
+            this.#compositor.configure3D(undefined, this.#assets.meshes, this.#assets.materials);
+        }
+
         // Clearing asset and state registries
         this.#assets.audios.clear();
+        this.#assets.models.clear();
+        this.#assets.meshes.clear();
+        this.#assets.materials.clear();
         this.#assets.cameras2D.clear();
         this.#assets.cameras3D.clear();
         this.#assets.tileMaps.clear();
@@ -1969,6 +2062,8 @@ export class BrioGame {
         this.#cloneCounters.clear();
         this.#keyboardState.clear();
         this.#keyboardPrevState.clear();
+        this.#interpolated.length = 0;
+        this.#interpolatedCount = 0;
         this.#timer.clear();
         this.#ecsWorld.clear();
         this.#initialState = undefined;
@@ -1976,6 +2071,13 @@ export class BrioGame {
         this.#console.loggedErrors.clear();
 
         this.#console.out("info", "Game ended!");
+    }
+
+    /** Resumes the mixer context if this game's `pause()` suspended it. */
+    #releaseAudio(): void {
+        if (!this.#audioSuspended) return;
+        this.#audioSuspended = false;
+        BrioAudioMixer.resume().catch(() => {});
     }
 
     /**
@@ -2253,7 +2355,8 @@ export class BrioGame {
     }
 
     /**
-     * Initializes the `BrioGamepad` input subsystem and registers browser `gamepadconnected` / `gamepaddisconnected` listeners.
+     * Initializes the `BrioGamepad` input subsystem. Connected gamepads are polled once per frame, at the start of
+     * the frame step, so `game.gamepad` reads a consistent snapshot during fixed steps and the `update()` callback.
      * Must be called before accessing `game.gamepad`.
      *
      * @example

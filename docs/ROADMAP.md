@@ -4,13 +4,16 @@ This page tracks what is known to be broken or limited in the current release an
 detailed engineering checklist (in Portuguese) lives in [`TODO.md`](../TODO.md); architecture decisions are in
 [`docs/adr/`](./adr/).
 
-Last updated: 2026-10-27 (v0.1.0).
+Last updated: 2026-10-28 (unreleased fixes after v0.1.0).
 
 ## Known issues
 
 | Area | Issue | Workaround |
 | --- | --- | --- |
-| Input | `keyboard.isPressed()` / `isUp()` miss taps shorter than one frame (key down and up between two frames). | Use `isDown()` for actions that must not be missed, or keep the key pressed for at least one frame. |
+| Input | Gamepad buttons tapped between two polls are missed (the Gamepad API has no button events). | Use `isDown()` for gamepad actions that must not be missed. |
+| Physics | No collision or trigger events are dispatched, and there is no contact solver between two moving bodies. | Test overlaps with `BrioCollision.isColliding` in `update()` and call `BrioRigidBody.applyCollisionResponse()` after `resolveCollision()`. |
+| Audio | Without Web Audio, the `HTMLAudioElement` fallback keeps playing while the game is paused. | Pause the `BrioAudio` instances yourself in that environment. |
+| Save states | 2D `flip`, hierarchy, sprite, mesh, material and collision settings are not part of ECS snapshots. | Restore them in game code after `restoreCheckPoint()`. |
 | Canvas2D 3D fallback | Triangles are depth-sorted by centroid (Painter's Algorithm, no z-buffer), so large triangles such as a 2-triangle ground plane can cover objects standing on them. | Subdivide large surfaces: `BrioMesh.createPlane(name, w, d, segments)`. GPU backends are not affected. |
 | Canvas2D 3D fallback | No texture sampling: textured materials render with their base color. | Use the WebGL2 backend (the default where available). |
 | Cameras | A `BrioCamera2D` registered directly in a `BrioScene` keeps using `Math.random()` for shakes. | Assign `camera.random = game.random` for reproducible shakes. |

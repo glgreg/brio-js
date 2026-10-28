@@ -21,6 +21,47 @@ export interface CameraBounds2D {
 }
 
 /**
+ * Describes the screen space used by `BrioCamera2D.worldToScreen()` and `screenToWorld()`. Every field is
+ * optional; omitting all of them keeps the viewport-local, unscaled conversion.
+ *
+ * @example
+ * ```ts
+ * const space: CameraScreenSpace2D = { canvasWidth: game.width, canvasHeight: game.height, scale: game.scale };
+ * const world = camera.screenToWorld(game.mouse.position, space);
+ * ```
+ */
+export interface CameraScreenSpace2D {
+    /**
+     * Canvas width in pixels (`game.width`). Together with `canvasHeight`, screen coordinates become canvas
+     * pixels and the camera viewport offset is applied (split-screen, minimaps).
+     */
+    canvasWidth?: number;
+    /** Canvas height in pixels (`game.height`). Used only when `canvasWidth` is also given. */
+    canvasHeight?: number;
+    /**
+     * Global render scale (`game.scale`); non-positive values fall back to `1`.
+     * @default 1
+     */
+    scale?: number;
+    /**
+     * Scroll factor of the layer the point belongs to (`BrioLayer.scrollFactor`).
+     * @default { x: 1, y: 1 }
+     */
+    scrollFactor?: Vec2;
+}
+
+/** Scratch storage for a resolved `CameraScreenSpace2D`, so coordinate conversions do not allocate. */
+const SCREEN_SPACE = {
+    offsetX: 0,
+    offsetY: 0,
+    viewW: 0,
+    viewH: 0,
+    scale: 1,
+    scrollX: 1,
+    scrollY: 1,
+};
+
+/**
  * Orthographic 2D observer (`BrioCamera2D`) defining which portion of a 2D scene is visible within a target `BrioViewport`.
  * Supports smooth target following (`lerp` and `deadzone`), `zoom`, `rotation`, world boundary confinement (`setBounds`),
  * screen `shake`, coordinate conversion (`worldToScreen`, `screenToWorld`), and 2D frustum culling (`isVisible`).
@@ -289,39 +330,90 @@ export class BrioCamera2D {
     }
 
     /**
-     * Converts a 2D point from world space into screen/viewport pixel coordinates.
+     * Converts a 2D point from world space into screen pixels, applying exactly the transform the compositor
+     * draws with: shake-adjusted position, layer scroll factor, `game.scale`, `zoom` and `rotation` (around the
+     * viewport center).
+     *
+     * Without `space.canvasWidth`/`space.canvasHeight` the result is in viewport-local pixels (origin at the
+     * top-left of this camera's viewport, sized by `size`). With both, the result is in canvas pixels and the
+     * viewport offset is included, so split-screen and minimap cameras map correctly.
      *
      * @param worldPos World-space coordinates `{ x, y }`
-     * @returns Screen-space coordinates `{ x, y }`
+     * @param space Optional screen-space description (canvas size, `game.scale`, layer scroll factor)
+     * @param out Optional destination object, to avoid allocating in hot paths
+     * @returns Screen-space coordinates `{ x, y }` (`out` when given)
      * @example
      * ```ts
-     * const screenPt = camera.worldToScreen(player.transform.position);
+     * const local = camera.worldToScreen(player.transform.position);
+     * const canvasPt = camera.worldToScreen(player.transform.position, {
+     *     canvasWidth: game.width,
+     *     canvasHeight: game.height,
+     *     scale: game.scale,
+     * });
      * ```
      */
-    public worldToScreen(worldPos: Vec2): Vec2 {
-        const rp = this.renderPos;
-        return {
-            x: (worldPos.x - rp.x) * this.#zoom,
-            y: (worldPos.y - rp.y) * this.#zoom,
-        };
+    public worldToScreen(worldPos: Vec2, space?: CameraScreenSpace2D, out?: Vec2): Vec2 {
+        const result = out ?? { x: 0, y: 0 };
+        this.#resolveScreenSpace(space);
+        const sp = SCREEN_SPACE;
+        const k = this.#zoom * sp.scale;
+        const halfW = sp.viewW * 0.5;
+        const halfH = sp.viewH * 0.5;
+        // Relative to the viewport center, before the camera rotation
+        let x = (worldPos.x - this.renderX * sp.scrollX) * k - halfW;
+        let y = (worldPos.y - this.renderY * sp.scrollY) * k - halfH;
+        if (this.#rotation !== 0) {
+            // The compositor rotates the canvas by `-rotation`
+            const cos = Math.cos(this.#rotation);
+            const sin = Math.sin(this.#rotation);
+            const rx = x * cos + y * sin;
+            y = -x * sin + y * cos;
+            x = rx;
+        }
+        result.x = sp.offsetX + halfW + x;
+        result.y = sp.offsetY + halfH + y;
+        return result;
     }
 
     /**
-     * Converts a 2D point from screen/viewport pixel coordinates into world-space coordinates.
+     * Converts a 2D point from screen pixels into world space; the exact inverse of `worldToScreen()` (rotation,
+     * `zoom`, `game.scale`, layer scroll factor, shake and, when the canvas size is given, the viewport offset).
+     *
+     * Without `space.canvasWidth`/`space.canvasHeight`, `screenPos` is read as viewport-local pixels. With both,
+     * it is read as canvas pixels, which is what `BrioMouse.position` reports.
      *
      * @param screenPos Screen-space coordinates `{ x, y }`
-     * @returns World-space coordinates `{ x, y }`
+     * @param space Optional screen-space description (canvas size, `game.scale`, layer scroll factor)
+     * @param out Optional destination object, to avoid allocating in hot paths
+     * @returns World-space coordinates `{ x, y }` (`out` when given)
      * @example
      * ```ts
-     * const worldClick = camera.screenToWorld(mousePos);
+     * const worldClick = camera.screenToWorld(game.mouse.position, {
+     *     canvasWidth: game.width,
+     *     canvasHeight: game.height,
+     *     scale: game.scale,
+     * });
      * ```
      */
-    public screenToWorld(screenPos: Vec2): Vec2 {
-        const rp = this.renderPos;
-        return {
-            x: screenPos.x / this.#zoom + rp.x,
-            y: screenPos.y / this.#zoom + rp.y,
-        };
+    public screenToWorld(screenPos: Vec2, space?: CameraScreenSpace2D, out?: Vec2): Vec2 {
+        const result = out ?? { x: 0, y: 0 };
+        this.#resolveScreenSpace(space);
+        const sp = SCREEN_SPACE;
+        const k = this.#zoom * sp.scale;
+        const halfW = sp.viewW * 0.5;
+        const halfH = sp.viewH * 0.5;
+        let x = screenPos.x - sp.offsetX - halfW;
+        let y = screenPos.y - sp.offsetY - halfH;
+        if (this.#rotation !== 0) {
+            const cos = Math.cos(this.#rotation);
+            const sin = Math.sin(this.#rotation);
+            const rx = x * cos - y * sin;
+            y = x * sin + y * cos;
+            x = rx;
+        }
+        result.x = (x + halfW) / k + this.renderX * sp.scrollX;
+        result.y = (y + halfH) / k + this.renderY * sp.scrollY;
+        return result;
     }
 
     /**
@@ -361,6 +453,32 @@ export class BrioCamera2D {
             this.#emptyInstance = new BrioCamera2D("");
         }
         return this.#emptyInstance;
+    }
+
+    /**
+     * Fills `SCREEN_SPACE` from `space`, mirroring the compositor: the viewport rectangle is rounded from the
+     * canvas size exactly as `BrioCompositor` does, and falls back to `size` in viewport-local mode.
+     */
+    #resolveScreenSpace(space: CameraScreenSpace2D | undefined): void {
+        const sp = SCREEN_SPACE;
+        const canvasW = space?.canvasWidth;
+        const canvasH = space?.canvasHeight;
+        if (canvasW !== undefined && canvasH !== undefined) {
+            const vp = this.#viewport;
+            sp.offsetX = Math.round(vp.x * canvasW);
+            sp.offsetY = Math.round(vp.y * canvasH);
+            sp.viewW = Math.round(vp.width * canvasW);
+            sp.viewH = Math.round(vp.height * canvasH);
+        } else {
+            sp.offsetX = 0;
+            sp.offsetY = 0;
+            sp.viewW = this.#size.x;
+            sp.viewH = this.#size.y;
+        }
+        const scale = space?.scale ?? 1;
+        sp.scale = scale > 0 ? scale : 1;
+        sp.scrollX = space?.scrollFactor?.x ?? 1;
+        sp.scrollY = space?.scrollFactor?.y ?? 1;
     }
 
     #applyBounds(): void {

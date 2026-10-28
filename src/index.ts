@@ -74,7 +74,7 @@ export type { CanvasBackground } from "./game/BrioCanvasBackground";
 export type { CanvasFPSPosition } from "./game/BrioSpriteRenderer";
 export type { UpdaterObjectParam } from "./game/BrioUpdater";
 export type { BrioAssets } from "./game/BrioAssetManager";
-export type { SpriteType, SpriteProperties } from "./assets/BrioSprite";
+export type { SpriteType, SpriteProperties, SpriteSourceRect } from "./assets/BrioSprite";
 export type { Atlas as AtlasData } from "./assets/BrioAtlas";
 export type { MergedTileCollider } from "./assets/BrioTileMap";
 export type { BrioMaterialOptions } from "./assets/BrioMaterial";
@@ -97,6 +97,7 @@ export type { AudioBusName } from "./audio/BrioAudioMixer";
 export type { BrioLightType, BrioLightOptions } from "./objects/BrioLight";
 export type { LightingEnvironment } from "./rendering/lighting";
 export type { BrioRandomSeed } from "./math/BrioRandom";
+export type { RandomSource } from "./math/BrioMath";
 export type { ModelLoaderLimits } from "./assets/loaders/limits";
 export type { SceneContent, BrioSceneState } from "./core/BrioScene";
 export type {
@@ -117,7 +118,7 @@ export type {
     CircleCollisionType,
 } from "./math/BrioCollision";
 export type { BrioRigidBodyOptions } from "./physics/BrioRigidBody";
-export type { CameraBounds2D } from "./cameras/BrioCamera2D";
+export type { CameraBounds2D, CameraScreenSpace2D } from "./cameras/BrioCamera2D";
 export type { CameraProjection3D, BrioCamera3DOptions, BrioRay3D } from "./cameras/BrioCamera3D";
 export type { LayerPolicy, BrioLayerOptions } from "./core/BrioLayer";
 export type { ViewportRect } from "./core/BrioViewport";

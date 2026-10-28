@@ -1,3 +1,4 @@
+import { parseOBJGeometry } from "./loaders/objGeometry";
 import { Vec3 } from "../math/vec3";
 
 /**
@@ -366,84 +367,28 @@ export class BrioMesh {
     }
 
     /**
-     * Parses a Wavefront `.obj` ASCII string into a `BrioMesh` (supports `v`, `vt`, `vn`, and triangle/quad `f` faces).
+     * Parses a Wavefront `.obj` ASCII string into a single `BrioMesh` (supports `v`, `vt`, `vn`, and polygon
+     * `f` faces; `o`/`g`/`usemtl` are ignored, so every face lands in one mesh). It shares its parser with
+     * `OBJLoader`, so `ModelLoaderLimits` apply, files without `vn` get flat normals, and meshes above 65535
+     * vertices use `Uint32Array` indices. Use `OBJLoader` or `BrioModel` for multi-mesh files with materials.
      *
      * @param name Unique mesh identifier
      * @param objSource Raw `.obj` file text content
      * @returns Parsed `BrioMesh`
+     * @throws {ModelLimitError} When the text or the decoded geometry exceeds `ModelLoaderLimits`
      * @example
      * ```ts
      * const mesh = BrioMesh.fromOBJ("mesh_pyramid", objFileContent);
      * ```
      */
     public static fromOBJ(name: string, objSource: string): BrioMesh {
-        const rawPos: [number, number, number][] = [];
-        const rawUV: [number, number][] = [];
-        const rawNorm: [number, number, number][] = [];
-
-        const outPos: number[] = [];
-        const outUV: number[] = [];
-        const outNorm: number[] = [];
-        const outIndices: number[] = [];
-        const vertexCache = new Map<string, number>();
-
-        const addFaceVertex = (token: string): number => {
-            const cached = vertexCache.get(token);
-            if (cached !== undefined) return cached;
-
-            const parts = token.split("/");
-            const vIdx = parseInt(parts[0], 10) - 1;
-            const vtIdx = parts[1] ? parseInt(parts[1], 10) - 1 : -1;
-            const vnIdx = parts[2] ? parseInt(parts[2], 10) - 1 : -1;
-
-            const p = rawPos[vIdx] ?? [0, 0, 0];
-            const uv = vtIdx >= 0 && rawUV[vtIdx] ? rawUV[vtIdx] : [0, 0];
-            const n = vnIdx >= 0 && rawNorm[vnIdx] ? rawNorm[vnIdx] : [0, 1, 0];
-
-            const newIndex = outPos.length / 3;
-            outPos.push(p[0], p[1], p[2]);
-            outUV.push(uv[0], uv[1]);
-            outNorm.push(n[0], n[1], n[2]);
-            vertexCache.set(token, newIndex);
-            return newIndex;
-        };
-
-        const lines = objSource.split(/\r?\n/);
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line || line.startsWith("#")) continue;
-
-            const tokens = line.split(/\s+/);
-            const keyword = tokens[0];
-
-            if (keyword === "v") {
-                rawPos.push([
-                    parseFloat(tokens[1]) || 0,
-                    parseFloat(tokens[2]) || 0,
-                    parseFloat(tokens[3]) || 0,
-                ]);
-            } else if (keyword === "vt") {
-                rawUV.push([parseFloat(tokens[1]) || 0, parseFloat(tokens[2]) || 0]);
-            } else if (keyword === "vn") {
-                rawNorm.push([
-                    parseFloat(tokens[1]) || 0,
-                    parseFloat(tokens[2]) || 0,
-                    parseFloat(tokens[3]) || 0,
-                ]);
-            } else if (keyword === "f") {
-                const faceVertices = tokens.slice(1).map(addFaceVertex);
-                for (let t = 1; t < faceVertices.length - 1; t++) {
-                    outIndices.push(faceVertices[0], faceVertices[t], faceVertices[t + 1]);
-                }
-            }
-        }
-
+        const [geometry] = parseOBJGeometry(objSource, { split: false });
         return new BrioMesh(
             name,
-            new Float32Array(outPos),
-            new Float32Array(outNorm),
-            new Float32Array(outUV),
-            new Uint16Array(outIndices),
+            geometry.positions,
+            geometry.normals,
+            geometry.uvs,
+            geometry.indices,
         );
     }
 

@@ -1,4 +1,4 @@
-import { ComponentStorage, DirtyFlag } from "../ecs/ComponentStorage";
+import { ComponentStorage, DirtyFlag, VISUAL_VISIBILITY_OFFSET } from "../ecs/ComponentStorage";
 import { clamp } from "../math/BrioMath";
 import { BrioQuat, BrioVec3, Mat4, Matrix4, Quat, Quaternion, Vec3, Vector3 } from "../math/index";
 
@@ -58,6 +58,14 @@ export class BrioTransform3D implements Transform3D {
     #localDirty: boolean = true;
     #worldDirty: boolean = true;
     #syncingRotation: boolean = false;
+    /** Position, scale and quaternion (10 floats) the cached `localMatrix` was built from, for bound slots. */
+    readonly #localSource = new Float32Array(10);
+    /** Incremented whenever `localMatrix` / `worldMatrix` is recomputed, so dependants detect stale caches. */
+    #localVersion: number = 0;
+    #worldVersion: number = 0;
+    /** `#localVersion` and the parent's `#worldVersion` that the cached `worldMatrix` was built from. */
+    #worldLocalVersion: number = -1;
+    #worldParentVersion: number = -1;
 
     #ecsStorage?: ComponentStorage;
     #entityId: number = -1;
@@ -136,13 +144,16 @@ export class BrioTransform3D implements Transform3D {
         this.#scale.bindBuffer(buf, base + 3, adopt);
         this.#rotation.bindBuffer(buf, base + 6, adopt);
         this.#quaternion.bindBuffer(buf, base + 9, adopt);
+        const vis = storage.getVisualOffset(entityId) + VISUAL_VISIBILITY_OFFSET;
         if (adopt) {
             this.#opacity = buf[base + 13];
             this.#layer = buf[base + 14];
+            this.#visibility = storage.visual[vis] !== 0;
             this.#markLocalDirty();
         } else {
             buf[base + 13] = this.#opacity;
             buf[base + 14] = this.#layer;
+            storage.visual[vis] = this.#visibility ? 1 : 0;
         }
         return this;
     }
@@ -159,6 +170,10 @@ export class BrioTransform3D implements Transform3D {
         const buf = this.#ecsStorage.transform3D;
         this.#opacity = buf[base + 13];
         this.#layer = buf[base + 14];
+        this.#visibility =
+            this.#ecsStorage.visual[
+                this.#ecsStorage.getVisualOffset(this.#entityId) + VISUAL_VISIBILITY_OFFSET
+            ] !== 0;
 
         this.#position.unbindBuffer();
         this.#scale.unbindBuffer();
@@ -225,17 +240,37 @@ export class BrioTransform3D implements Transform3D {
         this.#quaternion.set(value.x, value.y, value.z, value.w);
     }
 
-    /** Controls whether the 3D object is rendered. */
+    /**
+     * Controls whether the 3D object is rendered.
+     * When bound to an ECS slot the flag lives in the `visual` buffer, so checkpoints capture it.
+     */
     public get visibility(): boolean {
+        if (this.#ecsStorage && this.#entityId >= 0) {
+            return (
+                this.#ecsStorage.visual[
+                    this.#ecsStorage.getVisualOffset(this.#entityId) + VISUAL_VISIBILITY_OFFSET
+                ] !== 0
+            );
+        }
         return this.#visibility;
     }
     public set visibility(value: boolean) {
         this.#visibility = value;
+        if (this.#ecsStorage && this.#entityId >= 0) {
+            this.#ecsStorage.visual[
+                this.#ecsStorage.getVisualOffset(this.#entityId) + VISUAL_VISIBILITY_OFFSET
+            ] = value ? 1 : 0;
+        }
         this.#markWorldDirty();
     }
 
-    /** Opacity factor clamped to `[0, 1]`. */
+    /** Opacity factor clamped to `[0, 1]`; read from the ECS slot when bound. */
     public get opacity(): number {
+        if (this.#ecsStorage && this.#entityId >= 0) {
+            return this.#ecsStorage.transform3D[
+                this.#ecsStorage.getTransform3DOffset(this.#entityId) + 13
+            ];
+        }
         return this.#opacity;
     }
     public set opacity(value: number) {
@@ -247,8 +282,13 @@ export class BrioTransform3D implements Transform3D {
         this.#markWorldDirty();
     }
 
-    /** Rendering layer index. */
+    /** Rendering layer index (depth inside a `BrioLayer`); read from the ECS slot when bound. */
     public get layer(): number {
+        if (this.#ecsStorage && this.#entityId >= 0) {
+            return this.#ecsStorage.transform3D[
+                this.#ecsStorage.getTransform3DOffset(this.#entityId) + 14
+            ];
+        }
         return this.#layer;
     }
     public set layer(value: number) {
@@ -321,8 +361,31 @@ export class BrioTransform3D implements Transform3D {
 
     /**
      * Returns the lazily recomputed 4x4 local transformation matrix (`Float32Array(16)`).
+     * While bound, the cache is also invalidated by direct writes into the slot's position, scale or
+     * quaternion (`transform3D[base + 0..5]` and `[base + 9..12]`), detected by comparing 10 floats on access.
+     * Direct writes must update the quaternion: the Euler `rotation` slots are not read by the matrix.
      */
     public get localMatrix(): Mat4 {
+        const storage = this.#ecsStorage;
+        if (!this.#localDirty && storage && this.#entityId >= 0) {
+            const buf = storage.transform3D;
+            const base = storage.getTransform3DOffset(this.#entityId);
+            const src = this.#localSource;
+            if (
+                buf[base] !== src[0] ||
+                buf[base + 1] !== src[1] ||
+                buf[base + 2] !== src[2] ||
+                buf[base + 3] !== src[3] ||
+                buf[base + 4] !== src[4] ||
+                buf[base + 5] !== src[5] ||
+                buf[base + 9] !== src[6] ||
+                buf[base + 10] !== src[7] ||
+                buf[base + 11] !== src[8] ||
+                buf[base + 12] !== src[9]
+            ) {
+                this.#localDirty = true;
+            }
+        }
         if (this.#localDirty) {
             Matrix4.fromRotationTranslationScale(
                 this.#localMatrix,
@@ -330,24 +393,43 @@ export class BrioTransform3D implements Transform3D {
                 this.#position,
                 this.#scale,
             );
+            if (storage && this.#entityId >= 0) {
+                const buf = storage.transform3D;
+                const base = storage.getTransform3DOffset(this.#entityId);
+                const src = this.#localSource;
+                for (let i = 0; i < 6; i++) src[i] = buf[base + i];
+                for (let i = 0; i < 4; i++) src[6 + i] = buf[base + 9 + i];
+            }
             this.#localDirty = false;
+            this.#localVersion++;
         }
         return this.#localMatrix;
     }
 
     /**
      * Returns the lazily recomputed 4x4 world transformation matrix (`Float32Array(16)`),
-     * combining `parent.worldMatrix * localMatrix`.
+     * combining `parent.worldMatrix * localMatrix`. It is rebuilt whenever this node's local matrix or any
+     * ancestor's world matrix was rebuilt, including after direct writes into an ancestor's ECS slot.
      */
     public get worldMatrix(): Mat4 {
         const local = this.localMatrix;
-        if (this.#worldDirty) {
-            if (this.#parent) {
-                Matrix4.multiply(this.#worldMatrix, this.#parent.worldMatrix, local);
+        const parent = this.#parent;
+        const parentWorld = parent ? parent.worldMatrix : undefined;
+        const parentVersion = parent ? parent.#worldVersion : -1;
+        if (
+            this.#worldDirty ||
+            this.#worldLocalVersion !== this.#localVersion ||
+            this.#worldParentVersion !== parentVersion
+        ) {
+            if (parentWorld) {
+                Matrix4.multiply(this.#worldMatrix, parentWorld, local);
             } else {
                 Matrix4.copy(this.#worldMatrix, local);
             }
             this.#worldDirty = false;
+            this.#worldLocalVersion = this.#localVersion;
+            this.#worldParentVersion = parentVersion;
+            this.#worldVersion++;
         }
         return this.#worldMatrix;
     }

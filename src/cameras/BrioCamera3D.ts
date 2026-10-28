@@ -83,6 +83,9 @@ export class BrioCamera3D {
     readonly #inverseViewProjection: Mat4 = Matrix4.create();
     #viewDirty: boolean = true;
     #projDirty: boolean = true;
+    /** Six normalized frustum planes `(a, b, c, d)` in world space: left, right, bottom, top, near, far. */
+    readonly #frustumPlanes: Float64Array = new Float64Array(24);
+    #planesDirty: boolean = true;
 
     /**
      * Creates a new `BrioCamera3D` instance.
@@ -100,12 +103,15 @@ export class BrioCamera3D {
 
         this.#position = new BrioVec3(p.x, p.y, p.z, () => {
             this.#viewDirty = true;
+            this.#planesDirty = true;
         });
         this.#target = new BrioVec3(t.x, t.y, t.z, () => {
             this.#viewDirty = true;
+            this.#planesDirty = true;
         });
         this.#up = new BrioVec3(u.x, u.y, u.z, () => {
             this.#viewDirty = true;
+            this.#planesDirty = true;
         });
 
         this.#fov = options.fov ?? Math.PI / 3;
@@ -129,6 +135,7 @@ export class BrioCamera3D {
     public set projection(value: CameraProjection3D) {
         this.#projection = value;
         this.#projDirty = true;
+        this.#planesDirty = true;
     }
 
     /** Camera world position `{ x, y, z }`. */
@@ -162,6 +169,7 @@ export class BrioCamera3D {
     public set fov(value: number) {
         this.#fov = value;
         this.#projDirty = true;
+        this.#planesDirty = true;
     }
 
     /** Viewport aspect ratio (`width / height`). */
@@ -171,6 +179,7 @@ export class BrioCamera3D {
     public set aspect(value: number) {
         this.#aspect = Math.max(1e-4, value);
         this.#projDirty = true;
+        this.#planesDirty = true;
     }
 
     /** Near clipping plane distance. */
@@ -180,6 +189,7 @@ export class BrioCamera3D {
     public set near(value: number) {
         this.#near = Math.max(1e-4, value);
         this.#projDirty = true;
+        this.#planesDirty = true;
     }
 
     /** Far clipping plane distance. */
@@ -189,6 +199,7 @@ export class BrioCamera3D {
     public set far(value: number) {
         this.#far = Math.max(this.#near + 1e-3, value);
         this.#projDirty = true;
+        this.#planesDirty = true;
     }
 
     /** Half-height in world units for `"orthographic"` projection. */
@@ -198,6 +209,7 @@ export class BrioCamera3D {
     public set orthoSize(value: number) {
         this.#orthoSize = Math.max(1e-3, value);
         this.#projDirty = true;
+        this.#planesDirty = true;
     }
 
     /** Normalized screen `BrioViewport` assigned to this camera. */
@@ -339,25 +351,57 @@ export class BrioCamera3D {
     }
 
     /**
-     * Performs 3D bounding-sphere frustum culling in view space (`near`/`far` depth and NDC bounds).
+     * Tests a world-space bounding sphere against the six planes of the view frustum (left, right, bottom, top,
+     * near, far), for both projection modes. The test is conservative: a sphere near a frustum corner may be
+     * reported as visible although it lies just outside, but a sphere reported as outside is never visible.
+     * The planes are cached and rebuilt only after the camera or its projection changes, so the call does
+     * not allocate and is cheap enough for per-object culling.
      *
      * @param center World-space sphere center `{ x, y, z }`
-     * @param radius Sphere radius in world units
-     * @returns `true` if the sphere is potentially inside the view frustum
+     * @param radius Sphere radius in world units (negative values are treated as `0`)
+     * @returns `true` if the sphere intersects or lies inside the view frustum
      * @example
      * ```ts
      * if (camera3D.isSphereInFrustum(meshObj.transform.position, 2.0)) { ... }
      * ```
      */
     public isSphereInFrustum(center: Vec3, radius: number): boolean {
-        const view = this.viewMatrix;
-        // View-space Z is negative along the forward view direction in right-handed coordinates
-        const vz =
-            view[2] * center.x + view[6] * center.y + view[10] * center.z + view[14];
-        const depth = -vz;
-        if (depth + radius < this.#near || depth - radius > this.#far) {
-            return false;
+        if (this.#planesDirty) this.#updateFrustumPlanes();
+        const planes = this.#frustumPlanes;
+        const r = radius > 0 ? radius : 0;
+        for (let i = 0; i < 24; i += 4) {
+            const distance =
+                planes[i] * center.x +
+                planes[i + 1] * center.y +
+                planes[i + 2] * center.z +
+                planes[i + 3];
+            if (distance < -r) return false;
         }
         return true;
+    }
+
+    /**
+     * Extracts the frustum planes from the view-projection matrix (Gribb/Hartmann, OpenGL clip space with
+     * `z` in `[-w, w]`) and normalizes them so plane distances are in world units.
+     */
+    #updateFrustumPlanes(): void {
+        const m = this.viewProjectionMatrix;
+        const planes = this.#frustumPlanes;
+        // Column-major: row i of the matrix is (m[i], m[4 + i], m[8 + i], m[12 + i])
+        for (let p = 0; p < 6; p++) {
+            const row = p >> 1;
+            const sign = (p & 1) === 0 ? 1 : -1;
+            const a = m[3] + sign * m[row];
+            const b = m[7] + sign * m[4 + row];
+            const c = m[11] + sign * m[8 + row];
+            const d = m[15] + sign * m[12 + row];
+            const length = Math.hypot(a, b, c) || 1;
+            const o = p * 4;
+            planes[o] = a / length;
+            planes[o + 1] = b / length;
+            planes[o + 2] = c / length;
+            planes[o + 3] = d / length;
+        }
+        this.#planesDirty = false;
     }
 }

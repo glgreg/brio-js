@@ -1,6 +1,6 @@
 # Rendering Study: three.js Techniques and the BrioJS GPU Backends
 
-Status: **Reference** (2026-10-20). The source studied is a shallow clone of `mrdoob/three.js` in `study/three.js` (gitignored, MIT license). BrioJS reimplements techniques, not code (ADR-0001).
+Status: **Reference** (2026-10-20, status columns updated 2026-10-28). The source studied is a shallow clone of `mrdoob/three.js` in `study/three.js` (gitignored, MIT license). BrioJS reimplements techniques, not code (ADR-0001).
 
 ## 1. Why the demo runs on WebGL2 and not WebGPU
 
@@ -8,29 +8,29 @@ The cascade `WebGPU -> WebGL2 -> WebGL1 -> Canvas2D` (ADR-0001) is implemented i
 
 Two caveats for the WebGPU backend:
 
-- **Async adapter**: `navigator.gpu` existing does not guarantee an adapter. `requestAdapter()` can return `null` on blocklisted drivers. `BrioGame` already falls back when `init()` returns `false`, but the fallback must cascade to the **next** backend (`webgl2`), not straight to `canvas2d`.
+- **Async adapter**: `navigator.gpu` existing does not guarantee an adapter. `requestAdapter()` can return `null` on blocklisted drivers. `BrioRenderer.initBackend()` (used by `BrioGame`) already handles this: a backend whose `init()` resolves `false` or throws is disposed and the **next** candidate of the cascade is tried, so a failed `webgpu` falls back to `webgl2`, not straight to `canvas2d`.
 - **Linux**: as of late 2026, WebGPU is on by default in Chrome and Edge on Windows, macOS, ChromeOS, and Android. Linux is partial (Intel Gen12+ in Chromium since 2026-01; Firefox Linux still in Nightly). Linux users, including this development machine, will often get WebGL2 even after WebGPU lands.
 
 ## 2. Techniques studied in three.js (WebGL path), status in BrioJS
 
-| three.js module                                    | Technique                                                                  | BrioJS status                                                                              |
-| -------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `WebGLAttributes`                                  | Upload each attribute once (`bufferData`), track `version` for updates     | Done (upload once). **Missing**: versioned re-upload for mutable meshes                    |
-| `WebGLBindingStates`                               | VAO cache per geometry + program                                           | Done (one VAO per mesh with fixed attribute locations)                                     |
-| `WebGLState`                                       | Cache GL state, skip redundant calls                                       | Done for program, VAO, cull, blend, depth mask, front face                                 |
-| `WebGLPrograms` / `WebGLProgram`                   | Program cache keyed by material features (`#define` variants)              | Done (map, lit, flat, alpha test)                                                          |
-| `WebGLRenderLists`                                 | Opaque: program, material, then front-to-back. Transparent: back-to-front  | Done                                                                                       |
-| `WebGLRenderer.projectObject` + `Frustum`          | Per-object frustum culling with bounding spheres                           | **Missing** (`BrioCamera3D` has sphere culling, but the compositor does not use it for 3D) |
-| `WebGLTextures`                                    | `texStorage2D` + mipmaps, sRGB storage, anisotropy, `flipY=false` for glTF | Done                                                                                       |
-| Color management (`colorspace_pars_fragment`)      | Linear lighting, sRGB output, linear `baseColorFactor`                     | Done                                                                                       |
-| `meshlambert` / `meshphysical` shader chunks       | Lambert, then PBR (metallic/roughness, GGX, Fresnel)                       | Lambert + hemisphere only. **Missing**: PBR, normal maps, emissive, AO                     |
-| `WebGLLights`                                      | Light uniform arrays / UBOs, hashed light state                            | **Missing**: lights are constants in the shader                                            |
-| `WebGLShadowMap`                                   | Shadow maps (directional, spot, point)                                     | **Missing**                                                                                |
-| `PMREMGenerator`, `RoomEnvironment`                | Image-based lighting (prefiltered environment maps)                        | **Missing**. This is why the three.js reference looks softer than BrioJS                   |
-| `WebGLMorphtargets`, `SkinnedMesh`, `Skeleton`     | Morph targets and GPU skinning (bone textures)                             | **Missing**; glTF skins render in bind pose                                                |
-| `InstancedMesh`, `BatchedMesh`                     | Instancing and multi-draw batching                                         | **Missing**                                                                                |
-| Tone mapping (`toneMapping`, ACES / AgX / Neutral) | HDR to LDR curve before sRGB output                                        | **Missing**                                                                                |
-| `WebGLInfo`                                        | Draw calls, triangles, programs, memory                                    | Partial (`drawCalls`, `trianglesRendered`)                                                 |
+| three.js module                                    | Technique                                                                  | BrioJS status                                                                                                                                                                                                     |
+| -------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WebGLAttributes`                                  | Upload each attribute once (`bufferData`), track `version` for updates     | Done (upload once). **Missing**: versioned re-upload for mutable meshes                                                                                                                                           |
+| `WebGLBindingStates`                               | VAO cache per geometry + program                                           | Done (one VAO per mesh with fixed attribute locations)                                                                                                                                                            |
+| `WebGLState`                                       | Cache GL state, skip redundant calls                                       | Done for program, VAO, cull, blend, depth mask, front face                                                                                                                                                        |
+| `WebGLPrograms` / `WebGLProgram`                   | Program cache keyed by material features (`#define` variants)              | Done (map, lit, flat, alpha test)                                                                                                                                                                                 |
+| `WebGLRenderLists`                                 | Opaque: program, material, then front-to-back. Transparent: back-to-front  | Done                                                                                                                                                                                                              |
+| `WebGLRenderer.projectObject` + `Frustum`          | Per-object frustum culling with bounding spheres                           | **Missing** (`BrioCamera3D` has sphere culling, but the compositor does not use it for 3D)                                                                                                                        |
+| `WebGLTextures`                                    | `texStorage2D` + mipmaps, sRGB storage, anisotropy, `flipY=false` for glTF | Done                                                                                                                                                                                                              |
+| Color management (`colorspace_pars_fragment`)      | Linear lighting, sRGB output, linear `baseColorFactor`                     | Done                                                                                                                                                                                                              |
+| `meshlambert` / `meshphysical` shader chunks       | Lambert, then PBR (metallic/roughness, GGX, Fresnel)                       | Lambert + hemisphere only. **Missing**: PBR, normal maps, emissive, AO                                                                                                                                            |
+| `WebGLLights`                                      | Light uniform arrays / UBOs, hashed light state                            | Partial: `BrioLight` (directional, ambient, hemisphere) uploaded to the `BrioLights` UBO (std140), re-uploaded only when the lighting key changes; up to 4 directional lights. **Missing**: point and spot lights |
+| `WebGLShadowMap`                                   | Shadow maps (directional, spot, point)                                     | **Missing**                                                                                                                                                                                                       |
+| `PMREMGenerator`, `RoomEnvironment`                | Image-based lighting (prefiltered environment maps)                        | **Missing**. This is why the three.js reference looks softer than BrioJS                                                                                                                                          |
+| `WebGLMorphtargets`, `SkinnedMesh`, `Skeleton`     | Morph targets and GPU skinning (bone textures)                             | **Missing**; glTF skins render in bind pose                                                                                                                                                                       |
+| `InstancedMesh`, `BatchedMesh`                     | Instancing and multi-draw batching                                         | **Missing**                                                                                                                                                                                                       |
+| Tone mapping (`toneMapping`, ACES / AgX / Neutral) | HDR to LDR curve before sRGB output                                        | **Missing**                                                                                                                                                                                                       |
+| `WebGLInfo`                                        | Draw calls, triangles, programs, memory                                    | Partial (`drawCalls`, `trianglesRendered`)                                                                                                                                                                        |
 
 ## 3. WebGPU path in three.js (for the future `WebGPUBackend`)
 
@@ -54,9 +54,9 @@ Two caveats for the WebGPU backend:
 
 ## 5. Next rendering steps (tracked in TODO section 8.1)
 
-1. `WebGPUBackend`, with the cascade fallback fixed to try the next backend.
+1. `WebGPUBackend` (the cascade fallback to the next backend is already in place in `BrioRenderer.initBackend()`).
 2. Frustum culling in `#render3DPasses`.
-3. A light system (`BrioLight` directional, point, spot, hemisphere, ambient) with UBO upload.
+3. Point and spot lights (directional, hemisphere and ambient `BrioLight`s with UBO upload are done).
 4. A PBR material model and IBL.
 5. Shadows.
 6. GPU skinning and animation from glTF.

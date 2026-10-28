@@ -189,7 +189,11 @@ export class BrioSerializer {
      *
      * @param world Target `ECSWorld` to restore into
      * @param snapshot Binary `Uint8Array` previously created by `captureSnapshot` or `fromJSON`
-     * @throws {Error} When the snapshot header is invalid, corrupted, exceeds `world` capacity, or has an incompatible layout
+     * Every check (header, capacity, layout, body length, free-list ids) runs before `world` is cleared, so a
+     * rejected snapshot leaves `world` untouched.
+     *
+     * @throws {Error} When the header is invalid, the body is shorter than the header claims, a free-list id is
+     * out of range, alive or duplicated, the entity count exceeds `world` capacity, or the layout is incompatible
      * @example
      * ```ts
      * BrioSerializer.restoreSnapshot(world, checkpointBytes);
@@ -239,53 +243,68 @@ export class BrioSerializer {
             );
         }
 
-        world.clear();
-
-        let byteOffset = headerWords * 4;
-        const freeList: number[] = [];
-
-        if (freeListLength > 0) {
-            const freeView = new Uint32Array(alignedBuffer, byteOffset, freeListLength);
-            for (let i = 0; i < freeListLength; i++) {
-                freeList.push(freeView[i]);
-            }
-            byteOffset += freeListLength * 4;
+        if (activeCount > count || freeListLength > count) {
+            throw new Error(
+                `Invalid BrioSnapshot: activeCount (${activeCount}) or free-list length (${freeListLength}) exceeds the high-water mark (${count}).`,
+            );
         }
 
+        // Compute every section offset and validate the body length before touching `world`, so a
+        // truncated or corrupted snapshot leaves the world exactly as it was.
+        const freeListOffset = headerWords * 4;
+        const aliveOffset = freeListOffset + freeListLength * 4;
+        const masksOffset = aliveOffset + Math.ceil(count / 4) * 4;
+        const t2Offset = masksOffset + count * 4;
+        const t2Len = snapshotHas2D ? count * TRANSFORM_2D_STRIDE : 0;
+        const t3Offset = t2Offset + t2Len * 4;
+        const t3Len = snapshotHas3D ? count * TRANSFORM_3D_STRIDE : 0;
+        const colOffset = t3Offset + t3Len * 4;
+        const colLen = count * COLLIDER_STRIDE;
+        const rbOffset = colOffset + colLen * 4;
+        const rbLen = count * RIGIDBODY_STRIDE;
+        const visOffset = rbOffset + rbLen * 4;
+        const visLen = count * VISUAL_STRIDE;
+        const requiredBytes = count > 0 ? visOffset + visLen * 4 : aliveOffset;
+
+        if (alignedBuffer.byteLength < requiredBytes) {
+            throw new Error(
+                `Invalid BrioSnapshot: body is truncated (${alignedBuffer.byteLength} bytes, header requires ${requiredBytes}).`,
+            );
+        }
+
+        const aliveView = new Uint8Array(alignedBuffer, aliveOffset, count);
+        const freeList: number[] = [];
+        if (freeListLength > 0) {
+            const freeView = new Uint32Array(alignedBuffer, freeListOffset, freeListLength);
+            const seen = new Uint8Array(count);
+            for (let i = 0; i < freeListLength; i++) {
+                const id = freeView[i];
+                if (id >= count || aliveView[id] !== 0 || seen[id] !== 0) {
+                    throw new Error(
+                        `Invalid BrioSnapshot: free-list entry ${id} is out of range, alive or duplicated.`,
+                    );
+                }
+                seen[id] = 1;
+                freeList.push(id);
+            }
+        }
+
+        world.clear();
+
         if (count > 0) {
-            const alivePaddedBytes = Math.ceil(count / 4) * 4;
-            storage.aliveFlags.set(new Uint8Array(alignedBuffer, byteOffset, count), 0);
-            byteOffset += alivePaddedBytes;
+            storage.aliveFlags.set(aliveView, 0);
+            storage.componentMasks.set(new Uint32Array(alignedBuffer, masksOffset, count), 0);
 
-            storage.componentMasks.set(new Uint32Array(alignedBuffer, byteOffset, count), 0);
-            byteOffset += count * 4;
-
-            if (snapshotHas2D) {
-                const t2Len = count * TRANSFORM_2D_STRIDE;
-                if (storage.has2D) {
-                    storage.transform2D.set(new Float32Array(alignedBuffer, byteOffset, t2Len), 0);
-                }
-                byteOffset += t2Len * 4;
+            if (t2Len > 0 && storage.has2D) {
+                storage.transform2D.set(new Float32Array(alignedBuffer, t2Offset, t2Len), 0);
+            }
+            if (t3Len > 0 && storage.has3D) {
+                storage.transform3D.set(new Float32Array(alignedBuffer, t3Offset, t3Len), 0);
             }
 
-            if (snapshotHas3D) {
-                const t3Len = count * TRANSFORM_3D_STRIDE;
-                if (storage.has3D) {
-                    storage.transform3D.set(new Float32Array(alignedBuffer, byteOffset, t3Len), 0);
-                }
-                byteOffset += t3Len * 4;
-            }
-
-            const colLen = count * COLLIDER_STRIDE;
-            storage.collider.set(new Float32Array(alignedBuffer, byteOffset, colLen), 0);
-            byteOffset += colLen * 4;
-
-            const rbLen = count * RIGIDBODY_STRIDE;
-            storage.rigidBody.set(new Float32Array(alignedBuffer, byteOffset, rbLen), 0);
-            byteOffset += rbLen * 4;
-
-            const visLen = count * VISUAL_STRIDE;
-            storage.visual.set(new Uint32Array(alignedBuffer, byteOffset, visLen), 0);
+            storage.collider.set(new Float32Array(alignedBuffer, colOffset, colLen), 0);
+            storage.rigidBody.set(new Float32Array(alignedBuffer, rbOffset, rbLen), 0);
+            storage.visual.set(new Uint32Array(alignedBuffer, visOffset, visLen), 0);
 
             storage.dirtyFlags.fill(
                 DirtyFlag.TRANSFORM | DirtyFlag.COLLIDER | DirtyFlag.RENDER,
@@ -299,6 +318,8 @@ export class BrioSerializer {
 
     /**
      * Translates a binary `Uint8Array` snapshot into a formatted JSON string for external export or debugging.
+     * `version` reports the format version of the input (a version `1` snapshot reports `1`, with `layout` set to
+     * both 2D and 3D); `fromJSON` always re-encodes into the current format.
      *
      * @param snapshot Binary `Uint8Array` snapshot
      * @returns JSON string representation of the snapshot
@@ -325,7 +346,7 @@ export class BrioSerializer {
         const storage = tempWorld.storage;
 
         const payload: SerializedSnapshotJSON = {
-            version: BRIO_SNAPSHOT_VERSION,
+            version: header[1],
             layout: storage.layoutFlags,
             highWaterMark: count,
             activeCount: tempWorld.activeCount,

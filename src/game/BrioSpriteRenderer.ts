@@ -115,6 +115,7 @@ export class BrioSpriteRenderer {
     /**
      * Draws a single `BrioObject2D` onto `target` (the game canvas by default), applying `game.scale`, `transform.position`,
      * `transform.renderSize`, `transform.flip`, `transform.rotation`, `transform.skew`, `transform.pivot`, and `transform.opacity`.
+     * When the sprite has a `sourceRect`, only that region of its image is drawn, scaled to the render size.
      * When `game.rendering.mode === "pixelated"`, translation coordinates are rounded to integer pixels to prevent Chromium sub-pixel shimmering.
      *
      * @param object The `BrioObject2D` instance to render
@@ -190,14 +191,26 @@ export class BrioSpriteRenderer {
         ctx.globalAlpha = object.transform.opacity;
         const sprite = this.#assets.sprites.get(object.sprite) ?? BrioSprite.getEmptyInstance();
 
-        // Sprite rendering
-        ctx.drawImage(
-            sprite.element,
-            translated ? -renderWidth * object.transform.pivot.x : 0,
-            translated ? -renderHeight * object.transform.pivot.y : 0,
-            renderWidth,
-            renderHeight,
-        );
+        // Sprite rendering: a sprite with a source rectangle (spritesheet cell, atlas region) draws only
+        // that part of its image
+        const dx = translated ? -renderWidth * object.transform.pivot.x : 0;
+        const dy = translated ? -renderHeight * object.transform.pivot.y : 0;
+        const source = sprite.sourceRect;
+        if (source) {
+            ctx.drawImage(
+                sprite.element,
+                source.x,
+                source.y,
+                source.width,
+                source.height,
+                dx,
+                dy,
+                renderWidth,
+                renderHeight,
+            );
+        } else {
+            ctx.drawImage(sprite.element, dx, dy, renderWidth, renderHeight);
+        }
 
         ctx.restore();
     }

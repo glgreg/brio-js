@@ -2,6 +2,7 @@ import { BrioMesh } from "../BrioMesh";
 import { BrioMaterial } from "../BrioMaterial";
 import { CSSColor } from "../../tools/base_types";
 import { assertByteLimit, fetchLimited, getModelLoaderLimits } from "./limits";
+import { computeOBJFlatNormals, parseOBJGeometry } from "./objGeometry";
 
 /**
  * Options configuring `OBJLoader` operations.
@@ -50,8 +51,10 @@ export interface PendingTexture {
 
 /**
  * Zero-dependency Wavefront `.obj` (geometry) and `.mtl` (material library) parser and loader.
- * Supports multi-group meshes (`o`, `g`), smooth UV/normal vertex indexing, polygon fan triangulation,
- * automatic flat normal generation, and companion material binding.
+ * Supports multi-group meshes (`o`, `g`), per-face material binding (`usemtl`), smooth UV/normal vertex
+ * indexing, negative (relative) indices, polygon fan triangulation, automatic flat normal generation, and
+ * companion `.mtl` materials. Geometry is parsed by the same `ModelLoaderLimits`-aware parser as
+ * `BrioMesh.fromOBJ`.
  *
  * @example
  * ```ts
@@ -113,139 +116,62 @@ export class OBJLoader {
         flushCurrent();
         return materials;
     }
-
     /**
      * Parses raw Wavefront `.obj` text and optional `.mtl` text into meshes and materials.
+     * Meshes split on `o`/`g` statements and whenever `usemtl` switches material inside a group; each mesh
+     * is bound to its `usemtl` material through `meshMaterials` (`""` when it has none, or when the
+     * material is not in the `.mtl`, which is reported in `warnings`).
      *
      * @param objText Raw `.obj` text content
      * @param mtlText Optional raw `.mtl` text content
      * @param modelName Optional model identifier prefix
      * @returns Decoded `ParsedModelData`
+     * @throws {ModelLimitError} When the text or a group exceeds `ModelLoaderLimits`
      */
     public static parse(objText: string, mtlText?: string, modelName: string = "model"): ParsedModelData {
         const maxBytes = getModelLoaderLimits().maxFileBytes;
         assertByteLimit("OBJ text", objText.length, maxBytes);
         if (mtlText) assertByteLimit("MTL text", mtlText.length, maxBytes);
         const materials: BrioMaterial[] = mtlText ? OBJLoader.parseMTL(mtlText, `${modelName}/`) : [];
-        const rawPos: [number, number, number][] = [];
-        const rawUV: [number, number][] = [];
-        const rawNorm: [number, number, number][] = [];
+        const materialNames = new Set(materials.map((m) => m.name));
 
-        interface GroupAccumulator {
-            name: string;
-            positions: number[];
-            normals: number[];
-            uvs: number[];
-            indices: number[];
-            vertexCache: Map<string, number>;
-        }
+        const groups = parseOBJGeometry(objText, { split: true });
+        const usedNames = new Set<string>();
+        const meshes: BrioMesh[] = [];
+        const meshMaterials: string[] = [];
+        const warnings: string[] = [];
+        const missing = new Set<string>();
 
-        const groups: GroupAccumulator[] = [];
-        let currentGroup: GroupAccumulator = {
-            name: `${modelName}/default`,
-            positions: [],
-            normals: [],
-            uvs: [],
-            indices: [],
-            vertexCache: new Map(),
-        };
-        groups.push(currentGroup);
+        for (let i = 0; i < groups.length; i++) {
+            const g = groups[i];
+            let name = g.group
+                ? `${modelName}/${g.group}`
+                : i === 0
+                  ? `${modelName}/default`
+                  : `${modelName}/group_${i}`;
+            // A group split by usemtl, or a repeated group name, must not overwrite another mesh
+            if (usedNames.has(name) && g.material) name = `${name}_${g.material}`;
+            const base = name;
+            for (let k = 1; usedNames.has(name); k++) name = `${base}_${k}`;
+            usedNames.add(name);
 
-        const addFaceVertex = (group: GroupAccumulator, token: string): number => {
-            const cached = group.vertexCache.get(token);
-            if (cached !== undefined) return cached;
+            meshes.push(new BrioMesh(name, g.positions, g.normals, g.uvs, g.indices));
 
-            const parts = token.split("/");
-            const vIdx = parseInt(parts[0], 10) - 1;
-            const vtIdx = parts[1] ? parseInt(parts[1], 10) - 1 : -1;
-            const vnIdx = parts[2] ? parseInt(parts[2], 10) - 1 : -1;
-
-            const p = rawPos[vIdx] ?? [0, 0, 0];
-            const uv = vtIdx >= 0 && rawUV[vtIdx] ? rawUV[vtIdx] : [0, 0];
-            const n = vnIdx >= 0 && rawNorm[vnIdx] ? rawNorm[vnIdx] : [0, 1, 0];
-
-            const newIndex = group.positions.length / 3;
-            group.positions.push(p[0], p[1], p[2]);
-            group.uvs.push(uv[0], uv[1]);
-            group.normals.push(n[0], n[1], n[2]);
-            group.vertexCache.set(token, newIndex);
-            return newIndex;
-        };
-
-        const lines = objText.split(/\r?\n/);
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line || line.startsWith("#")) continue;
-
-            const tokens = line.split(/\s+/);
-            const keyword = tokens[0];
-
-            if (keyword === "v") {
-                rawPos.push([
-                    parseFloat(tokens[1]) || 0,
-                    parseFloat(tokens[2]) || 0,
-                    parseFloat(tokens[3]) || 0,
-                ]);
-            } else if (keyword === "vt") {
-                rawUV.push([parseFloat(tokens[1]) || 0, parseFloat(tokens[2]) || 0]);
-            } else if (keyword === "vn") {
-                rawNorm.push([
-                    parseFloat(tokens[1]) || 0,
-                    parseFloat(tokens[2]) || 0,
-                    parseFloat(tokens[3]) || 0,
-                ]);
-            } else if (keyword === "o" || keyword === "g") {
-                const groupName = tokens[1] ? `${modelName}/${tokens[1]}` : `${modelName}/group_${groups.length}`;
-                if (currentGroup.positions.length > 0) {
-                    currentGroup = {
-                        name: groupName,
-                        positions: [],
-                        normals: [],
-                        uvs: [],
-                        indices: [],
-                        vertexCache: new Map(),
-                    };
-                    groups.push(currentGroup);
-                } else {
-                    currentGroup.name = groupName;
+            const materialName = g.material ? `${modelName}/${g.material}` : "";
+            if (materialName && !materialNames.has(materialName)) {
+                if (!missing.has(g.material)) {
+                    missing.add(g.material);
+                    warnings.push(
+                        `OBJ material '${g.material}' (usemtl) is not defined in the MTL file.`,
+                    );
                 }
-            } else if (keyword === "f") {
-                const faceTokens = tokens.slice(1);
-                if (faceTokens.length < 3) continue;
-
-                const faceIndices = faceTokens.map((t) => addFaceVertex(currentGroup, t));
-                // Triangulate polygon fans (3 vertices = 1 triangle, 4 vertices = 2 triangles, etc.)
-                for (let t = 1; t < faceIndices.length - 1; t++) {
-                    currentGroup.indices.push(faceIndices[0], faceIndices[t], faceIndices[t + 1]);
-                }
-            }
-        }
-
-        const validGroups = groups.filter((g) => g.positions.length > 0 && g.indices.length > 0);
-        const meshes: BrioMesh[] = (validGroups.length > 0 ? validGroups : groups).map((g) => {
-            const indexArray =
-                g.positions.length / 3 > 65535
-                    ? new Uint32Array(g.indices)
-                    : new Uint16Array(g.indices);
-
-            const posArray = new Float32Array(g.positions);
-            let normArray: Float32Array;
-            if (rawNorm.length === 0) {
-                normArray = OBJLoader.computeFlatNormals(posArray, indexArray);
+                meshMaterials.push("");
             } else {
-                normArray = new Float32Array(g.normals);
+                meshMaterials.push(materialName);
             }
+        }
 
-            return new BrioMesh(
-                g.name,
-                posArray,
-                normArray,
-                new Float32Array(g.uvs),
-                indexArray,
-            );
-        });
-
-        return { meshes, materials };
+        return { meshes, materials, meshMaterials, warnings };
     }
 
     /**
@@ -259,42 +185,7 @@ export class OBJLoader {
         positions: Float32Array,
         indices: Uint16Array | Uint32Array,
     ): Float32Array {
-        const normals = new Float32Array(positions.length);
-        for (let i = 0; i < indices.length; i += 3) {
-            const i0 = indices[i] * 3;
-            const i1 = indices[i + 1] * 3;
-            const i2 = indices[i + 2] * 3;
-
-            const ax = positions[i1] - positions[i0];
-            const ay = positions[i1 + 1] - positions[i0 + 1];
-            const az = positions[i1 + 2] - positions[i0 + 2];
-
-            const bx = positions[i2] - positions[i0];
-            const by = positions[i2 + 1] - positions[i0 + 1];
-            const bz = positions[i2 + 2] - positions[i0 + 2];
-
-            let nx = ay * bz - az * by;
-            let ny = az * bx - ax * bz;
-            let nz = ax * by - ay * bx;
-
-            const len = Math.hypot(nx, ny, nz);
-            if (len > 0.000001) {
-                nx /= len;
-                ny /= len;
-                nz /= len;
-            }
-
-            normals[i0] = nx;
-            normals[i0 + 1] = ny;
-            normals[i0 + 2] = nz;
-            normals[i1] = nx;
-            normals[i1 + 1] = ny;
-            normals[i1 + 2] = nz;
-            normals[i2] = nx;
-            normals[i2 + 1] = ny;
-            normals[i2 + 2] = nz;
-        }
-        return normals;
+        return computeOBJFlatNormals(positions, indices);
     }
 
     /**
