@@ -358,6 +358,7 @@ Este arquivo consolida todas as funcionalidades, correcoes de bugs, refatoracoes
 - [ ] `BrioKeyboard.isPressed`/`isUp` perdem toques mais curtos que um frame (keydown e keyup entre dois frames); bufferizar as transicoes por frame
 - [ ] `Canvas2DBackend`: o Painter's Algorithm ordena pelo centroide do triangulo, entao superficies grandes cobrem objetos; subdividir (`createPlane(..., segments)`) ou avaliar um z-buffer por tiles
 - [ ] `BrioCamera2D` registradas em `BrioScene` nao recebem `game.random` automaticamente (so via `game.addCamera`)
-- [ ] `declarationMap` gera `.d.ts.map` apontando para `src/`, que nao vai no pacote: publicar `src/` ou desligar a opcao
-- [ ] Definir o nome final do pacote no npm e publicar a v0.1.0 (decisao do autor)
+- [x] `declarationMap` gerava `.d.ts.map` apontando para `src/`, que nao vai no pacote: opcao desligada
+- [ ] Carregar a pilha 3D sob demanda: `BrioGame` importa estaticamente WebGL2 e loaders, entao um jogo 2D empacota ~144 kB minificados (a engine inteira tem ~162 kB)
+- [ ] Publicar a v0.1.0 no npm como `brio-js` (nome livre em 2026-10-27; requer `npm login`)
 
