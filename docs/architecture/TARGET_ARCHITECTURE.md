@@ -2,6 +2,8 @@
 
 Este documento especifica a arquitetura alvo da BrioJS na branch `refactor`, consolidando todas as decisoes de design e modelagem de dominio.
 
+> **Status note (2026-10-28)**: this is a target specification, not a description of the current code. Several names and components differ from what is implemented today: the backends are `RenderBackend`, `WebGL2Backend` and `Canvas2DBackend` (no `WebGPU`/`WebGL1` backend yet), there is a single main-thread canvas with offscreen caches for `"static"` layers, and there is no `RenderWorker` or `PhysicsWorker`. See the "Implementation status" sections of ADR-0001 to ADR-0005 in `docs/adr/` for the current state.
+
 ---
 
 ## 1. Principios Arquiteturais Norteadores

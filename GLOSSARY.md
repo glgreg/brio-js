@@ -61,7 +61,8 @@ A raw, decoded visual image resource loaded from a single source URI and shared 
 _Avoid_: Image, Bitmap, RawSprite
 
 **Atlas (`BrioAtlas`)**:
-A mapping of named, arbitrary rectangular sub-regions over a single texture, acting as a factory for individual sprites or animation sequences.
+A single atlas image (name, pixel size, source URI) decoded into an `ImageBitmap` by `mount()`, intended to hold named, arbitrary rectangular sub-regions over that image and act as a factory for individual sprites or animation sequences.
+_Current state_: named regions are defined with `defineRegion()` (or the `regions` constructor option) and turned into sprites with `createSprite(region)`; the image is shared through `TextureRegistry`.
 _Avoid_: SpriteAtlas, BrioSpriteAtlas, TextureMap, Pack
 
 **SpriteSheet (`BrioSpriteSheet`)**:
@@ -70,6 +71,7 @@ _Avoid_: TileSet (when used for character animations), Strip
 
 **Sprite (`BrioSprite`)**:
 A 2D visual unit ready to be attached to a `BrioObject2D`, referencing either a full texture or a specific region within an atlas or spritesheet.
+_Current state_: a `BrioSprite` loads its own image from a source URI and draws the region in its optional `sourceRect` (set by `BrioSpriteSheet.createSprite` and `BrioAtlas.createSprite`), or the whole image without one.
 _Avoid_: Graphic, ImageElement, Frame
 
 **Animation (`BrioAnimation`)**:
@@ -99,7 +101,8 @@ A collider mode that enforces physical obstruction by calculating the minimum tr
 _Avoid_: Blocker, HardCollider, Wall
 
 **Trigger**:
-A collider mode that detects spatial overlap and dispatches collision events without obstructing physical movement.
+A collider mode (`colliderType: "trigger"`) that detects spatial overlap without obstructing physical movement.
+_Current state_: overlap is detected only when game code calls `BrioCollision.isColliding` / `isColliding3D` (optionally after a `SpatialHash2D` / `SpatialOctree3D` broad phase); a trigger makes `BrioCollision.resolveCollision` skip displacement. No collision or trigger events are dispatched by the engine yet.
 _Avoid_: Intangible, Sensor, Ghost, PassThrough
 
 **RigidBody (`BrioRigidBody`)**:
