@@ -1,6 +1,6 @@
 # BrioJS
 
-[![npm](https://img.shields.io/npm/v/brio-js.svg)](https://www.npmjs.com/package/brio-js)
+[![npm](https://img.shields.io/npm/v/@brio-js/core.svg)](https://www.npmjs.com/package/@brio-js/core)
 [![CI](https://github.com/glgreg/brio-js/actions/workflows/ci.yml/badge.svg)](https://github.com/glgreg/brio-js/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE.txt)
 
@@ -21,7 +21,7 @@ engines such as Unity or Unreal.
 ## Installation
 
 ```bash
-npm install brio-js
+npm install @brio-js/core
 ```
 
 BrioJS is published as ES modules with TypeScript declarations. It runs in modern browsers (Chrome, Edge, Firefox,
@@ -29,7 +29,7 @@ Safari) and works with any bundler (Vite, esbuild, webpack, Rollup) or directly 
 
 ```html
 <script type="module">
-    import { BrioGame } from "https://cdn.jsdelivr.net/npm/brio-js@0.1/dist/index.js";
+    import { BrioGame } from "https://cdn.jsdelivr.net/npm/@brio-js/core@0.1/dist/index.js";
 </script>
 ```
 
@@ -44,7 +44,7 @@ Safari) and works with any bundler (Vite, esbuild, webpack, Rollup) or directly 
 
 ```js
 // main.js
-import { BrioGame, BrioSprite, BrioObject2D } from "brio-js";
+import { BrioGame, BrioSprite, BrioObject2D } from "@brio-js/core";
 
 const game = new BrioGame({ width: 640, height: 360, container: document.getElementById("game") });
 game.useKeyboard();
@@ -61,7 +61,7 @@ game.preload(() => [new BrioSprite("spr_player", "./player.png")])
 ### A 3D scene
 
 ```js
-import { BrioGame, BrioMesh, BrioMaterial, BrioObject3D, BrioCamera3D, BrioLight } from "brio-js";
+import { BrioGame, BrioMesh, BrioMaterial, BrioObject3D, BrioCamera3D, BrioLight } from "@brio-js/core";
 
 const game = new BrioGame({
     width: 800,
