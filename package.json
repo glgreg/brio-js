@@ -6,15 +6,19 @@
     "description": "Zero-dependency 2D and 3D web game engine in TypeScript with an OOP API over a data-oriented ECS core",
     "main": "dist/index.js",
     "scripts": {
+        "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc && ts-add-js-extension --dir=dist",
         "build:win": "cls & tsc & npx ts-add-js-extension --dir=dist",
         "build:lin": "clear; rm -rf ./dist/; tsc; npx ts-add-js-extension --dir=dist",
-        "doc": "npx typedoc --out docs/api",
+        "typecheck": "tsc --noEmit",
         "test": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "check": "npm run typecheck && npm test && npm run build",
+        "prepack": "npm run build",
+        "doc": "npx typedoc --out docs/api"
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/GustavoLGregorio/brio-js.git"
+        "url": "git+https://github.com/glgreg/brio-js.git"
     },
     "keywords": [
         "JavaScript",
@@ -29,9 +33,9 @@
     "author": "Gustavo L. Gregorio",
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/GustavoLGregorio/brio-js/issues"
+        "url": "https://github.com/glgreg/brio-js/issues"
     },
-    "homepage": "https://github.com/GustavoLGregorio/brio-js#readme",
+    "homepage": "https://github.com/glgreg/brio-js#readme",
     "devDependencies": {
         "@types/jsdom": "^30.0.0",
         "jsdom": "^30.1.3",
@@ -47,5 +51,14 @@
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
         }
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE.txt",
+        "GLOSSARY.md"
+    ],
+    "engines": {
+        "node": ">=18"
     }
 }
