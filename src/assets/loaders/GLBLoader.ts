@@ -5,6 +5,26 @@ import { ParsedModelData, PendingTexture } from "./OBJLoader";
 import { CSSColor } from "../../tools/base_types";
 import { Mat4, Matrix4 } from "../../math/index";
 import { linearToSrgb } from "../../rendering/color";
+import {
+    assertByteLimit,
+    fetchLimited,
+    getModelLoaderLimits,
+    ModelLimitError,
+    readImageDimensions,
+} from "./limits";
+
+/** Byte size of each glTF `componentType`. */
+const COMPONENT_SIZES: Record<number, number> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
+/** Number of components of each glTF accessor `type`. */
+const TYPE_COMPONENTS: Record<string, number> = {
+    SCALAR: 1,
+    VEC2: 2,
+    VEC3: 3,
+    VEC4: 4,
+    MAT2: 4,
+    MAT3: 9,
+    MAT4: 16,
+};
 
 /**
  * Reads and unpacks a typed array from glTF binary accessors and bufferViews.
@@ -25,25 +45,62 @@ export function extractGLTFAccessor(
         return new Float32Array(0);
     }
 
-    const bufferView = json.bufferViews?.[accessor.bufferView ?? 0];
-    const byteOffset = (bufferView?.byteOffset || 0) + (accessor.byteOffset || 0);
-    const count = accessor.count || 0;
-
-    let numComponents = 1;
-    if (accessor.type === "VEC2") numComponents = 2;
-    else if (accessor.type === "VEC3") numComponents = 3;
-    else if (accessor.type === "VEC4") numComponents = 4;
-    else if (accessor.type === "MAT4") numComponents = 16;
-
-    const totalElements = count * numComponents;
+    // Every size below comes from the (untrusted) file: validate it before allocating or reading
+    const count = accessor.count;
+    const numComponents = TYPE_COMPONENTS[accessor.type];
     const componentType = accessor.componentType;
+    const componentSize = COMPONENT_SIZES[componentType];
+    if (!Number.isInteger(count) || count < 0) {
+        throw new ModelLimitError(`glTF accessor ${accessorIndex} has an invalid count (${count}).`);
+    }
+    if (numComponents === undefined || componentSize === undefined) {
+        throw new ModelLimitError(
+            `glTF accessor ${accessorIndex} has an unsupported type '${accessor.type}' / componentType ${componentType}.`,
+        );
+    }
+    const totalElements = count * numComponents;
+    const maxComponents = getModelLoaderLimits().maxAccessorComponents;
+    if (totalElements > maxComponents) {
+        throw new ModelLimitError(
+            `glTF accessor ${accessorIndex} declares ${totalElements} components, above the limit of ${maxComponents}.`,
+        );
+    }
 
-    const componentSize =
-        componentType === 5126 || componentType === 5125 ? 4 :
-        componentType === 5123 || componentType === 5122 ? 2 : 1;
+    // No bufferView: the spec defines the data as zeros
+    if (accessor.bufferView === undefined) {
+        if (componentType === 5126) return new Float32Array(totalElements);
+        if (componentType === 5125) return new Uint32Array(totalElements);
+        return new Uint16Array(totalElements);
+    }
+
+    const bufferView = json.bufferViews?.[accessor.bufferView];
+    if (!bufferView) {
+        throw new ModelLimitError(`glTF accessor ${accessorIndex} references a missing bufferView.`);
+    }
+    const viewOffset = bufferView.byteOffset ?? 0;
+    const viewLength = bufferView.byteLength;
+    if (
+        !Number.isInteger(viewOffset) ||
+        !Number.isInteger(viewLength) ||
+        viewOffset < 0 ||
+        viewLength < 0 ||
+        viewOffset + viewLength > binBuffer.byteLength
+    ) {
+        throw new ModelLimitError(
+            `glTF bufferView ${accessor.bufferView} lies outside its ${binBuffer.byteLength}-byte buffer.`,
+        );
+    }
 
     const elementSize = numComponents * componentSize;
-    const stride = bufferView?.byteStride || elementSize;
+    const stride = bufferView.byteStride || elementSize;
+    const accessorOffset = accessor.byteOffset ?? 0;
+    if (!Number.isInteger(stride) || stride < elementSize || !Number.isInteger(accessorOffset) || accessorOffset < 0) {
+        throw new ModelLimitError(`glTF accessor ${accessorIndex} has an invalid byteStride or byteOffset.`);
+    }
+    if (count > 0 && accessorOffset + (count - 1) * stride + elementSize > viewLength) {
+        throw new ModelLimitError(`glTF accessor ${accessorIndex} reads past the end of its bufferView.`);
+    }
+    const byteOffset = viewOffset + accessorOffset;
 
     // Fast path: tightly packed and aligned
     if (stride === elementSize && byteOffset % componentSize === 0) {
@@ -201,9 +258,16 @@ function collectMeshWorldMatrices(json: any): Map<number, Mat4> {
     const scene = json.scenes?.[json.scene ?? 0];
     const roots: number[] = scene?.nodes ?? nodes.map((_n, i) => i);
 
+    // A valid glTF node graph is a forest: each node is visited once, which also defeats cyclic files
+    const visited = new Set<number>();
+    const maxDepth = getModelLoaderLimits().maxNodeDepth;
     const visit = (index: number, parent: Mat4, depth: number): void => {
         const node = nodes[index];
-        if (!node || depth > nodes.length) return;
+        if (!node || visited.has(index)) return;
+        if (depth > maxDepth) {
+            throw new ModelLimitError(`glTF node hierarchy is deeper than the limit of ${maxDepth}.`);
+        }
+        visited.add(index);
         const world = Matrix4.multiply(Matrix4.create(), parent, nodeLocalMatrix(node));
         if (node.mesh !== undefined && node.skin === undefined && !result.has(node.mesh)) {
             result.set(node.mesh, world);
@@ -284,6 +348,11 @@ export class GLBLoader {
      * @throws {Error} When the binary header magic or version is invalid
      */
     public static parse(buffer: ArrayBuffer, modelName: string = "model"): ParsedModelData {
+        const limits = getModelLoaderLimits();
+        assertByteLimit("GLB file", buffer.byteLength, limits.maxFileBytes);
+        if (buffer.byteLength < 12) {
+            throw new ModelLimitError(`GLB file is only ${buffer.byteLength} bytes; the header needs 12.`);
+        }
         const view = new DataView(buffer);
 
         // Header verification (12 bytes)
@@ -311,13 +380,19 @@ export class GLBLoader {
         let binBuffer: ArrayBuffer = new ArrayBuffer(0);
 
         // Read chunks
-        while (byteOffset < totalLength && byteOffset < buffer.byteLength) {
+        while (byteOffset + 8 <= totalLength) {
             const chunkLength = view.getUint32(byteOffset, true);
             const chunkType = view.getUint32(byteOffset + 4, true);
             const chunkDataStart = byteOffset + 8;
+            if (chunkDataStart + chunkLength > totalLength) {
+                throw new ModelLimitError(
+                    `GLB chunk at byte ${byteOffset} declares ${chunkLength} bytes, past the end of the container.`,
+                );
+            }
 
             if (chunkType === 0x4e4f534a) {
                 // Chunk 0: JSON
+                assertByteLimit("GLB JSON chunk", chunkLength, limits.maxJsonBytes);
                 const jsonBytes = new Uint8Array(buffer, chunkDataStart, chunkLength);
                 const decoder = new TextDecoder("utf-8");
                 json = JSON.parse(decoder.decode(jsonBytes));
@@ -341,7 +416,7 @@ export class GLBLoader {
      *
      * @param json Decoded glTF JSON root
      * @param binBuffer Contiguous binary buffer
-     * @param modelName Model identifier prefix
+     * @param modelName Model identifier, prefixed to every mesh and material name (`"<model>/<name>"`)
      * @returns Decoded `ParsedModelData`
      */
     public static extractModelData(json: any, binBuffer: ArrayBuffer, modelName: string): ParsedModelData {
@@ -349,6 +424,7 @@ export class GLBLoader {
         const meshes: BrioMesh[] = [];
         const meshMaterials: string[] = [];
         const pendingTextures: PendingTexture[] = [];
+        const warnings: string[] = [];
 
         // Parse Materials
         if (Array.isArray(json.materials)) {
@@ -377,7 +453,8 @@ export class GLBLoader {
                     alphaCutoff = 0.5;
                 }
 
-                const material = new BrioMaterial(matDef.name || `${modelName}_mat_${i}`, {
+                // Names are namespaced by model: two models may both have a "Face" material
+                const material = new BrioMaterial(`${modelName}/${matDef.name || `mat_${i}`}`, {
                     color,
                     opacity,
                     shading: "lambert",
@@ -425,29 +502,41 @@ export class GLBLoader {
                         for (let k = 0; k < numVertices; k++) indices[k] = k;
                     }
 
-                    // Extract or generate normals
-                    let normals: Float32Array;
-                    if (attrs.NORMAL !== undefined) {
-                        normals = extractGLTFAccessor(json, binBuffer, attrs.NORMAL) as Float32Array;
-                    } else {
-                        normals = computeFlatNormals(positions, indices);
+                    // Out-of-range indices would read garbage on the CPU rasterizer and fail GPU draw validation
+                    let maxIndex = -1;
+                    for (let k = 0; k < indices.length; k++) if (indices[k] > maxIndex) maxIndex = indices[k];
+                    if (maxIndex >= numVertices || indices.length % 3 !== 0) {
+                        warnings.push(
+                            `Primitive ${pIdx} of mesh ${mIdx} skipped: its indices do not form triangles within its ${numVertices} vertices.`,
+                        );
+                        continue;
                     }
 
+                    // Extract or generate normals (also when the attribute does not match the vertex count)
+                    let normals: Float32Array | undefined;
+                    if (attrs.NORMAL !== undefined) {
+                        normals = extractGLTFAccessor(json, binBuffer, attrs.NORMAL) as Float32Array;
+                        if (!(normals instanceof Float32Array) || normals.length !== positions.length) {
+                            normals = undefined;
+                        }
+                    }
+                    normals ??= computeFlatNormals(positions, indices);
+
                     // Extract or generate UVs
-                    let uvs: Float32Array;
+                    let uvs: Float32Array | undefined;
                     if (attrs.TEXCOORD_0 !== undefined) {
                         uvs = extractGLTFAccessor(json, binBuffer, attrs.TEXCOORD_0) as Float32Array;
-                    } else {
-                        uvs = new Float32Array(numVertices * 2);
+                        if (!(uvs instanceof Float32Array) || uvs.length !== numVertices * 2) uvs = undefined;
                     }
+                    uvs ??= new Float32Array(numVertices * 2);
 
                     // Accessors are decoded into fresh copies, so baking never touches the source buffer
                     if (bake) bakeTransform(positions, normals, world);
 
                     const meshName =
                         meshDef.name && primitives.length === 1
-                            ? meshDef.name
-                            : `${modelName}_mesh_${mIdx}_${pIdx}`;
+                            ? `${modelName}/${meshDef.name}`
+                            : `${modelName}/mesh_${mIdx}_${pIdx}`;
 
                     meshes.push(new BrioMesh(meshName, positions, normals, uvs, indices));
                     meshMaterials.push(
@@ -457,7 +546,7 @@ export class GLBLoader {
             }
         }
 
-        return { meshes, materials, meshMaterials, pendingTextures };
+        return { meshes, materials, meshMaterials, pendingTextures, warnings };
     }
 
     /**
@@ -479,6 +568,9 @@ export class GLBLoader {
             const view = json.bufferViews?.[image.bufferView];
             if (!view) return undefined;
             const start = view.byteOffset ?? 0;
+            if (start < 0 || !(view.byteLength >= 0) || start + view.byteLength > binBuffer.byteLength) {
+                return undefined;
+            }
             const bytes = new Uint8Array(binBuffer, start, view.byteLength);
             return { key, bytes, mimeType: image.mimeType ?? "image/png" };
         }
@@ -516,14 +608,17 @@ export class GLBLoader {
         const decoded = new Map<string, Promise<BrioTexture | undefined>>();
         const decode = async (item: PendingTexture): Promise<BrioTexture | undefined> => {
             try {
-                let blob: Blob;
-                if (item.bytes) {
-                    blob = new Blob([item.bytes as BlobPart], { type: item.mimeType });
-                } else {
-                    const response = await fetch(`${baseUrl}${item.uri}`);
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    blob = await response.blob();
+                const bytes =
+                    item.bytes ?? new Uint8Array(await fetchLimited(`${baseUrl}${item.uri}`, "texture"));
+                // A tiny compressed image can declare a huge size: check the header before decoding
+                const size = readImageDimensions(bytes);
+                const maxSize = getModelLoaderLimits().maxImageDimension;
+                if (size && (size.width > maxSize || size.height > maxSize)) {
+                    throw new ModelLimitError(
+                        `image is ${size.width}x${size.height}, above the ${maxSize}px limit`,
+                    );
                 }
+                const blob = new Blob([bytes as BlobPart], { type: item.mimeType });
                 return await BrioTexture.fromBlob(`${item.material.name}#${item.key}`, blob);
             } catch (err) {
                 failures.push(`Texture '${item.key}' of material '${item.material.name}' could not be decoded: ${(err as Error)?.message ?? err}`);
@@ -555,14 +650,11 @@ export class GLBLoader {
      * @returns Decoded `ParsedModelData`
      */
     public static async load(url: string, modelName?: string): Promise<ParsedModelData> {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch GLB asset from '${url}': HTTP ${response.status}`);
-        }
-        const buffer = await response.arrayBuffer();
+        const buffer = await fetchLimited(url, "GLB asset");
         const resolvedName = modelName ?? url.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? "model";
         const data = GLBLoader.parse(buffer, resolvedName);
-        data.warnings = await GLBLoader.decodeTextures(data, url.substring(0, url.lastIndexOf("/") + 1));
+        const failures = await GLBLoader.decodeTextures(data, url.substring(0, url.lastIndexOf("/") + 1));
+        data.warnings = [...(data.warnings ?? []), ...failures];
         return data;
     }
 }

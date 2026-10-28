@@ -13,6 +13,8 @@ const GLB_PATH = resolve(
     "../../assets/3d/glb/harry_potter_-_malfoy_draconia_3d_model__dl.glb",
 );
 const hasAsset = existsSync(GLB_PATH);
+/** Model name every mesh and material name is namespaced with. */
+const MODEL = "mod_malfoy";
 
 function readAsset(): ArrayBuffer {
     const bytes = readFileSync(GLB_PATH);
@@ -29,11 +31,13 @@ describe.skipIf(!hasAsset)("GLBLoader with a real Sketchfab asset (Malfoy Dracon
         const { meshes, materials } = GLBLoader.parse(readAsset(), "mod_malfoy");
 
         expect(meshes.map((m) => m.name)).toEqual([
-            "Clothes_Clothes_0",
-            "Face_Face_0",
-            "Hair_Hair_0",
+            `${MODEL}/Clothes_Clothes_0`,
+            `${MODEL}/Face_Face_0`,
+            `${MODEL}/Hair_Hair_0`,
         ]);
-        expect(materials.map((m) => m.name)).toEqual(["Clothes", "Face", "Hair"]);
+        expect(materials.map((m) => m.name)).toEqual(
+            ["Clothes", "Face", "Hair"].map((n) => `${MODEL}/${n}`),
+        );
 
         let triangles = 0;
         for (const mesh of meshes) {
@@ -88,11 +92,13 @@ describe.skipIf(!hasAsset)("GLBLoader with a real Sketchfab asset (Malfoy Dracon
 
         const root = game.gameObjects3D.get(rootName)!;
         expect(root.children.map((c) => c.mesh)).toEqual([
-            "Clothes_Clothes_0",
-            "Face_Face_0",
-            "Hair_Hair_0",
+            `${MODEL}/Clothes_Clothes_0`,
+            `${MODEL}/Face_Face_0`,
+            `${MODEL}/Hair_Hair_0`,
         ]);
-        expect(root.children.map((c) => c.material)).toEqual(["Clothes", "Face", "Hair"]);
+        expect(root.children.map((c) => c.material)).toEqual(
+            ["Clothes", "Face", "Hair"].map((n) => `${MODEL}/${n}`),
+        );
 
         game.renderFrame();
         expect(game.renderStats.passes3D).toBe(1);

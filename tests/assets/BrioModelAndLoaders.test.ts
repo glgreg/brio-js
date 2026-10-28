@@ -52,17 +52,17 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
 
             // Materials check
             expect(parsed.materials.length).toBe(2);
-            expect(parsed.materials[0].name).toBe("mat_gold");
+            expect(parsed.materials[0].name).toBe("mod_cube/mat_gold");
             expect(parsed.materials[0].color).toBe("#ffcc00");
             expect(parsed.materials[0].opacity).toBeCloseTo(0.9);
-            expect(parsed.materials[1].name).toBe("mat_blue");
+            expect(parsed.materials[1].name).toBe("mod_cube/mat_blue");
             expect(parsed.materials[1].color).toBe("#0033ff");
             expect(parsed.materials[1].opacity).toBeCloseTo(0.9);
 
             // Meshes check (quad should be triangulated into 2 triangles / 6 indices)
             expect(parsed.meshes.length).toBe(2);
             const frontMesh = parsed.meshes[0];
-            expect(frontMesh.name).toBe("mod_cube_FrontFace");
+            expect(frontMesh.name).toBe("mod_cube/FrontFace");
             expect(frontMesh.indices.length).toBe(6);
             expect(frontMesh.triangleCount).toBe(2);
             expect(frontMesh.vertexCount).toBe(4);
@@ -204,7 +204,7 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
 
             expect(parsed.meshes.length).toBe(1);
             const mesh = parsed.meshes[0];
-            expect(mesh.name).toBe("mesh_tri");
+            expect(mesh.name).toBe("mod_synth/mesh_tri");
             expect(mesh.vertexCount).toBe(3);
             expect(mesh.triangleCount).toBe(1);
             expect(mesh.positions[3]).toBe(1); // second vertex X = 1
@@ -213,7 +213,7 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
             expect(mesh.indices).toEqual(new Uint16Array([0, 1, 2]));
 
             expect(parsed.materials.length).toBe(1);
-            expect(parsed.materials[0].name).toBe("mat_ruby");
+            expect(parsed.materials[0].name).toBe("mod_synth/mat_ruby");
             // baseColorFactor is linear light (glTF spec); CSS colors are sRGB-encoded
             expect(parsed.materials[0].color).toBe("#f3597c");
         });
@@ -275,7 +275,7 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
 
             const parsed = GLTFLoader.parse(gltfText, [], "mod_embedded");
             expect(parsed.meshes.length).toBe(1);
-            expect(parsed.meshes[0].name).toBe("mesh_embedded");
+            expect(parsed.meshes[0].name).toBe("mod_embedded/mesh_embedded");
             expect(parsed.meshes[0].positions[3]).toBe(2);
             expect(parsed.meshes[0].indices.length).toBe(3);
         });
