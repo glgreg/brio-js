@@ -18,7 +18,8 @@ export interface TouchPoint {
 
 /**
  * Multi-touch input controller (`BrioTouch`) for Web Mobile and Capacitor environments.
- * Tracks active `TouchPoint` contacts, primary touch coordinates, and touch count.
+ * Tracks active `TouchPoint` contacts, primary touch coordinates, and touch count. Active contacts are
+ * cleared when the window loses focus or the page is hidden.
  *
  * @example
  * ```ts
@@ -29,15 +30,23 @@ export interface TouchPoint {
  * ```
  */
 export class BrioTouch {
+    /** Attached controller per event target, so a second controller on the same target replaces the first. */
+    static #activeByTarget: WeakMap<HTMLElement | Window, BrioTouch> = new WeakMap();
+
     readonly #target: HTMLElement | Window;
     readonly #touches = new Map<number, TouchPoint>();
+    #attached: boolean = false;
 
     readonly #onTouchStart: (e: TouchEvent) => void;
     readonly #onTouchMove: (e: TouchEvent) => void;
     readonly #onTouchEnd: (e: TouchEvent) => void;
+    readonly #onBlur: () => void;
+    readonly #onVisibilityChange: () => void;
 
     /**
-     * Creates a new `BrioTouch` controller bound to `target`.
+     * Creates a new `BrioTouch` controller bound to `target` and attaches its listeners. If another controller
+     * is attached to the same `target`, that controller is detached first, so creating a second controller for
+     * the same canvas never doubles the listeners.
      *
      * @param target Target DOM element or `window` (defaults to `window`)
      */
@@ -104,6 +113,39 @@ export class BrioTouch {
             }
         };
 
+        this.#onBlur = () => {
+            this.releaseAll();
+        };
+
+        this.#onVisibilityChange = () => {
+            if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+                this.releaseAll();
+            }
+        };
+
+        this.attach();
+    }
+
+    /** Whether this controller currently has its DOM listeners attached. */
+    public get isAttached(): boolean {
+        return this.#attached;
+    }
+
+    /**
+     * Attaches the DOM listeners. Idempotent: calling it while attached does nothing. Any other controller
+     * attached to the same target is detached first.
+     *
+     * @example
+     * ```ts
+     * game.touch.removeListener();
+     * game.touch.attach();
+     * ```
+     */
+    public attach(): void {
+        if (this.#attached) return;
+        const previous = BrioTouch.#activeByTarget.get(this.#target);
+        if (previous && previous !== this) previous.removeListener();
+
         this.#target.addEventListener("touchstart", this.#onTouchStart as EventListener, {
             passive: true,
         });
@@ -112,6 +154,25 @@ export class BrioTouch {
         });
         window.addEventListener("touchend", this.#onTouchEnd, { passive: true });
         window.addEventListener("touchcancel", this.#onTouchEnd, { passive: true });
+        window.addEventListener("blur", this.#onBlur);
+        if (typeof document !== "undefined") {
+            document.addEventListener("visibilitychange", this.#onVisibilityChange);
+        }
+        this.#attached = true;
+        BrioTouch.#activeByTarget.set(this.#target, this);
+    }
+
+    /**
+     * Clears every active touch contact, as if all fingers were lifted. Called automatically on window
+     * `blur` and when the page becomes hidden.
+     *
+     * @example
+     * ```ts
+     * game.touch.releaseAll();
+     * ```
+     */
+    public releaseAll(): void {
+        this.#touches.clear();
     }
 
     /** Indicates whether at least one finger is currently touching the screen. */
@@ -136,12 +197,26 @@ export class BrioTouch {
     }
 
     /**
-     * Detaches all touch event listeners.
+     * Detaches all touch event listeners. Idempotent.
+     *
+     * @example
+     * ```ts
+     * game.touch.removeListener();
+     * ```
      */
     public removeListener(): void {
+        if (!this.#attached) return;
         this.#target.removeEventListener("touchstart", this.#onTouchStart as EventListener);
         this.#target.removeEventListener("touchmove", this.#onTouchMove as EventListener);
         window.removeEventListener("touchend", this.#onTouchEnd);
         window.removeEventListener("touchcancel", this.#onTouchEnd);
+        window.removeEventListener("blur", this.#onBlur);
+        if (typeof document !== "undefined") {
+            document.removeEventListener("visibilitychange", this.#onVisibilityChange);
+        }
+        this.#attached = false;
+        if (BrioTouch.#activeByTarget.get(this.#target) === this) {
+            BrioTouch.#activeByTarget.delete(this.#target);
+        }
     }
 }
