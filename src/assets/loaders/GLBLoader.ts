@@ -27,17 +27,149 @@ const TYPE_COMPONENTS: Record<string, number> = {
 };
 
 /**
- * Reads and unpacks a typed array from glTF binary accessors and bufferViews.
- * Handles both tightly-packed and interleaved buffers with arbitrary byte alignment.
+ * Binary buffers of a glTF document, indexed like its `buffers` array. A single `ArrayBuffer` is treated
+ * as buffer 0 (the GLB BIN chunk or the only `.bin` file).
+ */
+export type GLTFBinaryBuffers = ArrayBuffer | readonly ArrayBuffer[];
+
+/**
+ * Decodes a base64-encoded string into bytes, with `atob` (browsers) or `Buffer` (Node.js).
+ */
+function decodeBase64(base64: string): Uint8Array {
+    if (typeof atob === "function") {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+    }
+    if (typeof Buffer !== "undefined") {
+        return new Uint8Array(Buffer.from(base64, "base64"));
+    }
+    throw new Error("No base64 decoder available in the current runtime environment.");
+}
+
+/**
+ * Decodes the payload of a base64 `data:` URI, rejecting payloads above `maxFileBytes`.
+ *
+ * @param uri Buffer or image URI
+ * @param label Description used in limit errors
+ * @returns Decoded bytes, or `undefined` when `uri` is not a base64 `data:` URI
+ * @throws {ModelLimitError} When the payload exceeds `maxFileBytes`
+ * @example
+ * ```ts
+ * const bytes = decodeGLTFDataUri("data:application/octet-stream;base64,AAAA");
+ * ```
+ */
+export function decodeGLTFDataUri(
+    uri: string,
+    label: string = "glTF data: URI",
+): Uint8Array | undefined {
+    const marker = uri.indexOf(";base64,");
+    if (!uri.startsWith("data:") || marker === -1) return undefined;
+    const base64Data = uri.substring(marker + 8);
+    assertByteLimit(
+        label,
+        Math.floor((base64Data.length * 3) / 4),
+        getModelLoaderLimits().maxFileBytes,
+    );
+    return decodeBase64(base64Data);
+}
+
+/**
+ * Resolves every entry of a glTF `buffers` array to an `ArrayBuffer`: a non-empty `provided[i]` wins, then a
+ * base64 `data:` URI is decoded, and anything else (an external file that was not fetched) becomes an empty
+ * buffer, so accessors reading it fail the range check with a clear error.
  *
  * @param json Decoded glTF JSON root
- * @param binBuffer Contiguous binary buffer (Chunk 1)
+ * @param provided Buffers already available, indexed like `json.buffers` (GLB BIN chunk, fetched `.bin` files)
+ * @returns One `ArrayBuffer` per `json.buffers` entry (and per `provided` entry beyond it)
+ * @example
+ * ```ts
+ * const buffers = resolveGLTFBuffers(json, [binChunk]);
+ * const data = GLBLoader.extractModelData(json, buffers, "mod_ship");
+ * ```
+ */
+export function resolveGLTFBuffers(
+    json: any,
+    provided: readonly (ArrayBuffer | undefined)[] = [],
+): ArrayBuffer[] {
+    const declared: any[] = Array.isArray(json?.buffers) ? json.buffers : [];
+    const count = Math.max(declared.length, provided.length);
+    const result: ArrayBuffer[] = [];
+    for (let i = 0; i < count; i++) {
+        const given = provided[i];
+        if (given && given.byteLength > 0) {
+            result.push(given);
+            continue;
+        }
+        const uri = declared[i]?.uri;
+        const decoded =
+            typeof uri === "string" ? decodeGLTFDataUri(uri, "glTF data: buffer") : undefined;
+        result.push(decoded ? (decoded.buffer as ArrayBuffer) : (given ?? new ArrayBuffer(0)));
+    }
+    return result;
+}
+
+/**
+ * Fetches every external (non-`data:`) buffer URI of a glTF document, honoring `maxFileBytes`.
+ *
+ * @param json Decoded glTF JSON root
+ * @param baseUrl Directory of the model file, prefixed to relative buffer URIs
+ * @returns Fetched buffers indexed like `json.buffers` (`undefined` for embedded or URI-less buffers)
+ * @example
+ * ```ts
+ * const external = await fetchGLTFExternalBuffers(json, "./assets/models/");
+ * ```
+ */
+export async function fetchGLTFExternalBuffers(
+    json: any,
+    baseUrl: string,
+): Promise<(ArrayBuffer | undefined)[]> {
+    const declared: any[] = Array.isArray(json?.buffers) ? json.buffers : [];
+    return Promise.all(
+        declared.map((buf) =>
+            typeof buf?.uri === "string" && !buf.uri.startsWith("data:")
+                ? fetchLimited(`${baseUrl}${buf.uri}`, "glTF buffer")
+                : undefined,
+        ),
+    );
+}
+
+/**
+ * Returns the buffer a glTF `bufferView` points at (`bufferView.buffer`, defaulting to 0).
+ *
+ * @throws {ModelLimitError} When the index is invalid or that buffer was not provided
+ */
+function bufferForView(
+    buffers: GLTFBinaryBuffers,
+    bufferView: any,
+    viewIndex: number,
+): ArrayBuffer {
+    const index = bufferView.buffer ?? 0;
+    let buffer: ArrayBuffer | undefined;
+    if (Array.isArray(buffers)) buffer = (buffers as readonly ArrayBuffer[])[index];
+    else if (index === 0) buffer = buffers as ArrayBuffer;
+    if (!Number.isInteger(index) || index < 0 || !buffer) {
+        throw new ModelLimitError(
+            `glTF bufferView ${viewIndex} references buffer ${index}, which is not available.`,
+        );
+    }
+    return buffer;
+}
+
+/**
+ * Reads and unpacks a typed array from glTF binary accessors and bufferViews.
+ * Handles both tightly-packed and interleaved buffers with arbitrary byte alignment, and reads from the
+ * buffer selected by `bufferView.buffer`.
+ *
+ * @param json Decoded glTF JSON root
+ * @param buffers Binary buffers indexed like `json.buffers` (a single `ArrayBuffer` is buffer 0)
  * @param accessorIndex Index of the glTF accessor
  * @returns Decoded `Float32Array`, `Uint16Array`, or `Uint32Array`
  */
 export function extractGLTFAccessor(
     json: any,
-    binBuffer: ArrayBuffer,
+    buffers: GLTFBinaryBuffers,
     accessorIndex: number,
 ): Float32Array | Uint16Array | Uint32Array {
     const accessor = json.accessors?.[accessorIndex];
@@ -77,6 +209,7 @@ export function extractGLTFAccessor(
     if (!bufferView) {
         throw new ModelLimitError(`glTF accessor ${accessorIndex} references a missing bufferView.`);
     }
+    const binBuffer = bufferForView(buffers, bufferView, accessor.bufferView);
     const viewOffset = bufferView.byteOffset ?? 0;
     const viewLength = bufferView.byteLength;
     if (
@@ -317,20 +450,10 @@ function bakeTransform(positions: Float32Array, normals: Float32Array, world: Ma
 }
 
 /**
- * Decodes a `data:` URI with base64 payload into bytes (`undefined` for other URIs).
- */
-function decodeDataUri(uri: string): Uint8Array | undefined {
-    const marker = uri.indexOf(";base64,");
-    if (!uri.startsWith("data:") || marker === -1 || typeof atob !== "function") return undefined;
-    const binary = atob(uri.substring(marker + 8));
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-}
-
-/**
  * Zero-dependency Binary glTF 2.0 (`.glb`) container parser and loader.
  * Decodes the 12-byte header, JSON chunk (0) and BIN chunk (1), producing typed `BrioMesh` and `BrioMaterial` instances.
+ * The BIN chunk is buffer 0; further buffers may be base64 `data:` URIs (decoded by `parse`) or external files
+ * (fetched by `load`, or passed to `parse` as `externalBuffers`).
  *
  * @example
  * ```ts
@@ -344,10 +467,24 @@ export class GLBLoader {
      *
      * @param buffer Raw binary GLB `ArrayBuffer`
      * @param modelName Optional model identifier prefix
+     * @param externalBuffers Pre-fetched external buffers indexed like the glTF `buffers` array (see `load`)
      * @returns Decoded `ParsedModelData`
      * @throws {Error} When the binary header magic or version is invalid
      */
-    public static parse(buffer: ArrayBuffer, modelName: string = "model"): ParsedModelData {
+    public static parse(
+        buffer: ArrayBuffer,
+        modelName: string = "model",
+        externalBuffers: readonly (ArrayBuffer | undefined)[] = [],
+    ): ParsedModelData {
+        const { json, bin } = GLBLoader.#readContainer(buffer);
+        const buffers = GLBLoader.#buffersFor(json, bin, externalBuffers);
+        return GLBLoader.extractModelData(json, buffers, modelName);
+    }
+
+    /**
+     * Validates the GLB header and chunks and returns the JSON document and the BIN chunk.
+     */
+    static #readContainer(buffer: ArrayBuffer): { json: any; bin: ArrayBuffer } {
         const limits = getModelLoaderLimits();
         assertByteLimit("GLB file", buffer.byteLength, limits.maxFileBytes);
         if (buffer.byteLength < 12) {
@@ -408,18 +545,39 @@ export class GLBLoader {
             throw new Error("GLB container does not contain a JSON metadata chunk.");
         }
 
-        return GLBLoader.extractModelData(json, binBuffer, modelName);
+        return { json, bin: binBuffer };
     }
 
     /**
-     * Extracts `BrioMesh` and `BrioMaterial` instances from a glTF JSON object and associated binary buffer.
+     * Builds the buffer list of a GLB document: the BIN chunk is buffer 0 when that buffer has no `uri`
+     * (the glTF 2.0 GLB rule) or when the document declares no buffers; the others come from `external`
+     * or from `data:` URIs.
+     */
+    static #buffersFor(
+        json: any,
+        bin: ArrayBuffer,
+        external: readonly (ArrayBuffer | undefined)[],
+    ): ArrayBuffer[] {
+        const provided = external.slice();
+        const first = Array.isArray(json.buffers) ? json.buffers[0] : undefined;
+        if (!first || first.uri === undefined) provided[0] = bin;
+        return resolveGLTFBuffers(json, provided);
+    }
+
+    /**
+     * Extracts `BrioMesh` and `BrioMaterial` instances from a glTF JSON object and its binary buffers.
+     * Each `bufferView` reads from the buffer named by its `buffer` index.
      *
      * @param json Decoded glTF JSON root
-     * @param binBuffer Contiguous binary buffer
+     * @param binBuffer Binary buffers indexed like `json.buffers` (a single `ArrayBuffer` is buffer 0)
      * @param modelName Model identifier, prefixed to every mesh and material name (`"<model>/<name>"`)
      * @returns Decoded `ParsedModelData`
      */
-    public static extractModelData(json: any, binBuffer: ArrayBuffer, modelName: string): ParsedModelData {
+    public static extractModelData(
+        json: any,
+        binBuffer: GLTFBinaryBuffers,
+        modelName: string,
+    ): ParsedModelData {
         const materials: BrioMaterial[] = [];
         const meshes: BrioMesh[] = [];
         const meshMaterials: string[] = [];
@@ -555,7 +713,7 @@ export class GLBLoader {
      */
     static #resolveTextureSource(
         json: any,
-        binBuffer: ArrayBuffer,
+        buffers: GLTFBinaryBuffers,
         textureIndex: number | undefined,
     ): Omit<PendingTexture, "material"> | undefined {
         if (textureIndex === undefined) return undefined;
@@ -567,6 +725,12 @@ export class GLBLoader {
         if (image.bufferView !== undefined) {
             const view = json.bufferViews?.[image.bufferView];
             if (!view) return undefined;
+            let binBuffer: ArrayBuffer;
+            try {
+                binBuffer = bufferForView(buffers, view, image.bufferView);
+            } catch {
+                return undefined;
+            }
             const start = view.byteOffset ?? 0;
             if (start < 0 || !(view.byteLength >= 0) || start + view.byteLength > binBuffer.byteLength) {
                 return undefined;
@@ -575,7 +739,13 @@ export class GLBLoader {
             return { key, bytes, mimeType: image.mimeType ?? "image/png" };
         }
         if (typeof image.uri === "string") {
-            const bytes = decodeDataUri(image.uri);
+            let bytes: Uint8Array | undefined;
+            try {
+                bytes = decodeGLTFDataUri(image.uri, "glTF data: image");
+            } catch {
+                // An oversized embedded image is skipped like any other unusable texture source
+                return undefined;
+            }
             if (bytes) {
                 const mimeType = image.uri.substring(5, image.uri.indexOf(";")) || "image/png";
                 return { key, bytes, mimeType };
@@ -652,8 +822,15 @@ export class GLBLoader {
     public static async load(url: string, modelName?: string): Promise<ParsedModelData> {
         const buffer = await fetchLimited(url, "GLB asset");
         const resolvedName = modelName ?? url.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? "model";
-        const data = GLBLoader.parse(buffer, resolvedName);
-        const failures = await GLBLoader.decodeTextures(data, url.substring(0, url.lastIndexOf("/") + 1));
+        const baseUrl = url.substring(0, url.lastIndexOf("/") + 1);
+        const { json, bin } = GLBLoader.#readContainer(buffer);
+        const external = await fetchGLTFExternalBuffers(json, baseUrl);
+        const data = GLBLoader.extractModelData(
+            json,
+            GLBLoader.#buffersFor(json, bin, external),
+            resolvedName,
+        );
+        const failures = await GLBLoader.decodeTextures(data, baseUrl);
         data.warnings = [...(data.warnings ?? []), ...failures];
         return data;
     }
