@@ -1,4 +1,4 @@
-import { ComponentStorage, DirtyFlag } from "../ecs/ComponentStorage";
+import { ComponentStorage, DirtyFlag, VISUAL_VISIBILITY_OFFSET } from "../ecs/ComponentStorage";
 import { clamp } from "../math/BrioMath";
 import type { Vec2, Vec2Bool } from "../math/index";
 import { BrioVec2, create } from "../math/vec2";
@@ -137,14 +137,17 @@ export class BrioTransform2D implements Transform2D {
         this.#pivot.bindBuffer(buf, base + 6, adopt);
         this.#skew.bindBuffer(buf, base + 8, adopt);
         this.#renderSize.bindBuffer(buf, base + 10, adopt);
+        const vis = storage.getVisualOffset(entityId) + VISUAL_VISIBILITY_OFFSET;
         if (adopt) {
             this.#rotation = buf[base + 12];
             this.#opacity = buf[base + 13];
             this.#layer = buf[base + 14];
+            this.#visibility = storage.visual[vis] !== 0;
         } else {
             buf[base + 12] = this.#rotation;
             buf[base + 13] = this.#opacity;
             buf[base + 14] = this.#layer;
+            storage.visual[vis] = this.#visibility ? 1 : 0;
         }
         return this;
     }
@@ -166,6 +169,10 @@ export class BrioTransform2D implements Transform2D {
         this.#rotation = buf[base + 12];
         this.#opacity = buf[base + 13];
         this.#layer = buf[base + 14];
+        this.#visibility =
+            this.#ecsStorage.visual[
+                this.#ecsStorage.getVisualOffset(this.#entityId) + VISUAL_VISIBILITY_OFFSET
+            ] !== 0;
 
         this.#position.unbindBuffer();
         this.#size.unbindBuffer();
@@ -355,12 +362,25 @@ export class BrioTransform2D implements Transform2D {
 
     /**
      * Controls whether the object is rendered on the canvas.
+     * When bound to an ECS slot the flag lives in the `visual` buffer, so checkpoints capture it.
      */
     public set visibility(visibility: boolean) {
         this.#visibility = visibility;
+        if (this.#ecsStorage && this.#entityId >= 0) {
+            this.#ecsStorage.visual[
+                this.#ecsStorage.getVisualOffset(this.#entityId) + VISUAL_VISIBILITY_OFFSET
+            ] = visibility ? 1 : 0;
+        }
         this.#markDirty();
     }
     public get visibility(): boolean {
+        if (this.#ecsStorage && this.#entityId >= 0) {
+            return (
+                this.#ecsStorage.visual[
+                    this.#ecsStorage.getVisualOffset(this.#entityId) + VISUAL_VISIBILITY_OFFSET
+                ] !== 0
+            );
+        }
         return this.#visibility;
     }
 
