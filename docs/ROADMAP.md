@@ -7,7 +7,7 @@ backlog is [`docs/plans/ENGINE_COMPLETION_PLAN.md`](./plans/ENGINE_COMPLETION_PL
 engineering checklist (in Portuguese) lives in [`TODO.md`](../TODO.md); architecture decisions are in
 [`docs/adr/`](./adr/).
 
-Last updated: 2026-10-28 (unreleased fixes after v0.1.0).
+Last updated: 2026-10-31 (unreleased fixes after v0.1.0).
 
 ## Known issues
 
@@ -34,8 +34,8 @@ Last updated: 2026-10-28 (unreleased fixes after v0.1.0).
 - **Unified `game.renderStats`** (draw calls, triangles, programs, GPU memory) across backends.
 - **WebGL context-loss recovery** tested in browsers, including texture re-upload.
 - **Visual regression tests** (golden images per example) in a headless browser, run in CI.
-- **Input**: per-frame buffered key transitions (fixes the short-tap issue), action mapping (`BrioInputMap`) with
-  runtime rebinding, ready-made orbit / first-person camera controllers, and engine-level 3D picking.
+- **Input**: action mapping (`BrioInputMap`) with runtime rebinding, ready-made orbit / first-person camera
+  controllers, and engine-level 3D picking.
 - **UI layer**: text, buttons, panels, and bars on the `"ui"` layer with keyboard/gamepad focus.
 - **`BrioTileMap` rendering** in chunks on a `"static"` layer, plus Tiled/LDtk import.
 - **Lazy 3D stack**: load the 3D backends and model loaders on demand so 2D games ship a smaller bundle.
