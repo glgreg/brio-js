@@ -14,6 +14,14 @@
   are written in English too.
 - Before pushing: `npm run check` (type check, Vitest, build).
 
+## Setup limitations
+
+When the environment has a limitation or pending setup (a missing runtime, dependency, credential or permission), tell the user what is missing and what it blocks. Do not rewrite the project structure, scripts or tooling to work around it.
+
+## Current focus
+
+The TCC final presentation is on 2026-11-13. Start every session at `docs/plans/TCC_FINAL_SPRINT.md`, the current plan: it holds the context, calendar, order of work and environment notes, and it overrides older plans.
+
 ## Keystone
 
 This project uses Keystone for architectural context. Before planning or changing code, read `.keystone/protocol.md` and follow it.
