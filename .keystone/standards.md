@@ -41,6 +41,8 @@
 - **Performance**: zero allocation in the game loop; dense arrays and module-level comparators in hot paths.
 - **Paths**: relative references (`./`, `../`) in code and docs, never machine-local absolute paths.
 - No emojis in code or documentation.
+- **Third-party code**: adapted files carry the header defined in ADR 0007, and their notice lives in
+  `THIRD_PARTY_NOTICES.md`.
 
 ## 3. Testing
 

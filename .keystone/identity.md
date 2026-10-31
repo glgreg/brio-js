@@ -37,7 +37,7 @@ recorded in `CHANGELOG.md`. Next milestone: the TCC final presentation on 2026-1
 - **Documentation**:
   - `README.md`: installation, quick start, core concepts, status.
   - `GLOSSARY.md`: the ubiquitous language (canonical names and names to avoid).
-  - `docs/adr/`: architecture decision records 0001 to 0006.
+  - `docs/adr/`: architecture decision records 0001 to 0007.
   - `docs/architecture/`: target architecture, codebase audit, rendering study, MCP game authoring study.
   - `docs/plans/TCC_FINAL_SPRINT.md`: **the current plan**, up to the final presentation on 2026-11-13. It overrides older
     plans.

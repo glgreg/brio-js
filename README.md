@@ -146,7 +146,8 @@ Known issues and the roadmap are tracked in [`docs/ROADMAP.md`](./docs/ROADMAP.m
   [0003 layers and workers](./docs/adr/0003-multi-canvas-layers-and-offscreen-workers.md),
   [0004 2D/3D domain](./docs/adr/0004-concrete-2d-3d-domain-and-strict-ubiquitous-language.md),
   [0005 binary serialization](./docs/adr/0005-binary-ecs-state-serialization.md),
-  [0006 MCP authoring](./docs/adr/0006-mcp-agentic-game-authoring.md) (proposed).
+  [0006 MCP authoring](./docs/adr/0006-mcp-agentic-game-authoring.md) (proposed),
+  [0007 third-party code](./docs/adr/0007-third-party-code-policy.md).
 
 ## Contributing
 
@@ -161,4 +162,5 @@ The internal engineering checklist (in Portuguese) is [`TODO.md`](./TODO.md).
 
 ## License
 
-[MIT](./LICENSE.txt) © Gustavo L. Gregorio
+[MIT](./LICENSE.txt) © Gustavo L. Gregorio. Third-party notices are in
+[`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).

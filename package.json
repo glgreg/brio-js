@@ -51,7 +51,8 @@
         "README.md",
         "LICENSE.txt",
         "GLOSSARY.md",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "THIRD_PARTY_NOTICES.md"
     ],
     "engines": {
         "node": ">=18"
