@@ -271,3 +271,4 @@ Add one line per merged item: date, item, pull request, and anything the maintai
 | Date | Item | Note |
 | --- | --- | --- |
 | 2026-10-31 | Planning | Sprint created; planning documents not yet committed |
+| 2026-10-31 | S0 | PR #13. Node and npm not installed; Bun sequence accepted as the equivalent for now |
