@@ -30,14 +30,34 @@ The freeze date is a proposal the maintainers can move, here in this table.
 
 ## 3. Environment
 
-Bun was installed by the maintainer and should work in a new session. It did not work in the session that wrote this plan, so none of this has been verified:
+Checked by S0 on 2026-10-31, on the maintainer's Windows machine.
 
-- `.keystone/bin/keystone` runs through Bun or Node.
-- `architecture.md` says tests require Node 22 or later.
-- `package.json` scripts call `npm run` and `node -e`, so `npm run check` needs Node and npm.
-- `node_modules` does not exist yet.
+| Tool | State |
+| --- | --- |
+| Bun 1.4.4 | In `~/.bun/bin`, on the user PATH. A session can inherit an older PATH; if `bun` is not found, run `$env:Path = "$env:USERPROFILE\.bun\bin;$env:Path"` |
+| Node, npm | **Not installed.** `npm run check` and `npm ci` cannot run, and `bun run check` fails too, because the script calls `npm test` |
+| `gh` | Logged in as the maintainer |
 
-S0 checks this. If something is missing or does not work, **tell the maintainer what is missing and what it blocks, per `CLAUDE.md`. Do not change scripts or project structure to work around it.** Record the working commands in this section.
+The maintainer accepted the commands below as the equivalent of `npm run check` for now. They run the same steps, on the Bun runtime:
+
+```powershell
+bun install --no-save                       # uses the versions in package-lock.json and writes no bun.lock
+bun run typecheck
+bun --bun run test
+bun run build
+bun pm pack --dry-run --ignore-scripts      # the file list in place of npm pack --dry-run
+bun .keystone/bin/keystone.js stone doctor
+```
+
+Baseline on `develop`: type check clean, 273 tests passed and 3 skipped (`GLBRealAsset` needs a local asset that is not in the repository), build and pack clean, doctor with 0 errors.
+
+Limits of this setup:
+
+- Local results come from Bun, not Node. CI runs on Node 22 and 24, so it is the real evidence, and a pull request needs it green before merging.
+- Playwright (S1) has not been tried on Bun. If S1 needs Node, stop and tell the maintainer.
+- `keystone stone doctor` can warn `stale-index` when it is a false positive: with `core.autocrlf=true`, `.keystone/architecture.md` is CRLF on disk and the generated index is LF. The content is the same, and the warning goes away with `--fix`. A real change shows up in `git diff`.
+
+If something else is missing or does not work, **tell the maintainer what is missing and what it blocks, per `CLAUDE.md`. Do not change scripts or project structure to work around it.** Record the working commands in this section.
 
 ## 4. Sprint rules
 
@@ -56,7 +76,7 @@ Status marks: `[ ]` pending, `[~]` in progress, `[x]` done, `[-]` cut by the mai
 
 S1 goes first among the features because everything visual depends on it. S8, S9 and S10 do not touch the GL pipeline, so they can run in parallel sessions.
 
-### S0 Baseline `[ ]`
+### S0 Baseline `[x]`
 
 - Commit the planning documents left uncommitted in the working tree: `.gitignore`, `jsconfig.json`, `.keystone/identity.md`, `CLAUDE.md`, `docs/ROADMAP.md`, the study and the plans. Use a `docs/` branch and pull request, and review the diff first.
 - Install dependencies and run the baseline, per section 3. Report failures to the maintainer before new work. Run `keystone stone doctor`.
