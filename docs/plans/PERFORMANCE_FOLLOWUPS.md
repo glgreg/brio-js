@@ -84,8 +84,12 @@ The 3D work changes pixels in some cases. Regenerate the goldens on the desktop 
   demo: acne (stripes on lit faces: raise `bias` / `normalBias`), peter-panning (shadows detached from their
   casters: lower them), and the shadow box `size` against the camera distance. Defaults: `bias` 0.0008,
   `normalBias` 0.04, `size` 15, `resolution` 2048. Also measure the cost of the extra depth pass (P-2).
-- Later 3D branches (custom shaders, the 3D demo) add new goldens that must be generated on the desktop
-  machine; their specs are written to fail clearly when a golden is missing.
+- `feat/3d-shader-demo`: `examples/3d-lantern-courtyard` was written without opening it in a browser (the notebook
+  limit). On the desktop machine: open it (`node e2e/serve.mjs 8080`, then
+  `http://localhost:8080/examples/3d-lantern-courtyard/`), check that it looks right (lantern glow, spot sweep, moon
+  shadows under the crates and pillars, water waves and foam, fog), tune values in `main.js` if needed, then remove the
+  `test.fixme` line of "matches the courtyard golden frame" in `e2e/lantern-courtyard.spec.ts` and run
+  `npm run test:e2e:update`. Its two smoke tests run in CI already.
 
 ## Fixed without a new measurement
 
