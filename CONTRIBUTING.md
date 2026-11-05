@@ -76,6 +76,20 @@ Every user-visible change (new API, behavior change, bug fix, deprecation) gets 
 [`CHANGELOG.md`](./CHANGELOG.md), in the matching `Added`, `Changed`, `Fixed` or `Removed` section. Internal
 refactors and test-only changes do not need one.
 
+## Releasing
+
+Releases are automatic: every push to `main` runs `.github/workflows/release.yml`, which publishes the version in
+`package.json` to npm (with provenance) and creates the `v<version>` tag and GitHub release, with the notes of the
+matching `## [<version>]` section of `CHANGELOG.md`. A push whose version is already on npm and on GitHub does
+nothing. To release:
+
+1. On `develop`, run `npm version <x.y.z> --no-git-tag-version` and rename `## [Unreleased]` in `CHANGELOG.md` to
+   `## [<x.y.z>] - <date>` (keep an empty `## [Unreleased]` above it and update the links at the bottom).
+2. Merge `develop` into `main`.
+
+Versions with a prerelease suffix (`0.3.0-beta.1`) are published under the `next` dist-tag. The workflow needs the
+`NPM_TOKEN` repository secret (an npm granular access token with publish rights on `@brio-js/core`).
+
 ## Architecture Context (Keystone)
 
 The architecture is described by Keystone ([`.keystone/protocol.md`](./.keystone/protocol.md)):

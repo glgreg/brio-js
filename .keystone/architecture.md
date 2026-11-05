@@ -29,7 +29,8 @@ architecture, not of the current implementation. `docs/architecture/TARGET_ARCHI
   `BrioStorage` (memory, sessionStorage, localStorage, IndexedDB).
 - **Tooling**: Vitest 5 + jsdom 30 (Node 22+), Playwright (`e2e/`, real browsers against `examples/`), TypeDoc,
   Prettier (4 spaces, width 100). CI on GitHub Actions (Node 22 and 24: typecheck, tests, build, package content
-  check; a separate job runs the Playwright suite in Chromium); tags `v*` publish to npm with provenance
+  check; a separate job runs the Playwright suite in Chromium); every push to `main` publishes the
+  `package.json` version to npm with provenance and creates its `v<version>` tag and GitHub release, once
   (`.github/workflows/release.yml`).
 
 ## 3. Structure and Patterns
