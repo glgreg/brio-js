@@ -1,6 +1,6 @@
 # Rendering Study: three.js Techniques and the BrioJS GPU Backends
 
-Status: **Reference** (2026-10-20, status columns updated 2026-10-28). The source studied is a shallow clone of `mrdoob/three.js` in `study/three.js` (gitignored, MIT license). BrioJS reimplements techniques, not code (ADR-0001).
+Status: **Reference** (2026-10-20, status columns updated 2026-10-28). The source studied is a shallow clone of `mrdoob/three.js` in `study/three.js` (gitignored, MIT license). three.js is not a dependency (ADR-0001). BrioJS may adapt its MIT code with attribution (ADR-0007).
 
 ## 1. Why the demo runs on WebGL2 and not WebGPU
 

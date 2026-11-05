@@ -1,7 +1,10 @@
 # BrioJS Roadmap and Known Issues
 
 This page tracks what is known to be broken or limited in the current release and what is planned next. The
-detailed engineering checklist (in Portuguese) lives in [`TODO.md`](../TODO.md); architecture decisions are in
+current work is [`docs/plans/TCC_FINAL_SPRINT.md`](./plans/TCC_FINAL_SPRINT.md). The design reference and post-TCC
+backlog is [`docs/plans/ENGINE_COMPLETION_PLAN.md`](./plans/ENGINE_COMPLETION_PLAN.md), with its evidence in
+[`ENGINE_COMPLETION_STUDY.md`](./architecture/ENGINE_COMPLETION_STUDY.md). The older
+engineering checklist (in Portuguese) lives in [`TODO.md`](../TODO.md); architecture decisions are in
 [`docs/adr/`](./adr/).
 
 Last updated: 2026-11-04 (v0.2.0).

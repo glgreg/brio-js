@@ -76,7 +76,7 @@ architecture, not of the current implementation. `docs/architecture/TARGET_ARCHI
 - **Browser APIs**: WebGL2, Canvas2D, Web Audio, Gamepad, Pointer/Touch, Web Storage, IndexedDB.
 - **Asset formats**: glTF 2.0 / GLB, OBJ/MTL, PNG/JPEG/GIF/WebP; loaded asset names are namespaced as
   `"<model>/<name>"`; loaders enforce `ModelLoaderLimits` against malformed or hostile files.
-- **Distribution**: npm (`@brio-js/core`, `files` whitelist: `dist`, README, LICENSE, GLOSSARY, CHANGELOG) and CDNs
+- **Distribution**: npm (`@brio-js/core`, `files` whitelist: `dist`, README, LICENSE, GLOSSARY, CHANGELOG, THIRD_PARTY_NOTICES) and CDNs
   such as jsDelivr.
 - **Planned**: MCP server for agentic game authoring (ADR 0006, `docs/architecture/MCP_GAME_AUTHORING.md`).
 

@@ -10,6 +10,7 @@ demo/
 dist/
 /assets/
 study/
+temp/
 
 # trash
 *.tgz
@@ -20,3 +21,10 @@ docs/api/
 # end-to-end test output (Playwright)
 playwright-report/
 test-results/
+
+# local academic notes
+docs/tcc/
+
+# local visual validation screenshots
+proofs/
+
