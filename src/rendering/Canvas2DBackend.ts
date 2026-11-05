@@ -141,6 +141,8 @@ interface ProjectedTriangle {
  * ```
  */
 export class Canvas2DBackend implements RenderBackend {
+    /** `transform.opacity` of the mesh being queued (multiplied with `material.opacity`). */
+    #objectOpacity: number = 1;
     public readonly backendType: RenderBackendType = "canvas2d";
     #surface?: HTMLCanvasElement | OffscreenCanvas;
     #ctx?: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
@@ -176,14 +178,14 @@ export class Canvas2DBackend implements RenderBackend {
      */
     public setLights(environment: LightingEnvironment): void {
         const own = this.#lights;
-        if (environment.key === own.key) return;
+        if (environment.version === own.version) return;
         own.ambient.set(environment.ambient);
         own.sky.set(environment.sky);
         own.ground.set(environment.ground);
         own.directions.set(environment.directions);
         own.colors.set(environment.colors);
         own.directionalCount = environment.directionalCount;
-        own.key = environment.key;
+        own.version = environment.version;
     }
 
     /**
@@ -248,8 +250,10 @@ export class Canvas2DBackend implements RenderBackend {
         material: BrioMaterial,
         worldMatrix: Mat4,
         viewProjMatrix: Mat4,
+        opacity: number = 1,
     ): void {
         if (!this.#ctx || !this.#surface) return;
+        this.#objectOpacity = opacity;
 
         const w = this.#surface.width;
         const h = this.#surface.height;
@@ -267,7 +271,7 @@ export class Canvas2DBackend implements RenderBackend {
         // Opaque triangles are dilated by half a pixel so antialiased shared edges do not let the
         // background bleed through; translucent ones are not, because the overlap would double the alpha
         const dilation =
-            ramp !== null && ramp.opaque && material.opacity >= 1 ? SEAM_DILATION_PX : 0;
+            ramp !== null && ramp.opaque && material.opacity * opacity >= 1 ? SEAM_DILATION_PX : 0;
 
         const m = this.#mvpScratch;
         const clip = this.#clipScratch;
@@ -390,7 +394,7 @@ export class Canvas2DBackend implements RenderBackend {
         tri.x2 = x2;
         tri.y2 = y2;
         tri.depth = depth;
-        tri.alpha = material.opacity;
+        tri.alpha = material.opacity * this.#objectOpacity;
         tri.wire = material.wireframe;
         if (ramp !== null) {
             // Pre-shaded tone: no per-triangle string allocation

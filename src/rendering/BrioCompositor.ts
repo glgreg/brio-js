@@ -307,8 +307,14 @@ export class BrioCompositor {
                 ctx.translate(vx, vy);
                 this.#applyCameraTransform(ctx, camera, layer, vw, vh, gameScale);
                 this.#drawLayerTileMaps(ctx, layer, camera, vw, vh, gameScale);
-                const cull = layer.policy === "dynamic" && camera.rotation === 0 && gameScale === 1;
-                this.#drawObjects(ctx, layer.getSortedObjects(), cull ? camera : undefined);
+                // Culling stays on for rotated cameras and any game.scale (D-12)
+                this.#drawObjects(
+                    ctx,
+                    layer.getSortedObjects(),
+                    layer.policy === "dynamic" ? camera : undefined,
+                    gameScale,
+                    layer.scrollFactor,
+                );
                 ctx.restore();
             }
         }
@@ -392,10 +398,12 @@ export class BrioCompositor {
         ctx: Context2D,
         objects: readonly BrioObject2D[],
         cullCamera?: BrioCamera2D,
+        gameScale: number = 1,
+        scrollFactor?: { readonly x: number; readonly y: number },
     ): void {
         for (let i = 0; i < objects.length; i++) {
             const obj = objects[i];
-            if (cullCamera && !cullCamera.isVisible(obj)) {
+            if (cullCamera && !cullCamera.isVisible(obj, gameScale, scrollFactor)) {
                 this.#stats.objectsCulled++;
                 continue;
             }
@@ -534,7 +542,8 @@ export class BrioCompositor {
 
     #render3DPasses(source: CompositorSource, width: number, height: number): void {
         const backend = this.#backend3D;
-        if (!backend || source.cameras3D.length === 0 || source.objects3D.length === 0) return;
+        // A camera without objects still clears its viewport to its clear color
+        if (!backend || source.cameras3D.length === 0) return;
         if (backend.setLights) {
             const lights =
                 source.lights && source.lights.length > 0 ? source.lights : this.#defaultLights;
@@ -566,15 +575,19 @@ export class BrioCompositor {
         obj: BrioObject3D,
         viewProj: Mat4,
         camera: BrioCamera3D,
+        parentOpacity: number = 1,
     ): void {
         if (!obj.transform.visibility) return;
+        // Opacity multiplies down the hierarchy, so fading a model fades its parts (D-06)
+        const opacity = parentOpacity * obj.transform.opacity;
+        if (opacity <= 0) return;
         if (obj.mesh) {
             const mesh = this.#meshes.get(obj.mesh);
             if (mesh) {
                 const world = obj.transform.worldMatrix;
                 if (this.#isMeshVisible(mesh, world, camera)) {
                     const material = this.#materials.get(obj.material) ?? this.#defaultMaterial;
-                    backend.renderMesh3D(mesh, material, world, viewProj);
+                    backend.renderMesh3D(mesh, material, world, viewProj, opacity);
                     this.#stats.objects3DDrawn++;
                 } else {
                     this.#stats.objects3DCulled++;
@@ -583,7 +596,7 @@ export class BrioCompositor {
         }
         const children = obj.children;
         for (let i = 0; i < children.length; i++) {
-            this.#renderObject3D(backend, children[i], viewProj, camera);
+            this.#renderObject3D(backend, children[i], viewProj, camera, opacity);
         }
     }
 

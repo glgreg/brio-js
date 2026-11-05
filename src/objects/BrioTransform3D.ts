@@ -30,6 +30,10 @@ export interface Transform3D {
     readonly worldMatrix: Mat4;
 }
 
+/** Scratch values of the Euler / quaternion sync, so `rotation.y += dt` allocates nothing per frame. */
+const SYNC_EULER = { x: 0, y: 0, z: 0 };
+const SYNC_QUAT = { x: 0, y: 0, z: 0, w: 1 };
+
 /**
  * Concrete 3D spatial transformation class managing `position` (`BrioVec3`), `scale` (`BrioVec3`),
  * `rotation` (Euler radians `BrioVec3`), `quaternion` (`BrioQuat`), parent-child scene graph hierarchy,
@@ -97,8 +101,13 @@ export class BrioTransform3D implements Transform3D {
         this.#quaternion = new BrioQuat(0, 0, 0, 1, (qx, qy, qz, qw) => {
             if (!this.#syncingRotation) {
                 this.#syncingRotation = true;
-                const euler = { x: 0, y: 0, z: 0 };
-                Quaternion.toEuler(euler, { x: qx, y: qy, z: qz, w: qw });
+                const euler = SYNC_EULER;
+                const q = SYNC_QUAT;
+                q.x = qx;
+                q.y = qy;
+                q.z = qz;
+                q.w = qw;
+                Quaternion.toEuler(euler, q);
                 this.#rotation.set(euler.x, euler.y, euler.z);
                 this.#syncingRotation = false;
             }
@@ -108,7 +117,7 @@ export class BrioTransform3D implements Transform3D {
         this.#rotation = new BrioVec3(rotation.x, rotation.y, rotation.z, (rx, ry, rz) => {
             if (!this.#syncingRotation) {
                 this.#syncingRotation = true;
-                const q = { x: 0, y: 0, z: 0, w: 1 };
+                const q = SYNC_QUAT;
                 Quaternion.fromEuler(q, rx, ry, rz);
                 this.#quaternion.set(q.x, q.y, q.z, q.w);
                 this.#syncingRotation = false;

@@ -6,6 +6,40 @@ While the major version is `0`, minor releases may include breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- `scene.onFixedUpdate()`: scene simulation at the game's fixed rate (`1 / 60` when the game has no
+  `fixedUpdate()`), smoothed by `interpolate` like game objects.
+- `game.onError()` and an error boundary in the frame loop: an exception in `update()`, `fixedUpdate()`, a scene
+  or a collision listener stops the game with a message on the canvas and in the console, instead of freezing it
+  silently.
+- `pauseWhenHidden` option and `game.pauseWhenHidden` (default `true`): the game pauses, audio included, while its
+  page is hidden and resumes when it is visible.
+- `transform.getWorldPosition(out)` on `BrioTransform2D`, allocation-free.
+- `e2e/heap.spec.ts`: an allocation budget for the game loop, and `e2e/tools/profile-allocations.mjs` to find
+  allocation sites.
+
+### Changed
+
+- 2D hierarchy is rendered (D-01): a child is drawn inside its ancestors' frames (position, rotation and skew around
+  the pivot, scale). `worldPosition` follows the same math, so it now rotates around the parent's pivot; camera
+  follow, culling, collision tests and collision events use world positions.
+- `transform.opacity` of a `BrioObject3D` takes effect and multiplies down the hierarchy (D-06);
+  `RenderBackend.renderMesh3D()` takes an optional `opacity`.
+- `LightingEnvironment.key` (a string built every pass) is replaced by a numeric `version`, and the environment is
+  only rebuilt when a light changes (D-04).
+- Render interpolation covers rotation and scale (2D angle, 3D quaternion along the shortest arc), not only
+  position (D-19).
+- The canvas claims touch gestures (`touch-action: none`), so dragging on a game no longer scrolls or zooms the page.
+
+### Fixed
+
+- 2D culling stays on with a rotated camera, any `game.scale` and parallax layers (D-12).
+- Assigning the current sprite again no longer redraws `"static"` layers (D-14).
+- A `BrioCamera3D` without objects clears its viewport to its clear color.
+- `BrioCamera3D.viewProjectionMatrix` is cached; `BrioTransform3D` rotation sync, the WebGL2 draw sort and the
+  collision event sweep no longer allocate per frame.
+
 ## [0.2.0] - 2026-11-04
 
 Preview release for simple 2D and 3D games: engine-drawn text, collision events, tile maps, action-based input,

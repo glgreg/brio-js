@@ -1,6 +1,7 @@
 import { BrioSprite } from "../assets/BrioSprite";
 import { BrioGame } from "./BrioGame";
 import { BrioObject2D } from "../objects/BrioObject2D";
+import type { BrioTransform2D } from "../objects/BrioTransform2D";
 import { BrioText } from "../objects/BrioText";
 import { Vec2 } from "../math/index";
 import { BrioAssetManager } from "./BrioAssetManager";
@@ -28,6 +29,31 @@ export type CanvasFPSPosition =
  * 2D Canvas renderer responsible for drawing `BrioObject2D` sprites, transforms, and visual debug overlays
  * (`grid`, `axisRulers`, `renderBounds`, `collisionBounds`, and `fpsOverlay`).
  */
+/**
+ * Applies the child frame of `transform` and of all its ancestors to `ctx`, root first: translation, rotation and
+ * skew around the pivot, then scale (the same order as `BrioTransform2D.getWorldPosition`).
+ */
+function applyParentFrame(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    transform: BrioTransform2D,
+): void {
+    if (transform.parent) applyParentFrame(ctx, transform.parent);
+    ctx.translate(transform.position.x, transform.position.y);
+    const rotation = transform.rotation;
+    const skew = transform.skew;
+    if (rotation !== 0 || skew.x !== 0 || skew.y !== 0) {
+        const px = transform.renderSize.x * transform.pivot.x;
+        const py = transform.renderSize.y * transform.pivot.y;
+        ctx.translate(px, py);
+        if (rotation !== 0) ctx.rotate(rotation);
+        if (skew.x !== 0 || skew.y !== 0)
+            ctx.transform(1, Math.tan(skew.x), Math.tan(skew.y), 1, 0, 0);
+        ctx.translate(-px, -py);
+    }
+    const scale = transform.scale;
+    if (scale.x !== 1 || scale.y !== 1) ctx.scale(scale.x, scale.y);
+}
+
 export class BrioSpriteRenderer {
     #game: BrioGame;
     #ctx: CanvasRenderingContext2D;
@@ -137,12 +163,21 @@ export class BrioSpriteRenderer {
             this.syncSmoothingState();
         }
 
-        const gameScale = this.#game.scale;
         const renderWidth = object.transform.renderSize.x || object.transform.size.x;
         const renderHeight = object.transform.renderSize.y || object.transform.size.y;
         const isPixelated = this.#game.rendering.mode === "pixelated";
 
         ctx.save();
+
+        // A child is drawn inside its ancestors' frames (D-01): game scale first, then every ancestor from the root
+        // down, so the object's own transform below is relative to its parent
+        let gameScale = this.#game.scale;
+        const parent = object.transform.parent;
+        if (parent) {
+            if (gameScale !== 1) ctx.scale(gameScale, gameScale);
+            applyParentFrame(ctx, parent);
+            gameScale = 1;
+        }
 
         // Scale or flipped scale for sprites
         const scaleX = (object.transform.flip.x ? -1 : 1) * gameScale;

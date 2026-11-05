@@ -220,7 +220,9 @@ export class BrioTransform2D implements Transform2D {
     }
 
     /**
-     * Computed world-space 2D position accounting for parent hierarchy translation, rotation, and scale.
+     * Computed world-space 2D position (top-left corner) accounting for the parent hierarchy, exactly as the
+     * renderer places the object: each ancestor contributes its position, its rotation and skew around its own
+     * pivot, and its scale. Allocates a new object; use `getWorldPosition(out)` in per-frame code.
      *
      * @example
      * ```ts
@@ -228,29 +230,65 @@ export class BrioTransform2D implements Transform2D {
      * ```
      */
     public get worldPosition(): Vec2 {
-        if (!this.#parent) {
-            return { x: this.#position.x, y: this.#position.y };
+        return this.getWorldPosition({ x: 0, y: 0 });
+    }
+
+    /**
+     * Writes the world-space position (see `worldPosition`) into `out` without allocating.
+     *
+     * @param out Destination vector
+     * @returns `out`
+     * @example
+     * ```ts
+     * const hand = { x: 0, y: 0 };
+     * game.update(() => sword.transform.getWorldPosition(hand));
+     * ```
+     */
+    public getWorldPosition(out: { x: number; y: number }): { x: number; y: number } {
+        out.x = this.#position.x;
+        out.y = this.#position.y;
+        let parent = this.#parent;
+        while (parent) {
+            parent.#toParentFrame(out);
+            parent = parent.#parent;
         }
-        const parentWorldPos = this.#parent.worldPosition;
-        const parentWorldScale = this.#parent.worldScale;
-        const parentWorldRot = this.#parent.worldRotation;
+        return out;
+    }
 
-        const scaledX = this.#position.x * parentWorldScale.x;
-        const scaledY = this.#position.y * parentWorldScale.y;
-
-        if (parentWorldRot === 0) {
-            return {
-                x: parentWorldPos.x + scaledX,
-                y: parentWorldPos.y + scaledY,
-            };
+    /**
+     * Maps `point` from this transform's child frame to its parent's frame, in place: scale, then rotation and
+     * skew around the pivot, then translation (the same order the sprite renderer applies).
+     */
+    #toParentFrame(point: { x: number; y: number }): void {
+        let x = point.x * this.#scale.x;
+        let y = point.y * this.#scale.y;
+        const rotation = this.rotation;
+        const skewX = this.#skew.x;
+        const skewY = this.#skew.y;
+        if (rotation !== 0 || skewX !== 0 || skewY !== 0) {
+            const px = this.#renderSize.x * this.#pivot.x;
+            const py = this.#renderSize.y * this.#pivot.y;
+            x -= px;
+            y -= py;
+            if (skewX !== 0 || skewY !== 0) {
+                // ctx.transform(1, tan(skewX), tan(skewY), 1, 0, 0)
+                const sx = x + y * Math.tan(skewY);
+                const sy = x * Math.tan(skewX) + y;
+                x = sx;
+                y = sy;
+            }
+            if (rotation !== 0) {
+                const cos = Math.cos(rotation);
+                const sin = Math.sin(rotation);
+                const rx = x * cos - y * sin;
+                y = x * sin + y * cos;
+                x = rx;
+            }
+            x += px;
+            y += py;
         }
-
-        const cos = Math.cos(parentWorldRot);
-        const sin = Math.sin(parentWorldRot);
-        return {
-            x: parentWorldPos.x + (scaledX * cos - scaledY * sin),
-            y: parentWorldPos.y + (scaledX * sin + scaledY * cos),
-        };
+        point.x = this.#position.x + x;
+        point.y = this.#position.y + y;
     }
 
     /**

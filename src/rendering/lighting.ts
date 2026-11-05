@@ -21,9 +21,18 @@ export interface LightingEnvironment {
     readonly directions: Float32Array;
     /** Radiance of each directional light, linear RGB (`rgb` per light). */
     readonly colors: Float32Array;
-    /** Changes whenever the values change, so backends can skip redundant uploads. */
-    key: string;
+    /**
+     * Changes whenever the values change (unique across environments), so backends can skip redundant uploads.
+     * Replaces the string `key` of BrioJS 0.2, which allocated on every pass.
+     */
+    version: number;
+    /** Lights the values were built from, with their versions (so an unchanged list skips the rebuild). */
+    readonly sources: BrioLight[];
+    readonly sourceVersions: number[];
 }
+
+/** Monotonic counter shared by every environment, so two environments never report the same version. */
+let nextEnvironmentVersion = 1;
 
 /**
  * Creates an empty (black) lighting environment.
@@ -38,7 +47,9 @@ export function createLightingEnvironment(): LightingEnvironment {
         directionalCount: 0,
         directions: new Float32Array(MAX_DIRECTIONAL_LIGHTS * 3),
         colors: new Float32Array(MAX_DIRECTIONAL_LIGHTS * 3),
-        key: "",
+        version: 0,
+        sources: [],
+        sourceVersions: [],
     };
 }
 
@@ -82,18 +93,36 @@ export function buildLightingEnvironment(
     lights: readonly BrioLight[],
     out: LightingEnvironment,
 ): LightingEnvironment {
+    // Same lights with the same versions: nothing to rebuild (the common case, every frame) (D-04)
+    const sources = out.sources;
+    const versions = out.sourceVersions;
+    if (out.version !== 0 && sources.length === lights.length) {
+        let same = true;
+        for (let i = 0; i < lights.length; i++) {
+            if (sources[i] !== lights[i] || versions[i] !== lights[i].version) {
+                same = false;
+                break;
+            }
+        }
+        if (same) return out;
+    }
+    sources.length = lights.length;
+    versions.length = lights.length;
+    for (let i = 0; i < lights.length; i++) {
+        sources[i] = lights[i];
+        versions[i] = lights[i].version;
+    }
+
     out.ambient.fill(0);
     out.sky.fill(0);
     out.ground.fill(0);
     out.directions.fill(0);
     out.colors.fill(0);
     out.directionalCount = 0;
-    let key = "";
 
     for (let i = 0; i < lights.length; i++) {
         const light = lights[i];
         if (!light.enabled || light.intensity <= 0) continue;
-        key += `${light.name}:${light.version}:${light.type}:${light.color}:${light.groundColor}:${light.intensity}:${light.direction.x},${light.direction.y},${light.direction.z};`;
         switch (light.type) {
             case "ambient":
                 addScaled(out.ambient, 0, linearRgb(light.color), light.intensity);
@@ -118,7 +147,7 @@ export function buildLightingEnvironment(
             }
         }
     }
-    out.key = key;
+    out.version = nextEnvironmentVersion++;
     return out;
 }
 

@@ -62,6 +62,19 @@ export type CircleCollisionType = {
  * }
  * ```
  */
+/** Scratch world positions of the two objects of a 2D test (tests never allocate). */
+const POSITION_A = { x: 0, y: 0 };
+const POSITION_B = { x: 0, y: 0 };
+
+/**
+ * World-space position of a 2D object: its own `transform.position` for a root, or the position computed through its
+ * ancestors (written into `out`) for a child, so a collider attached to a child sits where the child is drawn.
+ */
+function positionOf(object: BrioObject2D, out: { x: number; y: number }): { x: number; y: number } {
+    const transform = object.transform;
+    return transform.parent ? transform.getWorldPosition(out) : transform.position;
+}
+
 export class BrioCollision {
     /**
      * Tests whether two `BrioObject2D` instances with active (`enabled: true`) collision masks are intersecting.
@@ -80,6 +93,8 @@ export class BrioCollision {
     public static isColliding(one: BrioObject2D, two: BrioObject2D): boolean {
         if (!one.collision || !two.collision) return false;
         if (!one.collision.enabled || !two.collision.enabled) return false;
+        const pa = positionOf(one, POSITION_A);
+        const pb = positionOf(two, POSITION_B);
 
         const oneShape = one.collision.shape;
         const twoShape = two.collision.shape;
@@ -91,12 +106,12 @@ export class BrioCollision {
 
                 const radius =
                     Math.min(circleObj.collision!.size.x, circleObj.collision!.size.y) / 2;
-                const cx = circleObj.transform.position.x + circleObj.collision!.pos.x + radius;
-                const cy = circleObj.transform.position.y + circleObj.collision!.pos.y + radius;
+                const cx = (circleObj === one ? pa : pb).x + circleObj.collision!.pos.x + radius;
+                const cy = (circleObj === one ? pa : pb).y + circleObj.collision!.pos.y + radius;
 
-                const minX = rectObj.transform.position.x + rectObj.collision!.pos.x;
+                const minX = (rectObj === one ? pa : pb).x + rectObj.collision!.pos.x;
                 const maxX = minX + rectObj.collision!.size.x;
-                const minY = rectObj.transform.position.y + rectObj.collision!.pos.y;
+                const minY = (rectObj === one ? pa : pb).y + rectObj.collision!.pos.y;
                 const maxY = minY + rectObj.collision!.size.y;
 
                 // Broadphase AABB check
@@ -121,10 +136,10 @@ export class BrioCollision {
             const oneRadius = Math.min(one.collision.size.x, one.collision.size.y) / 2;
             const twoRadius = Math.min(two.collision.size.x, two.collision.size.y) / 2;
 
-            const oneCenterX = one.transform.position.x + one.collision.pos.x + oneRadius;
-            const oneCenterY = one.transform.position.y + one.collision.pos.y + oneRadius;
-            const twoCenterX = two.transform.position.x + two.collision.pos.x + twoRadius;
-            const twoCenterY = two.transform.position.y + two.collision.pos.y + twoRadius;
+            const oneCenterX = pa.x + one.collision.pos.x + oneRadius;
+            const oneCenterY = pa.y + one.collision.pos.y + oneRadius;
+            const twoCenterX = pb.x + two.collision.pos.x + twoRadius;
+            const twoCenterY = pb.y + two.collision.pos.y + twoRadius;
 
             const radiusSum = oneRadius + twoRadius;
             const dx = oneCenterX - twoCenterX;
@@ -137,10 +152,10 @@ export class BrioCollision {
             return dx * dx + dy * dy <= radiusSum * radiusSum;
         } else {
             // Scalars instead of rectangle literals: this runs for every candidate pair, every frame
-            const ax = one.transform.position.x + one.collision.pos.x;
-            const ay = one.transform.position.y + one.collision.pos.y;
-            const bx = two.transform.position.x + two.collision.pos.x;
-            const by = two.transform.position.y + two.collision.pos.y;
+            const ax = pa.x + one.collision.pos.x;
+            const ay = pa.y + one.collision.pos.y;
+            const bx = pb.x + two.collision.pos.x;
+            const by = pb.y + two.collision.pos.y;
 
             return !(
                 ax + one.collision.size.x <= bx ||
@@ -173,6 +188,8 @@ export class BrioCollision {
      * ```
      */
     public static computeMTV(one: BrioObject2D, two: BrioObject2D): Vec2 | null {
+        const pa = positionOf(one, POSITION_A);
+        const pb = positionOf(two, POSITION_B);
         if (!this.isColliding(one, two)) return null;
 
         const c1 = one.collision!;
@@ -181,10 +198,10 @@ export class BrioCollision {
         if (c1.shape === "circle" && c2.shape === "circle") {
             const r1 = Math.min(c1.size.x, c1.size.y) / 2;
             const r2 = Math.min(c2.size.x, c2.size.y) / 2;
-            const c1x = one.transform.position.x + c1.pos.x + r1;
-            const c1y = one.transform.position.y + c1.pos.y + r1;
-            const c2x = two.transform.position.x + c2.pos.x + r2;
-            const c2y = two.transform.position.y + c2.pos.y + r2;
+            const c1x = pa.x + c1.pos.x + r1;
+            const c1y = pa.y + c1.pos.y + r1;
+            const c2x = pb.x + c2.pos.x + r2;
+            const c2y = pb.y + c2.pos.y + r2;
 
             const dx = c1x - c2x;
             const dy = c1y - c2y;
@@ -207,10 +224,10 @@ export class BrioCollision {
             const rc = rectObj.collision!;
 
             const r = Math.min(cc.size.x, cc.size.y) / 2;
-            const cx = circleObj.transform.position.x + cc.pos.x + r;
-            const cy = circleObj.transform.position.y + cc.pos.y + r;
-            const minX = rectObj.transform.position.x + rc.pos.x;
-            const minY = rectObj.transform.position.y + rc.pos.y;
+            const cx = (circleObj === one ? pa : pb).x + cc.pos.x + r;
+            const cy = (circleObj === one ? pa : pb).y + cc.pos.y + r;
+            const minX = (rectObj === one ? pa : pb).x + rc.pos.x;
+            const minY = (rectObj === one ? pa : pb).y + rc.pos.y;
             const maxX = minX + rc.size.x;
             const maxY = minY + rc.size.y;
 
@@ -250,13 +267,13 @@ export class BrioCollision {
             return { x: nx * push + 0, y: ny * push + 0 };
         }
 
-        const x1 = one.transform.position.x + c1.pos.x;
-        const y1 = one.transform.position.y + c1.pos.y;
+        const x1 = pa.x + c1.pos.x;
+        const y1 = pa.y + c1.pos.y;
         const w1 = c1.size.x;
         const h1 = c1.size.y;
 
-        const x2 = two.transform.position.x + c2.pos.x;
-        const y2 = two.transform.position.y + c2.pos.y;
+        const x2 = pb.x + c2.pos.x;
+        const y2 = pb.y + c2.pos.y;
         const w2 = c2.size.x;
         const h2 = c2.size.y;
 
