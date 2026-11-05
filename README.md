@@ -111,6 +111,7 @@ The [`examples/`](./examples/README.md) folder has two complete, runnable projec
 - **Star Catcher** (2D): title and play scenes, a text HUD, collision events, an input map with gamepad support, camera shake, fixed-step simulation, sound, and a saved best score.
 - **Tile Platformer** (2D): a Tiled map drawn in chunks, tile colliders, coins spawned from a prefab, checkpoints, and a camera that follows the player, fitted to the window.
 - **Orbit Gallery** (3D): procedural meshes, lights, an orbit camera, and mouse picking; add `?backend=canvas2d` to see the fallback renderer.
+- **Lantern Courtyard** (3D): physically based materials, point and spot lights, shadows, fog, tone mapping, and a water pool written as a custom GLSL shader.
 
 The examples are listed in [`examples/`](./examples/README.md) (README has the details).
 
