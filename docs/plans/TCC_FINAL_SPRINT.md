@@ -83,30 +83,30 @@ S1 goes first among the features because everything visual depends on it. S8, S9
 - Fix the documentation drift listed at the end of section 3 of the [study](../architecture/ENGINE_COMPLETION_STUDY.md).
 - Add `docs/adr/0007` for the third-party policy, `THIRD_PARTY_NOTICES.md`, and its entry in `files` in `package.json` (WP-01).
 
-### S1 Browser test rig `[ ]`
+### S1 Browser test rig `[~]`
 
 Design in WP-02.
 
-- [ ] Playwright as a dev dependency only, with headless Chromium and WebGL2.
-- [ ] Golden-image tests with tolerance, deterministic through `game.pause()` and `game.step(1 / 60)`, starting with the two current examples, on WebGL2 and Canvas2D.
-- [ ] Heap growth check over a run of frames, for the no-allocation rule.
-- [ ] Added to `.github/workflows/ci.yml`.
+- [x] Playwright as a dev dependency only, with headless Chromium and WebGL2.
+- [x] Golden-image tests with tolerance, deterministic through `game.pause()` and `game.step(1 / 60)`, starting with the two current examples, on WebGL2 and Canvas2D.
+- [~] Heap growth check over a run of frames, for the no-allocation rule. `e2e/heap.spec.ts` passes for 2D, text, collisions and tile maps; the 3D scenario is open, see [`PERFORMANCE_FOLLOWUPS.md`](./PERFORMANCE_FOLLOWUPS.md).
+- [x] Added to `.github/workflows/ci.yml`.
 
-### S2 Repairs `[ ]`
+### S2 Repairs `[~]`
 
 The defect IDs are in section 3 of the study.
 
-- [ ] D-01: render the 2D hierarchy through world transforms; camera follow, culling and collision read world values (WP-03).
-- [ ] D-12: 2D culling works with rotation and `game.scale`.
+- [x] D-01: render the 2D hierarchy through world transforms; camera follow, culling and collision read world values (WP-03).
+- [x] D-12: 2D culling works with rotation and `game.scale`.
 - [ ] D-02: glTF accessors, all component types, `normalized` and `sparse` (WP-04).
-- [ ] D-04: replace the lighting string key with a numeric version.
-- [ ] D-06: `transform.opacity` takes effect in 3D.
-- [ ] D-14: `object.sprite` returns early when unchanged.
-- [ ] D-20: `game.instantiate()` accepts `BrioObject3D`.
-- [ ] D-18: `BrioScene.fixedUpdate()`.
-- [ ] D-19: interpolation covers rotation and scale.
-- [ ] 3D frustum culling with bounding spheres, using the existing `isSphereInFrustum` (WP-12).
-- [ ] `BrioCompositor.#render3DPasses` clears when there are no 3D objects. Scene 2D cameras get `game.random`.
+- [x] D-04: replace the lighting string key with a numeric version.
+- [x] D-06: `transform.opacity` takes effect in 3D.
+- [x] D-14: `object.sprite` returns early when unchanged.
+- [x] D-20: `game.instantiate()` accepts `BrioObject3D`.
+- [x] D-18: `BrioScene.fixedUpdate()`.
+- [x] D-19: interpolation covers rotation and scale.
+- [x] 3D frustum culling with bounding spheres, using the existing `isSphereInFrustum` (WP-12).
+- [x] `BrioCompositor.#render3DPasses` clears when there are no 3D objects. Scene 2D cameras get `game.random`.
 
 ### S3 BrioShader `[ ]`
 
@@ -203,11 +203,11 @@ Design in WP-33 and WP-34. Facts in [`standards.md`](../../temp/research/standar
 - [ ] `game.saves`: `save`, `load`, `list`, `delete`, `export`, `import`. The `.briosave` file has a magic, a version and a checksum, and bad files are rejected before anything changes.
 - [ ] Restoring ECS worlds after a page reload (D-17): add a name table to the snapshot, plus the JS-side fields it needs, with a version bump and older readers kept. Scope it with the maintainers if it requires the ECS refactors in section 6.
 
-### S10 2D content `[ ]`
+### S10 2D content `[~]`
 
 - [ ] Sprite clip separated from playback (D-13); `BrioTween` with easing (WP-29).
-- [ ] `BrioText`: font, size, color, align, wrap, with `FontFace` loading in preload (WP-37).
-- [ ] `BrioTileMap` rendering in chunks of 16 tiles, and Tiled JSON import (WP-38).
+- [~] `BrioText`: font, size, color, align, wrap, with `FontFace` loading in preload (WP-37). Done in v0.2 except `FontFace` loading.
+- [x] `BrioTileMap` rendering in chunks of 16 tiles, and Tiled JSON import (WP-38).
 - [ ] `BrioParticleEmitter2D`, SoA, seeded by `game.random` (WP-40).
 - [ ] UI: label, image, button, bar, slider, containers, anchors, pointer and keyboard focus (WP-41).
 - [ ] `tint`, `blendMode`, shapes, nine-slice (WP-36).
@@ -272,3 +272,5 @@ Add one line per merged item: date, item, pull request, and anything the maintai
 | --- | --- | --- |
 | 2026-10-31 | Planning | Sprint created; planning documents not yet committed |
 | 2026-10-31 | S0 | PR #13. Node and npm not installed; Bun sequence accepted as the equivalent for now |
+| 2026-11-05 | v0.2.0 | PR #14, released as 0.2.0. S1 rig, D-20, 3D frustum culling, scene camera random, text, tile maps, input map, DPR and fit |
+| 2026-11-05 | S2 | `fix/s2-repairs`: D-01, D-04, D-06, D-12, D-14, D-18, D-19, empty 3D pass clear, loop error boundary, pause when hidden, touch-action, heap budget test. D-02 (glTF accessors) stays open. Browser and performance runs moved to a desktop machine: [`PERFORMANCE_FOLLOWUPS.md`](./PERFORMANCE_FOLLOWUPS.md) |
