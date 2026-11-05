@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { BrioRenderer, Canvas2DBackend } from "../../src/rendering/BrioRenderer";
+import { BrioRenderer } from "../../src/rendering/BrioRenderer";
+import { Canvas2DBackend } from "../../src/rendering/Canvas2DBackend";
 import { WebGL2Backend } from "../../src/rendering/WebGL2Backend";
 import { RenderBackend, RenderBackendType } from "../../src/rendering/contracts/RenderBackend";
 import { PlatformAdapter, PlatformCapabilities } from "../../src/tools/PlatformAdapter";
@@ -17,7 +18,11 @@ const GPU_CAPS: PlatformCapabilities = {
 };
 
 /** Backend double whose `init()` resolves `result` (or throws when `result` is an `Error`). */
-function fakeBackend(type: RenderBackendType, result: boolean | Error, log: string[]): RenderBackend {
+function fakeBackend(
+    type: RenderBackendType,
+    result: boolean | Error,
+    log: string[],
+): RenderBackend {
     return {
         backendType: type,
         init: async () => {
@@ -63,7 +68,9 @@ describe("BrioRenderer cascade fallback", () => {
         BrioRenderer.registerBackend("webgl1", () => fakeBackend("webgl1", true, log));
 
         const failed: RenderBackendType[] = [];
-        const backend = await BrioRenderer.initBackend(surface2D(), "auto", (type) => failed.push(type));
+        const backend = await BrioRenderer.initBackend(surface2D(), "auto", (type) =>
+            failed.push(type),
+        );
 
         expect(backend?.backendType).toBe("webgl2");
         expect(failed).toEqual(["webgpu"]);
@@ -79,7 +86,9 @@ describe("BrioRenderer cascade fallback", () => {
         BrioRenderer.registerBackend("webgl1", () => fakeBackend("webgl1", true, log));
 
         const errors: unknown[] = [];
-        const backend = await BrioRenderer.initBackend(surface2D(), "auto", (_t, e) => errors.push(e));
+        const backend = await BrioRenderer.initBackend(surface2D(), "auto", (_t, e) =>
+            errors.push(e),
+        );
 
         expect(backend?.backendType).toBe("webgl1");
         expect(errors).toEqual([boom, undefined]);
@@ -99,7 +108,11 @@ describe("BrioRenderer cascade fallback", () => {
             supportsWebGL2: false,
             supportsWebGPU: false,
         });
-        const dead = { width: 1, height: 1, getContext: () => null } as unknown as HTMLCanvasElement;
+        const dead = {
+            width: 1,
+            height: 1,
+            getContext: () => null,
+        } as unknown as HTMLCanvasElement;
         expect(await BrioRenderer.initBackend(dead)).toBeUndefined();
     });
 

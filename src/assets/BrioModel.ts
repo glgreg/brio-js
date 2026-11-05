@@ -2,9 +2,7 @@ import { BrioMesh } from "./BrioMesh";
 import { BrioMaterial } from "./BrioMaterial";
 import { Vec3 } from "../math/vec3";
 import { BrioObject3D } from "../objects/BrioObject3D";
-import { OBJLoader, ParsedModelData } from "./loaders/OBJLoader";
-import { GLBLoader } from "./loaders/GLBLoader";
-import { GLTFLoader } from "./loaders/GLTFLoader";
+import type { ParsedModelData } from "./loaders/OBJLoader";
 
 /**
  * Supported 3D model container and geometry formats.
@@ -166,17 +164,23 @@ export class BrioModel {
 
         let parsedData: ParsedModelData;
 
+        // Loaders are imported on demand, so games that never load a model do not bundle them eagerly
         if (detectedFormat === "glb") {
+            const { GLBLoader } = await import("./loaders/GLBLoader");
             parsedData = await GLBLoader.load(this.#url, this.#name);
         } else if (detectedFormat === "gltf") {
+            const { GLTFLoader } = await import("./loaders/GLTFLoader");
             parsedData = await GLTFLoader.load(this.#url, this.#name);
         } else if (detectedFormat === "obj") {
+            const { OBJLoader } = await import("./loaders/OBJLoader");
             parsedData = await OBJLoader.load(this.#url, {
                 mtlSource: this.#options.mtlSource,
                 modelName: this.#name,
             });
         } else {
-            throw new Error(`Unsupported 3D model format '${detectedFormat}' for asset '${this.#name}'.`);
+            throw new Error(
+                `Unsupported 3D model format '${detectedFormat}' for asset '${this.#name}'.`,
+            );
         }
 
         this.#meshes.clear();
@@ -272,7 +276,11 @@ export class BrioModel {
             this.#meshMaterials.get(mesh.name) ?? (materialsArr[i] ?? materialsArr[0])?.name ?? "";
 
         if (meshesArr.length === 1) {
-            const root = new BrioObject3D(objectName, meshesArr[0].name, materialFor(meshesArr[0], 0));
+            const root = new BrioObject3D(
+                objectName,
+                meshesArr[0].name,
+                materialFor(meshesArr[0], 0),
+            );
             root.addCollider3D("box", "solid", this.#boundingBox.center, this.#boundingBox.size);
             return root;
         }
@@ -280,7 +288,11 @@ export class BrioModel {
         const root = new BrioObject3D(objectName);
         for (let i = 0; i < meshesArr.length; i++) {
             const mesh = meshesArr[i];
-            const child = new BrioObject3D(`${objectName}_part_${i}`, mesh.name, materialFor(mesh, i));
+            const child = new BrioObject3D(
+                `${objectName}_part_${i}`,
+                mesh.name,
+                materialFor(mesh, i),
+            );
             root.addChild(child);
         }
 

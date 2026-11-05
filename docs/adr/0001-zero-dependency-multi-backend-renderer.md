@@ -21,3 +21,12 @@ BrioJS implements its own zero-dependency rendering pipeline behind a strict har
     - `Canvas2DBackend` has no texture sampling (materials render with their base color), no per-pixel lighting (one shade per triangle from the luminance of the lights), and no z-buffer: triangles are sorted back-to-front per pass (Painter's Algorithm), so intersecting or cyclically overlapping triangles can be drawn in the wrong order.
     - `WebGL2Backend` uses a depth buffer, sRGB textures with mipmaps, per-pixel Lambert and hemisphere lighting, and a program cache keyed by material features.
 - **Data path**: the 3D passes read each object's `transform.worldMatrix` and draw one mesh per call; instanced or batched uploads straight from ECS buffers are not implemented yet (see `docs/architecture/RENDERING_STUDY_THREEJS.md`).
+
+## Update (v0.2, 2026-11-04): backends loaded on demand
+
+The built-in backend factories of `BrioRenderer` import `WebGL2Backend` and `Canvas2DBackend` with `import()`, so
+bundlers emit them as separate chunks and 2D games, which never initialize a 3D backend, do not download them; the
+glTF / GLB / OBJ loaders are loaded the same way by `BrioModel.load()`. Factories registered with
+`registerBackend()` may be asynchronous for the same reason (a WebGPU backend can live in its own chunk), and
+`createBackend()` returns a promise. A factory that fails to load its module counts as a backend that failed to
+initialize, so the cascade continues.

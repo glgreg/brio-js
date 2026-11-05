@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { BrioRenderer, Canvas2DBackend } from "../../src/rendering/BrioRenderer";
+import { BrioRenderer } from "../../src/rendering/BrioRenderer";
+import { Canvas2DBackend } from "../../src/rendering/Canvas2DBackend";
 import { WebGL2Backend } from "../../src/rendering/WebGL2Backend";
 import { PlatformAdapter, PlatformCapabilities } from "../../src/tools/PlatformAdapter";
 import { BrioMesh } from "../../src/assets/BrioMesh";
@@ -23,7 +24,7 @@ describe("BrioRenderer backend selection", () => {
         vi.restoreAllMocks();
     });
 
-    it("never selects a backend that BrioJS does not implement, even when the GPU supports it", () => {
+    it("never selects a backend that BrioJS does not implement, even when the GPU supports it", async () => {
         vi.spyOn(PlatformAdapter, "detectCapabilities").mockReturnValue(GPU_CAPS);
 
         expect(BrioRenderer.implementedBackends()).toEqual(["webgl2", "canvas2d"]);
@@ -31,10 +32,10 @@ describe("BrioRenderer backend selection", () => {
         expect(BrioRenderer.selectBestBackendType("webgpu")).toBe("webgl2");
         expect(BrioRenderer.selectBestBackendType("webgl1")).toBe("webgl2");
         expect(BrioRenderer.selectBestBackendType("canvas2d")).toBe("canvas2d");
-        expect(BrioRenderer.createBackend("auto")).toBeInstanceOf(WebGL2Backend);
+        expect(await BrioRenderer.createBackend("auto")).toBeInstanceOf(WebGL2Backend);
     });
 
-    it("falls back to canvas2d when the runtime has no WebGL2", () => {
+    it("falls back to canvas2d when the runtime has no WebGL2", async () => {
         vi.spyOn(PlatformAdapter, "detectCapabilities").mockReturnValue({
             ...GPU_CAPS,
             supportsWebGPU: false,
@@ -42,7 +43,7 @@ describe("BrioRenderer backend selection", () => {
         });
 
         expect(BrioRenderer.selectBestBackendType("auto")).toBe("canvas2d");
-        expect(BrioRenderer.createBackend("webgl2")).toBeInstanceOf(Canvas2DBackend);
+        expect(await BrioRenderer.createBackend("webgl2")).toBeInstanceOf(Canvas2DBackend);
     });
 });
 
@@ -145,7 +146,11 @@ describe("Canvas2DBackend software shading", () => {
             fillStyles.push(ctx.fillStyle);
             fill(...args);
         };
-        const surface = { width: 200, height: 200, getContext: () => rec.ctx } as unknown as HTMLCanvasElement;
+        const surface = {
+            width: 200,
+            height: 200,
+            getContext: () => rec.ctx,
+        } as unknown as HTMLCanvasElement;
         const backend = new Canvas2DBackend();
         await backend.init(surface);
 
@@ -159,8 +164,18 @@ describe("Canvas2DBackend software shading", () => {
 
         backend.beginFrame({ x: 0, y: 0, width: 1, height: 1 });
         // Submission order is near first, far last (e.g. face mesh before hair mesh of one model)
-        backend.renderMesh3D(box, new BrioMaterial("near", { color: "#ff0000", shading: "unlit" }), near, vp);
-        backend.renderMesh3D(box, new BrioMaterial("far", { color: "#0000ff", shading: "unlit" }), far, vp);
+        backend.renderMesh3D(
+            box,
+            new BrioMaterial("near", { color: "#ff0000", shading: "unlit" }),
+            near,
+            vp,
+        );
+        backend.renderMesh3D(
+            box,
+            new BrioMaterial("far", { color: "#0000ff", shading: "unlit" }),
+            far,
+            vp,
+        );
         backend.endFrame();
 
         expect(fillStyles).toEqual(["rgb(0, 0, 255)", "rgb(255, 0, 0)"]);
@@ -169,7 +184,11 @@ describe("Canvas2DBackend software shading", () => {
 
     it("splits wireframe strokes into bounded paths instead of one path for the whole pass", async () => {
         const rec = createRecordingContext();
-        const surface = { width: 200, height: 200, getContext: () => rec.ctx } as unknown as HTMLCanvasElement;
+        const surface = {
+            width: 200,
+            height: 200,
+            getContext: () => rec.ctx,
+        } as unknown as HTMLCanvasElement;
         const backend = new Canvas2DBackend();
         await backend.init(surface);
         const vp = Matrix4.create();
