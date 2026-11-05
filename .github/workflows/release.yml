@@ -1,0 +1,103 @@
+name: Release
+
+# Publishes @brio-js/core to npm and creates the GitHub release when a version tag is pushed:
+#   npm version 0.2.0 --no-git-tag-version   # or edit package.json, then move [Unreleased] in CHANGELOG.md
+#   git tag v0.2.0 && git push origin v0.2.0
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the GitHub release
+  id-token: write # npm trusted publishing (OIDC) and provenance
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 ships npm 10.
+      - name: Update npm
+        run: npm install -g npm@11
+
+      - name: Check that the tag matches package.json
+        id: version
+        run: |
+          node -e '
+            const tag = process.env.GITHUB_REF_NAME;
+            const version = require("./package.json").version;
+            if (tag !== "v" + version) {
+              console.error(`Tag ${tag} does not match package.json version ${version} (expected v${version}).`);
+              process.exit(1);
+            }
+            console.log(`Releasing ${version}`);
+          '
+          version="${GITHUB_REF_NAME#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # Prerelease versions (0.2.0-beta.1) go to the "next" dist-tag and a GitHub prerelease.
+          if [[ "$version" == *-* ]]; then
+            echo "dist_tag=next" >> "$GITHUB_OUTPUT"
+            echo "prerelease=--prerelease" >> "$GITHUB_OUTPUT"
+          else
+            echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+            echo "prerelease=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract the release notes from CHANGELOG.md
+        run: |
+          node -e '
+            const fs = require("fs");
+            const version = process.argv[1];
+            const lines = fs.readFileSync("CHANGELOG.md", "utf8").split("\n");
+            const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const heading = new RegExp(`^## \\[${escaped}\\]`);
+            const start = lines.findIndex((line) => heading.test(line));
+            if (start === -1) {
+              console.error(`CHANGELOG.md has no "## [${version}]" section.`);
+              process.exit(1);
+            }
+            let end = lines.findIndex((line, i) => i > start && (/^## /.test(line) || /^\[[^\]]+\]: /.test(line)));
+            if (end === -1) end = lines.length;
+            // Relative links in the changelog would break on the release page: point them at the tag.
+            const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/blob/${process.env.GITHUB_REF_NAME}/`;
+            const notes = lines.slice(start + 1, end).join("\n").trim().replace(/\]\(\.\//g, "](" + base);
+            if (!notes) {
+              console.error(`The "## [${version}]" section of CHANGELOG.md is empty.`);
+              process.exit(1);
+            }
+            fs.writeFileSync(process.env.RUNNER_TEMP + "/release-notes.md", notes + "\n");
+            console.log(notes);
+          ' "${{ steps.version.outputs.version }}"
+
+      - run: npm ci
+      - run: npm run check
+
+      # Uses npm trusted publishing: configure this repository and workflow (release.yml) as a trusted
+      # publisher in the package settings on npmjs.com, and no token is needed.
+      # Fallback: if trusted publishing is not configured, add an automation token as the NPM_TOKEN
+      # repository secret and uncomment the env block below (--provenance still works with a token).
+      - name: Publish to npm
+        run: npm publish --provenance --access public --tag "${{ steps.version.outputs.dist_tag }}"
+        # env:
+        #   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --verify-tag ${{ steps.version.outputs.prerelease }}
