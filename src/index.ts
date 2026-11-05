@@ -151,14 +151,24 @@ export type {
 } from "./math/BrioCollision";
 export type { BrioRigidBodyOptions } from "./physics/BrioRigidBody";
 export type { CameraBounds2D, CameraScreenSpace2D } from "./cameras/BrioCamera2D";
-export type { CameraProjection3D, BrioCamera3DOptions, BrioRay3D } from "./cameras/BrioCamera3D";
+export type {
+    CameraProjection3D,
+    BrioCamera3DOptions,
+    BrioRay3D,
+    ToneMappingMode,
+    BrioFog,
+} from "./cameras/BrioCamera3D";
 export type { LayerPolicy, BrioLayerOptions } from "./core/BrioLayer";
 export type { ViewportRect } from "./core/BrioViewport";
 export type { MouseButton } from "./input/BrioMouse";
 export type { TouchPoint } from "./input/BrioTouch";
 export type { GamepadButtonName } from "./input/BrioGamepad";
 export type { HostPlatformType, PlatformCapabilities } from "./tools/PlatformAdapter";
-export type { RenderBackendType, RenderBackend } from "./rendering/contracts/RenderBackend";
+export type {
+    RenderBackendType,
+    RenderBackend,
+    RenderPassParameters,
+} from "./rendering/contracts/RenderBackend";
 export type { Vec2, Vec2Bool, Vec3, Vec3Bool, Quat, Mat4 } from "./math/index";
 export type {
     DebugConsoleProperties,

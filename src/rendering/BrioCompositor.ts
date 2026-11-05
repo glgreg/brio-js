@@ -12,7 +12,7 @@ import { BrioObject2D } from "../objects/BrioObject2D";
 import { BrioObject3D } from "../objects/BrioObject3D";
 import { Mat4 } from "../math/index";
 import { BrioLight } from "../objects/BrioLight";
-import { RenderBackend } from "./contracts/RenderBackend";
+import { RenderBackend, RenderPassParameters } from "./contracts/RenderBackend";
 import { buildLightingEnvironment, createLightingEnvironment } from "./lighting";
 import { drawTileMaps } from "./BrioTileMapRenderer";
 
@@ -144,6 +144,19 @@ export class BrioCompositor {
     readonly #meshBounds = new WeakMap<BrioMesh, MeshBounds>();
     /** World-space sphere center reused by the culling test. */
     readonly #cullCenter = { x: 0, y: 0, z: 0 };
+    /** Pass parameters handed to the 3D backend, reused for every camera. */
+    readonly #passParams: RenderPassParameters = {
+        cameraX: 0,
+        cameraY: 0,
+        cameraZ: 0,
+        toneMapping: "none",
+        exposure: 1,
+        fogMode: 0,
+        fogColor: "#c8d2dc",
+        fogNear: 10,
+        fogFar: 50,
+        fogDensity: 0.04,
+    };
     /** Canvas pixels per logical pixel of the frame being rendered. */
     #pixelRatio: number = 1;
 
@@ -561,6 +574,7 @@ export class BrioCompositor {
                 if (Math.abs(camera.aspect - aspect) > 1e-6) camera.aspect = aspect;
             }
             backend.beginFrame(viewport, camera.clearColor);
+            if (backend.setPassParameters) backend.setPassParameters(this.#passParameters(camera));
             const viewProj = camera.viewProjectionMatrix;
             for (let i = 0; i < source.objects3D.length; i++) {
                 const obj = source.objects3D[i];
@@ -598,6 +612,28 @@ export class BrioCompositor {
         for (let i = 0; i < children.length; i++) {
             this.#renderObject3D(backend, children[i], viewProj, camera, opacity);
         }
+    }
+
+    /** Fills the reused pass parameters from `camera` (position, tone mapping, exposure, fog). */
+    #passParameters(camera: BrioCamera3D): RenderPassParameters {
+        const p = this.#passParams;
+        const position = camera.position;
+        p.cameraX = position.x;
+        p.cameraY = position.y;
+        p.cameraZ = position.z;
+        p.toneMapping = camera.toneMapping;
+        p.exposure = camera.exposure;
+        const fog = camera.fog;
+        if (fog) {
+            p.fogMode = fog.mode === "linear" ? 1 : fog.mode === "exponential" ? 2 : 3;
+            p.fogColor = fog.color ?? camera.clearColor ?? "#c8d2dc";
+            p.fogNear = fog.near ?? 10;
+            p.fogFar = fog.far ?? 50;
+            p.fogDensity = fog.density ?? 0.04;
+        } else {
+            p.fogMode = 0;
+        }
+        return p;
     }
 
     /** Tests the world-space bounding sphere of `mesh` (placed by `world`) against the camera frustum. */

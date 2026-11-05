@@ -7,8 +7,10 @@ import { BrioTexture } from "./BrioTexture";
  * - `"unlit"`: Constant surface color without lighting calculation.
  * - `"flat"`: Per-triangle directional diffuse shading.
  * - `"lambert"`: Smooth per-vertex Lambertian diffuse shading.
+ * - `"standard"`: Physically based metallic-roughness shading (GGX specular highlights, Fresnel and reflections of
+ *   the hemisphere sky), configured by `roughness` and `metalness` like glTF materials.
  */
-export type MaterialShadingMode = "unlit" | "flat" | "lambert";
+export type MaterialShadingMode = "unlit" | "flat" | "lambert" | "standard";
 
 /**
  * Configuration options for creating a `BrioMaterial`.
@@ -31,6 +33,14 @@ export interface BrioMaterialOptions {
      * (glTF `alphaMode: "MASK"`). `0` disables the test (defaults to `0`).
      */
     alphaCutoff?: number;
+    /** Microsurface roughness of `"standard"` shading in `[0, 1]`: `0` mirror-like, `1` matte (defaults to `0.5`). */
+    roughness?: number;
+    /** Metalness of `"standard"` shading in `[0, 1]`: `1` tints reflections with `color` (defaults to `0`). */
+    metalness?: number;
+    /** Light emitted by the surface, added after lighting (defaults to `"#000000"`, none). */
+    emissive?: CSSColor;
+    /** Multiplier of `emissive` (defaults to `1`); values above `1` glow brighter with tone mapping. */
+    emissiveIntensity?: number;
 }
 
 /**
@@ -56,6 +66,12 @@ export class BrioMaterial {
     public doubleSided: boolean;
     #opacity: number;
     #alphaCutoff: number;
+    #roughness: number;
+    #metalness: number;
+    /** Light emitted by the surface (`"#000000"` for none). */
+    public emissive: CSSColor;
+    /** Multiplier of `emissive`. */
+    public emissiveIntensity: number;
 
     /**
      * Creates a new `BrioMaterial`.
@@ -72,6 +88,33 @@ export class BrioMaterial {
         this.doubleSided = options.doubleSided ?? false;
         this.#opacity = clamp(options.opacity ?? 1, 0, 1);
         this.#alphaCutoff = clamp(options.alphaCutoff ?? 0, 0, 1);
+        this.#roughness = clamp(options.roughness ?? 0.5, 0, 1);
+        this.#metalness = clamp(options.metalness ?? 0, 0, 1);
+        this.emissive = options.emissive ?? "#000000";
+        this.emissiveIntensity = Math.max(0, options.emissiveIntensity ?? 1);
+    }
+
+    /**
+     * Microsurface roughness of `"standard"` shading in `[0, 1]` (`0` sharp reflections, `1` matte).
+     *
+     * @example
+     * ```ts
+     * const chrome = new BrioMaterial("mat_chrome", { shading: "standard", metalness: 1, roughness: 0.15 });
+     * ```
+     */
+    public get roughness(): number {
+        return this.#roughness;
+    }
+    public set roughness(value: number) {
+        this.#roughness = clamp(value, 0, 1);
+    }
+
+    /** Metalness of `"standard"` shading in `[0, 1]`. */
+    public get metalness(): number {
+        return this.#metalness;
+    }
+    public set metalness(value: number) {
+        this.#metalness = clamp(value, 0, 1);
     }
 
     /** Unique identifier of the material. */
