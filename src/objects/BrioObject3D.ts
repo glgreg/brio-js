@@ -76,6 +76,10 @@ export class BrioObject3D {
      * objects apart in collision callbacks without parsing names.
      */
     public tag: string = "";
+    /** Whether this object casts shadows from a shadow-casting directional light (defaults to `true`). */
+    public castShadow: boolean = true;
+    /** Whether shadows are drawn on this object (defaults to `true`). */
+    public receiveShadow: boolean = true;
 
     /** Collision listeners of this object (`undefined` until one is registered). */
     #collisionListeners?: CollisionListeners<BrioObject3D>;
@@ -263,6 +267,8 @@ export class BrioObject3D {
             source.#transform.depth,
         );
         copy.tag = source.tag;
+        copy.castShadow = source.castShadow;
+        copy.receiveShadow = source.receiveShadow;
         copy.transform.position = {
             x: source.transform.position.x,
             y: source.transform.position.y,

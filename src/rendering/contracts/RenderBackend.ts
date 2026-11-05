@@ -6,6 +6,11 @@ import { ViewportRect } from "../../core/BrioViewport";
 import { Mat4 } from "../../math/mat4";
 import { LightingEnvironment } from "../lighting";
 
+/** `renderMesh3D` shadow flag: the mesh casts shadows. */
+export const SHADOW_CAST = 1;
+/** `renderMesh3D` shadow flag: the mesh receives shadows. */
+export const SHADOW_RECEIVE = 2;
+
 /**
  * Camera-dependent values of one 3D pass (`RenderBackend.setPassParameters()`).
  */
@@ -14,6 +19,10 @@ export interface RenderPassParameters {
     cameraX: number;
     cameraY: number;
     cameraZ: number;
+    /** Point the camera looks at: the center of the directional shadow box. */
+    targetX: number;
+    targetY: number;
+    targetZ: number;
     /** Tone mapping operator (`ToneMappingMode`). */
     toneMapping: ToneMappingMode;
     /** Exposure multiplier applied before tone mapping. */
@@ -80,6 +89,7 @@ export interface RenderBackend {
      * @param worldMatrix Object 4x4 local-to-world matrix
      * @param viewProjMatrix Camera 4x4 view-projection matrix
      * @param opacity Object opacity (`transform.opacity`, defaults to `1`), multiplied with `material.opacity`
+     * @param shadowFlags `SHADOW_CAST | SHADOW_RECEIVE` bits of the object (defaults to both)
      */
     renderMesh3D(
         mesh: BrioMesh,
@@ -87,6 +97,7 @@ export interface RenderBackend {
         worldMatrix: Mat4,
         viewProjMatrix: Mat4,
         opacity?: number,
+        shadowFlags?: number,
     ): void;
 
     /**

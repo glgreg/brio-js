@@ -2,10 +2,16 @@ import { BrioMaterial } from "../assets/BrioMaterial";
 import { BrioMesh } from "../assets/BrioMesh";
 import { BrioTexture } from "../assets/BrioTexture";
 import { ViewportRect } from "../core/BrioViewport";
-import { Mat4 } from "../math/index";
+import { Mat4, Matrix4 } from "../math/index";
 import { BrioLight } from "../objects/BrioLight";
 import { parseCanvasColor, srgbToLinear } from "./color";
-import { RenderBackend, RenderBackendType, RenderPassParameters } from "./contracts/RenderBackend";
+import {
+    RenderBackend,
+    RenderBackendType,
+    RenderPassParameters,
+    SHADOW_CAST,
+    SHADOW_RECEIVE,
+} from "./contracts/RenderBackend";
 import { sortInPlace } from "../tools/sort";
 import {
     buildLightingEnvironment,
@@ -54,6 +60,7 @@ const FEATURE_LIT = 2;
 const FEATURE_FLAT = 4;
 const FEATURE_ALPHA_TEST = 8;
 const FEATURE_STANDARD = 16;
+const FEATURE_SHADOW = 32;
 
 /**
  * GLSL sources of the program variant with feature bits `features` (`FEATURE_*`), shared by the program cache and
@@ -68,18 +75,37 @@ export function buildShaderSources(features: number): { vertex: string; fragment
     if (features & FEATURE_FLAT) defines.push("#define FLAT_SHADED");
     if (features & FEATURE_ALPHA_TEST) defines.push("#define USE_ALPHA_TEST");
     if (features & FEATURE_STANDARD) defines.push("#define STANDARD_SHADING");
+    if (features & FEATURE_SHADOW) defines.push("#define USE_SHADOW");
     return {
         vertex: VERTEX_SHADER,
         fragment: `#version 300 es\n${defines.join("\n")}\n${FRAGMENT_SHADER}`,
     };
 }
 
+/** Depth-only program of the shadow pass (positions transformed into the light's clip space). @internal */
+export const SHADOW_DEPTH_SHADERS = {
+    vertex: `#version 300 es
+layout(location = 0) in vec3 aPosition;
+uniform mat4 uLightViewProj;
+uniform mat4 uWorld;
+void main() {
+    gl_Position = uLightViewProj * (uWorld * vec4(aPosition, 1.0));
+}`,
+    fragment: `#version 300 es
+precision mediump float;
+void main() {}`,
+};
+
 /** Every feature combination the backend can request (for validation tests). @internal */
 export const SHADER_FEATURE_COMBINATIONS: readonly number[] = (() => {
     const out: number[] = [0];
-    for (let f = 1; f < 32; f++) {
-        // Flat and standard shading only exist on lit programs
-        if ((f & (FEATURE_FLAT | FEATURE_STANDARD)) !== 0 && (f & FEATURE_LIT) === 0) continue;
+    for (let f = 1; f < 64; f++) {
+        // Flat shading, standard shading and shadows only exist on lit programs
+        if (
+            (f & (FEATURE_FLAT | FEATURE_STANDARD | FEATURE_SHADOW)) !== 0 &&
+            (f & FEATURE_LIT) === 0
+        )
+            continue;
         out.push(f);
     }
     return out;
@@ -113,6 +139,13 @@ uniform sampler2D uMap;
 uniform float uAlphaCutoff;
 uniform vec3 uEmissive;
 uniform vec2 uRoughnessMetalness;
+#ifdef USE_SHADOW
+uniform highp sampler2DShadow uShadowMap;
+uniform mat4 uShadowMatrix;
+// x: depth bias, y: normal bias (world units), z: texel size, w: index of the shadow-casting directional light
+uniform vec4 uShadowParams;
+uniform float uShadowStrength;
+#endif
 layout(std140) uniform BrioPass {
     vec4 uCameraPosition;
     vec4 uFogColor;
@@ -204,6 +237,25 @@ vec3 environmentBRDF(vec3 f0, float roughness, float NoV) {
 #endif
 #endif
 
+#ifdef USE_SHADOW
+// Fraction of light reaching this fragment from the shadow-casting light: 3x3 percentage-closer filtering on top of
+// the hardware 2x2 comparison (LINEAR + COMPARE_REF_TO_TEXTURE), so edges stay soft
+float shadowFactor(vec3 normal) {
+    vec4 coord = uShadowMatrix * vec4(vWorldPosition + normal * uShadowParams.y, 1.0);
+    vec3 p = coord.xyz / coord.w * 0.5 + 0.5;
+    if (p.x <= 0.0 || p.x >= 1.0 || p.y <= 0.0 || p.y >= 1.0 || p.z >= 1.0) return 1.0;
+    float depth = p.z - uShadowParams.x;
+    float texel = uShadowParams.z;
+    float sum = 0.0;
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            sum += texture(uShadowMap, vec3(p.xy + vec2(float(x), float(y)) * texel, depth));
+        }
+    }
+    return mix(1.0, sum / 9.0, uShadowStrength);
+}
+#endif
+
 vec3 toneMap(vec3 color, float mode) {
     if (mode < 0.5) return color;
     if (mode < 1.5) return color / (1.0 + color);
@@ -259,6 +311,13 @@ void main() {
     vec3 ambient = uAmbient.rgb + mix(uGroundColor.rgb, uSkyColor.rgb, hemisphere);
     int directionalCount = int(uLightCount.x);
     int punctualCount = int(uLightCount.y);
+#ifdef USE_SHADOW
+    float shadow = shadowFactor(normal);
+    int shadowLight = int(uShadowParams.w);
+#else
+    float shadow = 1.0;
+    int shadowLight = -1;
+#endif
 #ifdef STANDARD_SHADING
     vec3 V = normalize(uCameraPosition.xyz - vWorldPosition);
     float roughness = clamp(uRoughnessMetalness.x, 0.03, 1.0);
@@ -272,7 +331,8 @@ void main() {
     vec3 lit = ambient * diffuseColor + skyReflection * environmentBRDF(f0, roughness, NoV);
     for (int i = 0; i < ${MAX_DIRECTIONAL_LIGHTS}; i++) {
         if (i >= directionalCount) break;
-        lit += shadeStandard(normal, V, uDirLightDirection[i].xyz, uDirLightColor[i].rgb, diffuseColor, f0, alpha);
+        float visibility = i == shadowLight ? shadow : 1.0;
+        lit += shadeStandard(normal, V, uDirLightDirection[i].xyz, uDirLightColor[i].rgb * visibility, diffuseColor, f0, alpha);
     }
     for (int i = 0; i < ${MAX_PUNCTUAL_LIGHTS}; i++) {
         if (i >= punctualCount) break;
@@ -287,7 +347,8 @@ void main() {
     vec3 irradiance = ambient;
     for (int i = 0; i < ${MAX_DIRECTIONAL_LIGHTS}; i++) {
         if (i >= directionalCount) break;
-        irradiance += uDirLightColor[i].rgb * max(dot(normal, uDirLightDirection[i].xyz), 0.0);
+        float visibility = i == shadowLight ? shadow : 1.0;
+        irradiance += uDirLightColor[i].rgb * (max(dot(normal, uDirLightDirection[i].xyz), 0.0) * visibility);
     }
     for (int i = 0; i < ${MAX_PUNCTUAL_LIGHTS}; i++) {
         if (i >= punctualCount) break;
@@ -346,6 +407,17 @@ interface ProgramInfo {
     uAlphaCutoff: WebGLUniformLocation | null;
     uEmissive: WebGLUniformLocation | null;
     uRoughnessMetalness: WebGLUniformLocation | null;
+    uShadowMap: WebGLUniformLocation | null;
+    uShadowMatrix: WebGLUniformLocation | null;
+    uShadowParams: WebGLUniformLocation | null;
+    uShadowStrength: WebGLUniformLocation | null;
+}
+
+/** Depth-only program of the shadow pass. */
+interface DepthProgramInfo {
+    program: WebGLProgram;
+    uLightViewProj: WebGLUniformLocation | null;
+    uWorld: WebGLUniformLocation | null;
 }
 
 /** One queued `renderMesh3D()` call, sorted and drawn by `endFrame()`. */
@@ -360,6 +432,8 @@ interface DrawItem {
     depth: number;
     /** Object opacity (`transform.opacity`), multiplied with `material.opacity`. */
     opacity: number;
+    /** Whether the item is drawn into the shadow map. */
+    castsShadow: boolean;
 }
 
 /** Opaque items: group by program and material (fewer state changes), then front-to-back (early-z). */
@@ -450,6 +524,28 @@ export class WebGL2Backend implements RenderBackend {
     /** Programs that failed to compile or link: logged once, then their draws are skipped (D-07). */
     readonly #failedPrograms = new Set<number>();
     readonly #emissiveScratch = new Float32Array(3);
+
+    // Directional shadow (one map per pass, from the first shadow-casting directional light)
+    #shadowLight = -1;
+    readonly #shadowDirection = new Float32Array(3);
+    /** size, distance, resolution, bias, normal bias, strength */
+    readonly #shadowSettings = new Float32Array(6);
+    #shadowTexture: WebGLTexture | null = null;
+    #shadowFramebuffer: WebGLFramebuffer | null = null;
+    #shadowResolution = 0;
+    #depthProgram: DepthProgramInfo | null = null;
+    /** Set once the depth program or framebuffer failed: shadows stay off instead of failing every frame. */
+    #shadowsUnsupported = false;
+    /** Whether the shadow map of the current pass was rendered (shadow variants sample it). */
+    #shadowReady = false;
+    readonly #shadowView = Matrix4.create();
+    readonly #shadowProjection = Matrix4.create();
+    readonly #shadowMatrix = Matrix4.create();
+    readonly #shadowEye = { x: 0, y: 0, z: 0 };
+    readonly #shadowCenter = { x: 0, y: 0, z: 0 };
+    readonly #shadowUp = { x: 0, y: 1, z: 0 };
+    /** GL (bottom-left) Y of the current pass viewport. */
+    #glY = 0;
     #lightsVersion = -1;
     #lightsDirty = true;
 
@@ -494,6 +590,9 @@ export class WebGL2Backend implements RenderBackend {
         data.set(environment.punctualColors.subarray(0, count), PUNCTUAL_OFFSET + stride);
         data.set(environment.punctualDirections.subarray(0, count), PUNCTUAL_OFFSET + stride * 2);
         data.set(environment.punctualCones.subarray(0, count), PUNCTUAL_OFFSET + stride * 3);
+        this.#shadowLight = environment.shadowLight;
+        this.#shadowDirection.set(environment.shadowDirection);
+        this.#shadowSettings.set(environment.shadowSettings);
         this.#lightsDirty = true;
     }
 
@@ -520,6 +619,9 @@ export class WebGL2Backend implements RenderBackend {
         data[10] = parameters.fogDensity;
         data[11] = TONE_MAPPING_CODES[parameters.toneMapping] ?? 0;
         this.#passDirty = true;
+        this.#shadowCenter.x = parameters.targetX;
+        this.#shadowCenter.y = parameters.targetY;
+        this.#shadowCenter.z = parameters.targetZ;
     }
 
     /** Values currently uploaded (or pending upload) to the `BrioPass` block (std140 layout). */
@@ -622,6 +724,8 @@ export class WebGL2Backend implements RenderBackend {
         this.#ph = Math.round(viewport.height * h);
         // GL window coordinates start at the bottom-left corner
         const glY = h - this.#py - this.#ph;
+        this.#glY = glY;
+        this.#shadowReady = false;
         gl.viewport(this.#px, glY, this.#pw, this.#ph);
         gl.scissor(this.#px, glY, this.#pw, this.#ph);
 
@@ -658,6 +762,7 @@ export class WebGL2Backend implements RenderBackend {
         worldMatrix: Mat4,
         viewProjMatrix: Mat4,
         opacity: number = 1,
+        shadowFlags: number = SHADOW_CAST | SHADOW_RECEIVE,
     ): void {
         if (!this.#gl || this.#contextLost || mesh.indices.length === 0 || opacity <= 0) return;
 
@@ -672,6 +777,7 @@ export class WebGL2Backend implements RenderBackend {
                 materialId: 0,
                 depth: 0,
                 opacity: 1,
+                castsShadow: false,
             };
             this.#itemPool.push(item);
         }
@@ -688,6 +794,14 @@ export class WebGL2Backend implements RenderBackend {
         const z = worldMatrix[14];
         item.depth = vp[3] * x + vp[7] * y + vp[11] * z + vp[15];
         item.opacity = opacity;
+        item.castsShadow = (shadowFlags & SHADOW_CAST) !== 0;
+        if (
+            this.#shadowLight >= 0 &&
+            (shadowFlags & SHADOW_RECEIVE) !== 0 &&
+            (item.features & FEATURE_LIT) !== 0
+        ) {
+            item.features |= FEATURE_SHADOW;
+        }
 
         if (material.opacity * opacity < 1) this.#transparent.push(item);
         else this.#opaque.push(item);
@@ -720,6 +834,8 @@ export class WebGL2Backend implements RenderBackend {
             compareTransparent,
             this.#sortScratch,
         );
+
+        if (this.#shadowLight >= 0) this.#renderShadowMap(gl);
 
         this.#setBlend(false);
         this.#setDepthMask(true);
@@ -786,6 +902,9 @@ export class WebGL2Backend implements RenderBackend {
             for (const info of this.#programs.values()) gl.deleteProgram(info.program);
             if (this.#lightsUbo) gl.deleteBuffer(this.#lightsUbo);
             if (this.#passUbo) gl.deleteBuffer(this.#passUbo);
+            if (this.#shadowTexture) gl.deleteTexture(this.#shadowTexture);
+            if (this.#shadowFramebuffer) gl.deleteFramebuffer(this.#shadowFramebuffer);
+            if (this.#depthProgram) gl.deleteProgram(this.#depthProgram.program);
         }
         this.#resetResources();
         this.#gl = null;
@@ -840,6 +959,12 @@ export class WebGL2Backend implements RenderBackend {
         this.#passUbo = null;
         this.#passDirty = true;
         this.#failedPrograms.clear();
+        this.#shadowTexture = null;
+        this.#shadowFramebuffer = null;
+        this.#shadowResolution = 0;
+        this.#depthProgram = null;
+        this.#shadowReady = false;
+        this.#shadowsUnsupported = false;
         this.#currentProgram = null;
         this.#currentVao = null;
         this.#cullEnabled = null;
@@ -871,7 +996,12 @@ export class WebGL2Backend implements RenderBackend {
     #draw(gl: WebGL2RenderingContext, item: DrawItem): void {
         const material = item.material;
         const geometry = this.#geometryFor(gl, item.mesh);
-        const info = this.#programFor(gl, item.features);
+        // Without a shadow map this pass (no depth texture support, nothing cast), draw the unshadowed variant
+        const features =
+            (item.features & FEATURE_SHADOW) !== 0 && !this.#shadowReady
+                ? item.features & ~FEATURE_SHADOW
+                : item.features;
+        const info = this.#programFor(gl, features);
         if (!info) return;
 
         if (this.#currentProgram !== info.program) {
@@ -913,8 +1043,24 @@ export class WebGL2Backend implements RenderBackend {
             emissive[2] = 0;
         }
         gl.uniform3fv(info.uEmissive, emissive);
-        if ((item.features & FEATURE_STANDARD) !== 0) {
+        if ((features & FEATURE_STANDARD) !== 0) {
             gl.uniform2f(info.uRoughnessMetalness, material.roughness, material.metalness);
+        }
+        if ((features & FEATURE_SHADOW) !== 0) {
+            const settings = this.#shadowSettings;
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, this.#shadowTexture);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.uniform1i(info.uShadowMap, 1);
+            gl.uniformMatrix4fv(info.uShadowMatrix, false, this.#shadowMatrix);
+            gl.uniform4f(
+                info.uShadowParams,
+                settings[3],
+                settings[4],
+                1 / this.#shadowResolution,
+                this.#shadowLight,
+            );
+            gl.uniform1f(info.uShadowStrength, settings[5]);
         }
 
         this.#setCull(!material.doubleSided && !material.wireframe);
@@ -1110,6 +1256,10 @@ export class WebGL2Backend implements RenderBackend {
             uAlphaCutoff: gl.getUniformLocation(program, "uAlphaCutoff"),
             uEmissive: gl.getUniformLocation(program, "uEmissive"),
             uRoughnessMetalness: gl.getUniformLocation(program, "uRoughnessMetalness"),
+            uShadowMap: gl.getUniformLocation(program, "uShadowMap"),
+            uShadowMatrix: gl.getUniformLocation(program, "uShadowMatrix"),
+            uShadowParams: gl.getUniformLocation(program, "uShadowParams"),
+            uShadowStrength: gl.getUniformLocation(program, "uShadowStrength"),
         };
         // Programs read the shared BrioLights (lit variants) and BrioPass uniform buffers
         const lightsIndex = gl.getUniformBlockIndex(program, "BrioLights");
@@ -1122,6 +1272,139 @@ export class WebGL2Backend implements RenderBackend {
         }
         this.#programs.set(features, info);
         return info;
+    }
+
+    /**
+     * Renders the depth of every shadow-casting opaque item of the pass, seen from the shadow-casting light, into
+     * the shadow map. The light's orthographic box (`size` half-width, `distance` deep) is centered on the camera
+     * target and snapped to whole texels in light space, so shadow edges do not shimmer when the camera moves.
+     */
+    #renderShadowMap(gl: WebGL2RenderingContext): void {
+        let casters = 0;
+        for (let i = 0; i < this.#opaque.length; i++) if (this.#opaque[i].castsShadow) casters++;
+        if (casters === 0 || this.#shadowsUnsupported || !this.#ensureShadowResources(gl)) return;
+
+        const settings = this.#shadowSettings;
+        const size = settings[0];
+        const distance = settings[1];
+        const resolution = this.#shadowResolution;
+        const d = this.#shadowDirection;
+        const center = this.#shadowCenter;
+        const eye = this.#shadowEye;
+        eye.x = center.x - d[0] * distance * 0.5;
+        eye.y = center.y - d[1] * distance * 0.5;
+        eye.z = center.z - d[2] * distance * 0.5;
+        const up = this.#shadowUp;
+        const vertical = Math.abs(d[1]) > 0.99;
+        up.x = 0;
+        up.y = vertical ? 0 : 1;
+        up.z = vertical ? 1 : 0;
+        const view = this.#shadowView;
+        Matrix4.lookAt(view, eye, center, up);
+        const texel = (size * 2) / resolution;
+        const vx = view[0] * center.x + view[4] * center.y + view[8] * center.z + view[12];
+        const vy = view[1] * center.x + view[5] * center.y + view[9] * center.z + view[13];
+        view[12] -= vx - Math.round(vx / texel) * texel;
+        view[13] -= vy - Math.round(vy / texel) * texel;
+        Matrix4.orthographic(this.#shadowProjection, -size, size, -size, size, 0, distance);
+        Matrix4.multiply(this.#shadowMatrix, this.#shadowProjection, view);
+
+        const depth = this.#depthProgram!;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.#shadowFramebuffer);
+        gl.viewport(0, 0, resolution, resolution);
+        gl.scissor(0, 0, resolution, resolution);
+        this.#setDepthMask(true);
+        this.#setBlend(false);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        gl.useProgram(depth.program);
+        this.#currentProgram = depth.program;
+        gl.uniformMatrix4fv(depth.uLightViewProj, false, this.#shadowMatrix);
+        // Slope-scaled depth offset against shadow acne
+        gl.enable(gl.POLYGON_OFFSET_FILL);
+        gl.polygonOffset(1.5, 2);
+        for (let i = 0; i < this.#opaque.length; i++) {
+            const item = this.#opaque[i];
+            if (!item.castsShadow || item.material.wireframe) continue;
+            const geometry = this.#geometryFor(gl, item.mesh);
+            const det = this.#computeNormalMatrix(item.world);
+            this.#setCull(!item.material.doubleSided);
+            this.#setFrontFaceCW(det < 0);
+            gl.uniformMatrix4fv(depth.uWorld, false, item.world);
+            this.#bindVao(gl, geometry.vao);
+            gl.drawElements(gl.TRIANGLES, geometry.indexCount, geometry.indexType, 0);
+            this.#drawCalls++;
+        }
+        gl.disable(gl.POLYGON_OFFSET_FILL);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(this.#px, this.#glY, this.#pw, this.#ph);
+        gl.scissor(this.#px, this.#glY, this.#pw, this.#ph);
+        this.#shadowReady = true;
+    }
+
+    /** Creates (or resizes) the depth texture, framebuffer and depth program; `false` when unsupported. */
+    #ensureShadowResources(gl: WebGL2RenderingContext): boolean {
+        const resolution = this.#shadowSettings[2];
+        if (!this.#depthProgram) {
+            try {
+                const vs = this.#compile(gl, gl.VERTEX_SHADER, SHADOW_DEPTH_SHADERS.vertex);
+                const fs = this.#compile(gl, gl.FRAGMENT_SHADER, SHADOW_DEPTH_SHADERS.fragment);
+                const program = gl.createProgram()!;
+                gl.attachShader(program, vs);
+                gl.attachShader(program, fs);
+                gl.linkProgram(program);
+                gl.deleteShader(vs);
+                gl.deleteShader(fs);
+                if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                    throw new Error(gl.getProgramInfoLog(program) ?? "link failed");
+                }
+                this.#depthProgram = {
+                    program,
+                    uLightViewProj: gl.getUniformLocation(program, "uLightViewProj"),
+                    uWorld: gl.getUniformLocation(program, "uWorld"),
+                };
+            } catch (err) {
+                console.error(
+                    "BrioJS WebGL2Backend: shadow depth program failed; shadows are off.",
+                    err,
+                );
+                this.#shadowLight = -1;
+                return false;
+            }
+        }
+        if (this.#shadowTexture && this.#shadowResolution === resolution) return true;
+
+        if (this.#shadowTexture) gl.deleteTexture(this.#shadowTexture);
+        if (this.#shadowFramebuffer) gl.deleteFramebuffer(this.#shadowFramebuffer);
+        const texture = gl.createTexture()!;
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, resolution, resolution);
+        // LINEAR + comparison mode: the hardware returns a 2x2 filtered visibility (percentage-closer filtering)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+        gl.activeTexture(gl.TEXTURE0);
+        const framebuffer = gl.createFramebuffer()!;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, texture, 0);
+        gl.drawBuffers([gl.NONE]);
+        gl.readBuffer(gl.NONE);
+        const complete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        this.#shadowTexture = texture;
+        this.#shadowFramebuffer = framebuffer;
+        this.#shadowResolution = resolution;
+        if (!complete) {
+            console.error(
+                "BrioJS WebGL2Backend: the shadow framebuffer is incomplete; shadows are off.",
+            );
+            this.#shadowLight = -1;
+            return false;
+        }
+        return true;
     }
 
     /** Compiles and links the program of `features`; throws with the info log when it fails. */

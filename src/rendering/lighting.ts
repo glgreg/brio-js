@@ -39,6 +39,12 @@ export interface LightingEnvironment {
     readonly punctualDirections: Float32Array;
     /** Cosine of the inner cone angle (full intensity inside it) and the distance decay exponent. */
     readonly punctualCones: Float32Array;
+    /** Index (into the directional lights) of the light that casts shadows, or `-1`. */
+    shadowLight: number;
+    /** Ray direction of the shadow-casting light (not normalized toward the light, unlike `directions`). */
+    readonly shadowDirection: Float32Array;
+    /** Shadow settings of that light: size, distance, resolution, bias, normal bias, strength. */
+    readonly shadowSettings: Float32Array;
     /**
      * Changes whenever the values change (unique across environments), so backends can skip redundant uploads.
      * Replaces the string `key` of BrioJS 0.2, which allocated on every pass.
@@ -70,6 +76,9 @@ export function createLightingEnvironment(): LightingEnvironment {
         punctualColors: new Float32Array(MAX_PUNCTUAL_LIGHTS * 4),
         punctualDirections: new Float32Array(MAX_PUNCTUAL_LIGHTS * 4),
         punctualCones: new Float32Array(MAX_PUNCTUAL_LIGHTS * 4),
+        shadowLight: -1,
+        shadowDirection: new Float32Array(3),
+        shadowSettings: new Float32Array(6),
         version: 0,
         sources: [],
         sourceVersions: [],
@@ -147,6 +156,7 @@ export function buildLightingEnvironment(
     out.punctualDirections.fill(0);
     out.punctualCones.fill(0);
     out.punctualCount = 0;
+    out.shadowLight = -1;
 
     for (let i = 0; i < lights.length; i++) {
         const light = lights[i];
@@ -170,6 +180,20 @@ export function buildLightingEnvironment(
                 out.directions[o + 1] = -d.y / len;
                 out.directions[o + 2] = -d.z / len;
                 addScaled(out.colors, o, linearRgb(light.color), light.intensity);
+                if (light.castShadow && out.shadowLight < 0) {
+                    out.shadowLight = out.directionalCount;
+                    out.shadowDirection[0] = d.x / len;
+                    out.shadowDirection[1] = d.y / len;
+                    out.shadowDirection[2] = d.z / len;
+                    const shadow = light.shadow;
+                    const settings = out.shadowSettings;
+                    settings[0] = shadow.size;
+                    settings[1] = shadow.distance;
+                    settings[2] = shadow.resolution;
+                    settings[3] = shadow.bias;
+                    settings[4] = shadow.normalBias;
+                    settings[5] = shadow.strength;
+                }
                 out.directionalCount++;
                 break;
             }

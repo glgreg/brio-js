@@ -12,7 +12,12 @@ import { BrioObject2D } from "../objects/BrioObject2D";
 import { BrioObject3D } from "../objects/BrioObject3D";
 import { Mat4 } from "../math/index";
 import { BrioLight } from "../objects/BrioLight";
-import { RenderBackend, RenderPassParameters } from "./contracts/RenderBackend";
+import {
+    RenderBackend,
+    RenderPassParameters,
+    SHADOW_CAST,
+    SHADOW_RECEIVE,
+} from "./contracts/RenderBackend";
 import { buildLightingEnvironment, createLightingEnvironment } from "./lighting";
 import { drawTileMaps } from "./BrioTileMapRenderer";
 
@@ -149,6 +154,9 @@ export class BrioCompositor {
         cameraX: 0,
         cameraY: 0,
         cameraZ: 0,
+        targetX: 0,
+        targetY: 0,
+        targetZ: 0,
         toneMapping: "none",
         exposure: 1,
         fogMode: 0,
@@ -601,7 +609,15 @@ export class BrioCompositor {
                 const world = obj.transform.worldMatrix;
                 if (this.#isMeshVisible(mesh, world, camera)) {
                     const material = this.#materials.get(obj.material) ?? this.#defaultMaterial;
-                    backend.renderMesh3D(mesh, material, world, viewProj, opacity);
+                    backend.renderMesh3D(
+                        mesh,
+                        material,
+                        world,
+                        viewProj,
+                        opacity,
+                        (obj.castShadow ? SHADOW_CAST : 0) |
+                            (obj.receiveShadow ? SHADOW_RECEIVE : 0),
+                    );
                     this.#stats.objects3DDrawn++;
                 } else {
                     this.#stats.objects3DCulled++;
@@ -621,6 +637,10 @@ export class BrioCompositor {
         p.cameraX = position.x;
         p.cameraY = position.y;
         p.cameraZ = position.z;
+        const target = camera.target;
+        p.targetX = target.x;
+        p.targetY = target.y;
+        p.targetZ = target.z;
         p.toneMapping = camera.toneMapping;
         p.exposure = camera.exposure;
         const fog = camera.fog;

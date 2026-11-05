@@ -12,6 +12,25 @@ import { CSSColor } from "../tools/base_types";
 export type BrioLightType = "directional" | "ambient" | "hemisphere" | "point" | "spot";
 
 /**
+ * Shadow settings of a directional `BrioLight` (`light.shadow`). The shadow covers a square box `size * 2` wide
+ * around the target of the camera being rendered, so it follows the player; a smaller box gives sharper shadows.
+ */
+export interface BrioShadowOptions {
+    /** Half-width of the shadowed square in world units (defaults to `15`). */
+    size?: number;
+    /** Depth of the shadow box along the light, centered on the camera target (defaults to `60`). */
+    distance?: number;
+    /** Shadow map width and height in texels (defaults to `2048`). */
+    resolution?: number;
+    /** Depth offset against shadow acne, in shadow-map depth units (defaults to `0.0008`). */
+    bias?: number;
+    /** Offset along the surface normal against acne on slopes, in world units (defaults to `0.04`). */
+    normalBias?: number;
+    /** How dark shadows are, from `0` (no shadow) to `1` (full), defaults to `1`. */
+    strength?: number;
+}
+
+/**
  * Configuration options for creating a `BrioLight`.
  */
 export interface BrioLightOptions {
@@ -39,6 +58,10 @@ export interface BrioLightOptions {
     angle?: number;
     /** Soft edge of a `"spot"` cone, from `0` (hard) to `1` (fades from the center), defaults to `0.2`. */
     penumbra?: number;
+    /** Whether a `"directional"` light casts shadows (defaults to `false`; one shadow-casting light per pass). */
+    castShadow?: boolean;
+    /** Shadow settings of a shadow-casting directional light. */
+    shadow?: BrioShadowOptions;
     /** Whether the light contributes to the scene (defaults to `true`). */
     enabled?: boolean;
 }
@@ -62,6 +85,18 @@ export interface BrioLightOptions {
  * const stage = new BrioLight("light_stage", "spot", { position: { x: 0, y: 5, z: 0 }, angle: 0.4, penumbra: 0.3, intensity: 30 });
  * ```
  */
+/** Fills the defaults of `options` and clamps the values. */
+function resolveShadowOptions(options: BrioShadowOptions = {}): Required<BrioShadowOptions> {
+    return {
+        size: Math.max(0.1, options.size ?? 15),
+        distance: Math.max(0.1, options.distance ?? 60),
+        resolution: Math.min(4096, Math.max(256, Math.round(options.resolution ?? 2048))),
+        bias: Math.max(0, options.bias ?? 0.0008),
+        normalBias: Math.max(0, options.normalBias ?? 0.04),
+        strength: Math.min(1, Math.max(0, options.strength ?? 1)),
+    };
+}
+
 export class BrioLight {
     readonly #name: string;
     readonly #type: BrioLightType;
@@ -71,6 +106,8 @@ export class BrioLight {
     #decay: number;
     #angle: number;
     #penumbra: number;
+    #castShadow: boolean;
+    #shadow: Required<BrioShadowOptions>;
     #color: CSSColor;
     #groundColor: CSSColor;
     #intensity: number;
@@ -105,6 +142,8 @@ export class BrioLight {
         this.#decay = Math.max(0, options.decay ?? 2);
         this.#angle = Math.min(Math.max(options.angle ?? Math.PI / 6, 1e-3), Math.PI / 2);
         this.#penumbra = Math.min(Math.max(options.penumbra ?? 0.2, 0), 1);
+        this.#castShadow = options.castShadow ?? false;
+        this.#shadow = resolveShadowOptions(options.shadow);
     }
 
     /** Unique identifier of the light. */
@@ -220,6 +259,34 @@ export class BrioLight {
     }
     public set penumbra(value: number) {
         this.#penumbra = Math.min(Math.max(value, 0), 1);
+        this.#version++;
+    }
+
+    /**
+     * Whether this `"directional"` light casts shadows. Only the first shadow-casting directional light of a pass
+     * casts them (WebGL2; the Canvas2D fallback has no shadows). Objects opt out with `castShadow` /
+     * `receiveShadow`.
+     *
+     * @example
+     * ```ts
+     * sun.castShadow = true;
+     * sun.shadow = { size: 12, resolution: 2048 };
+     * ```
+     */
+    public get castShadow(): boolean {
+        return this.#castShadow;
+    }
+    public set castShadow(value: boolean) {
+        this.#castShadow = value;
+        this.#version++;
+    }
+
+    /** Shadow settings (all values resolved); assign a new object to change them. */
+    public get shadow(): Readonly<Required<BrioShadowOptions>> {
+        return this.#shadow;
+    }
+    public set shadow(value: BrioShadowOptions) {
+        this.#shadow = resolveShadowOptions({ ...this.#shadow, ...value });
         this.#version++;
     }
 
