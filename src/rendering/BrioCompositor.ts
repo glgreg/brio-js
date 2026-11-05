@@ -149,6 +149,8 @@ export class BrioCompositor {
     readonly #meshBounds = new WeakMap<BrioMesh, MeshBounds>();
     /** World-space sphere center reused by the culling test. */
     readonly #cullCenter = { x: 0, y: 0, z: 0 };
+    /** Game time in seconds, set by `BrioGame` every frame step (custom shaders read it as `TIME`). */
+    public time: number = 0;
     /** Pass parameters handed to the 3D backend, reused for every camera. */
     readonly #passParams: RenderPassParameters = {
         cameraX: 0,
@@ -157,6 +159,7 @@ export class BrioCompositor {
         targetX: 0,
         targetY: 0,
         targetZ: 0,
+        time: 0,
         toneMapping: "none",
         exposure: 1,
         fogMode: 0,
@@ -641,6 +644,7 @@ export class BrioCompositor {
         p.targetX = target.x;
         p.targetY = target.y;
         p.targetZ = target.z;
+        p.time = this.time;
         p.toneMapping = camera.toneMapping;
         p.exposure = camera.exposure;
         const fog = camera.fog;

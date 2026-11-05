@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>BrioJS - Lantern Courtyard (3D example)</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                background: #0d1320;
+                overflow: hidden;
+            }
+            /* useFullScreen("fit") sizes the canvas; the container only centers it */
+            #game {
+                height: 100%;
+                display: grid;
+                place-items: center;
+            }
+            #game canvas {
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="game"></div>
+        <script type="module" src="./main.js"></script>
+    </body>
+</html>

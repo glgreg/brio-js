@@ -199,6 +199,7 @@ describe("point and spot lights", () => {
             targetX: 0,
             targetY: 0,
             targetZ: 0,
+            time: 0,
             toneMapping: "aces",
             exposure: 1.5,
             fogMode: 3,

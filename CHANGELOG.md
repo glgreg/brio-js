@@ -8,6 +8,15 @@ While the major version is `0`, minor releases may include breaking changes.
 
 ### Added
 
+- `BrioShader`: custom GLSL hooks for materials (`material.shader`, by reference or by preloaded name). The fragment
+  hook `surface(inout BrioSurface s)` edits base color, opacity, normal, emissive, roughness and metalness before
+  lighting; the vertex hook `vertex(inout vec3 position, inout vec3 normal)` moves vertices. Built-ins `TIME` and
+  `CAMERA_POSITION`; `material.parameters` / `material.set()` feed the hooks' uniforms (numbers, 2-4 vectors, CSS
+  colors). Loaded by `preload()` from inline code or a `.glsl` file (`// @vertex` splits the hooks), recompiled when
+  its source changes, and replaced by the built-in shader when it fails to compile (logged once).
+- `game.time`: game time in seconds, paused with the game.
+- `examples/3d-lantern-courtyard`: a night scene showing the 3D features.
+
 - Directional shadows on WebGL2: `castShadow` and `shadow` (`size`, `distance`, `resolution`, `bias`, `normalBias`,
   `strength`) on `BrioLight`, `castShadow` / `receiveShadow` on `BrioObject3D`. One shadow map per pass, centered on
   the camera target, snapped to texels and filtered with hardware PCF plus a 3x3 kernel;

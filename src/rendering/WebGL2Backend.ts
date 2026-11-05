@@ -1,6 +1,7 @@
 import { BrioMaterial } from "../assets/BrioMaterial";
 import { BrioMesh } from "../assets/BrioMesh";
 import { BrioTexture } from "../assets/BrioTexture";
+import type { BrioShader } from "../assets/BrioShader";
 import { ViewportRect } from "../core/BrioViewport";
 import { Mat4, Matrix4 } from "../math/index";
 import { BrioLight } from "../objects/BrioLight";
@@ -34,8 +35,11 @@ const PUNCTUAL_OFFSET = 16 + MAX_DIRECTIONAL_LIGHTS * 8;
  * light), then punctual positions, colors, directions and cones (vec4 per light).
  */
 const LIGHTS_FLOATS = PUNCTUAL_OFFSET + MAX_PUNCTUAL_LIGHTS * 16;
-/** `BrioPass` std140 layout: camera position + exposure, fog color + mode, fog near / far / density + tone mapping. */
-const PASS_FLOATS = 12;
+/**
+ * `BrioPass` std140 layout: camera position + exposure, fog color + mode, fog near / far / density + tone mapping,
+ * game time (`TIME`).
+ */
+const PASS_FLOATS = 16;
 /** `uFogParams.w` value of each tone mapping operator. */
 const TONE_MAPPING_CODES: Readonly<Record<RenderPassParameters["toneMapping"], number>> = {
     none: 0,
@@ -61,6 +65,8 @@ const FEATURE_FLAT = 4;
 const FEATURE_ALPHA_TEST = 8;
 const FEATURE_STANDARD = 16;
 const FEATURE_SHADOW = 32;
+/** Program cache key span per custom shader: `features + FEATURE_KEY_SPAN * shader.id`. */
+const FEATURE_KEY_SPAN = 64;
 
 /**
  * GLSL sources of the program variant with feature bits `features` (`FEATURE_*`), shared by the program cache and
@@ -68,7 +74,10 @@ const FEATURE_SHADOW = 32;
  *
  * @internal
  */
-export function buildShaderSources(features: number): { vertex: string; fragment: string } {
+export function buildShaderSources(
+    features: number,
+    hooks?: { readonly fragment?: string; readonly vertex?: string },
+): { vertex: string; fragment: string } {
     const defines: string[] = [];
     if (features & FEATURE_MAP) defines.push("#define USE_MAP");
     if (features & FEATURE_LIT) defines.push("#define USE_LIGHTING");
@@ -76,9 +85,24 @@ export function buildShaderSources(features: number): { vertex: string; fragment
     if (features & FEATURE_ALPHA_TEST) defines.push("#define USE_ALPHA_TEST");
     if (features & FEATURE_STANDARD) defines.push("#define STANDARD_SHADING");
     if (features & FEATURE_SHADOW) defines.push("#define USE_SHADOW");
+    let vertex = VERTEX_SHADER;
+    let fragment = FRAGMENT_SHADER;
+    const vertexDefines: string[] = [];
+    if (hooks?.vertex) {
+        vertexDefines.push("#define USE_VERTEX_HOOK");
+        vertex = vertex.replace(VERTEX_HOOK_MARKER, () => `#line 1 1\n${hooks.vertex}\n#line 0 0`);
+    }
+    if (hooks?.fragment) {
+        defines.push("#define USE_SURFACE_HOOK");
+        // Source string 1 holds the hook, so driver errors report lines of the user's code
+        fragment = fragment.replace(
+            SURFACE_HOOK_MARKER,
+            () => `#line 1 1\n${hooks.fragment}\n#line 0 0`,
+        );
+    }
     return {
-        vertex: VERTEX_SHADER,
-        fragment: `#version 300 es\n${defines.join("\n")}\n${FRAGMENT_SHADER}`,
+        vertex: `#version 300 es\n${vertexDefines.join("\n")}\n${vertex}`,
+        fragment: `#version 300 es\n${defines.join("\n")}\n${fragment}`,
     };
 }
 
@@ -111,7 +135,12 @@ export const SHADER_FEATURE_COMBINATIONS: readonly number[] = (() => {
     return out;
 })();
 
-const VERTEX_SHADER = `#version 300 es
+/** Line replaced by the `BrioShader` vertex hook. */
+const VERTEX_HOOK_MARKER = "// <brio-vertex-hook>";
+/** Line replaced by the `BrioShader` fragment (surface) hook. */
+const SURFACE_HOOK_MARKER = "// <brio-surface-hook>";
+
+const VERTEX_SHADER = `
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUv;
@@ -121,10 +150,26 @@ uniform mat3 uNormalMatrix;
 out vec3 vNormal;
 out vec3 vWorldPosition;
 out vec2 vUv;
+#ifdef USE_VERTEX_HOOK
+layout(std140) uniform BrioPass {
+    vec4 uCameraPosition;
+    vec4 uFogColor;
+    vec4 uFogParams;
+    vec4 uTimeParams;
+};
+#define TIME uTimeParams.x
+#define CAMERA_POSITION uCameraPosition.xyz
+${VERTEX_HOOK_MARKER}
+#endif
 void main() {
-    vec4 worldPosition = uWorld * vec4(aPosition, 1.0);
+    vec3 position = aPosition;
+    vec3 normal = aNormal;
+#ifdef USE_VERTEX_HOOK
+    vertex(position, normal);
+#endif
+    vec4 worldPosition = uWorld * vec4(position, 1.0);
     vWorldPosition = worldPosition.xyz;
-    vNormal = uNormalMatrix * aNormal;
+    vNormal = uNormalMatrix * normal;
     vUv = aUv;
     gl_Position = uViewProj * worldPosition;
 }`;
@@ -150,6 +195,7 @@ layout(std140) uniform BrioPass {
     vec4 uCameraPosition;
     vec4 uFogColor;
     vec4 uFogParams;
+    vec4 uTimeParams;
 };
 #ifdef USE_LIGHTING
 layout(std140) uniform BrioLights {
@@ -168,6 +214,22 @@ layout(std140) uniform BrioLights {
 out vec4 fragColor;
 
 const float PI = 3.141592653589793;
+#define TIME uTimeParams.x
+#define CAMERA_POSITION uCameraPosition.xyz
+
+#ifdef USE_SURFACE_HOOK
+struct BrioSurface {
+    vec3 baseColor;
+    float opacity;
+    vec3 normal;
+    vec3 emissive;
+    float roughness;
+    float metalness;
+    vec3 worldPosition;
+    vec2 uv;
+};
+${SURFACE_HOOK_MARKER}
+#endif
 
 vec3 linearToSrgb(vec3 c) {
     return mix(pow(c, vec3(0.41666)) * 1.055 - vec3(0.055), c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308))));
@@ -296,17 +358,29 @@ void main() {
     // SRGB8_ALPHA8 storage: the sampler already returns linear values
     base *= texture(uMap, vUv);
 #endif
-#ifdef USE_ALPHA_TEST
-    if (base.a < uAlphaCutoff) discard;
-#endif
-    vec3 color = base.rgb;
-#ifdef USE_LIGHTING
 #ifdef FLAT_SHADED
     vec3 normal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
 #else
     vec3 normal = normalize(vNormal);
     normal = gl_FrontFacing ? normal : -normal;
 #endif
+    vec3 emissive = uEmissive;
+    float surfaceRoughness = uRoughnessMetalness.x;
+    float surfaceMetalness = uRoughnessMetalness.y;
+#ifdef USE_SURFACE_HOOK
+    BrioSurface hookSurface = BrioSurface(base.rgb, base.a, normal, emissive, surfaceRoughness, surfaceMetalness, vWorldPosition, vUv);
+    surface(hookSurface);
+    base = vec4(hookSurface.baseColor, hookSurface.opacity);
+    normal = normalize(hookSurface.normal);
+    emissive = hookSurface.emissive;
+    surfaceRoughness = hookSurface.roughness;
+    surfaceMetalness = hookSurface.metalness;
+#endif
+#ifdef USE_ALPHA_TEST
+    if (base.a < uAlphaCutoff) discard;
+#endif
+    vec3 color = base.rgb;
+#ifdef USE_LIGHTING
     float hemisphere = normal.y * 0.5 + 0.5;
     vec3 ambient = uAmbient.rgb + mix(uGroundColor.rgb, uSkyColor.rgb, hemisphere);
     int directionalCount = int(uLightCount.x);
@@ -320,8 +394,8 @@ void main() {
 #endif
 #ifdef STANDARD_SHADING
     vec3 V = normalize(uCameraPosition.xyz - vWorldPosition);
-    float roughness = clamp(uRoughnessMetalness.x, 0.03, 1.0);
-    float metalness = uRoughnessMetalness.y;
+    float roughness = clamp(surfaceRoughness, 0.03, 1.0);
+    float metalness = clamp(surfaceMetalness, 0.0, 1.0);
     float alpha = roughness * roughness;
     vec3 diffuseColor = base.rgb * (1.0 - metalness);
     vec3 f0 = mix(vec3(0.04), base.rgb, metalness);
@@ -361,7 +435,7 @@ void main() {
     color *= irradiance;
 #endif
 #endif
-    color += uEmissive;
+    color += emissive;
     // Fog blends toward its color with the distance to the camera (mode in uFogColor.w)
     float fogMode = uFogColor.w;
     if (fogMode > 0.5) {
@@ -411,6 +485,10 @@ interface ProgramInfo {
     uShadowMatrix: WebGLUniformLocation | null;
     uShadowParams: WebGLUniformLocation | null;
     uShadowStrength: WebGLUniformLocation | null;
+    /** Whether the program includes `BrioShader` hooks (its parameters are uploaded per draw). */
+    custom: boolean;
+    /** Locations of custom parameters, looked up on first use. */
+    parameters: Map<string, WebGLUniformLocation | null>;
 }
 
 /** Depth-only program of the shadow pass. */
@@ -434,6 +512,8 @@ interface DrawItem {
     opacity: number;
     /** Whether the item is drawn into the shadow map. */
     castsShadow: boolean;
+    /** Custom hooks of the material (loaded `BrioShader`), if any. */
+    shader: BrioShader | undefined;
 }
 
 /** Opaque items: group by program and material (fewer state changes), then front-to-back (early-z). */
@@ -521,6 +601,8 @@ export class WebGL2Backend implements RenderBackend {
     #passUbo: WebGLBuffer | null = null;
     readonly #passData = new Float32Array(PASS_FLOATS);
     #passDirty = true;
+    /** `BrioShader.version` each custom shader's cached programs were built from. */
+    readonly #shaderVersions = new Map<number, number>();
     /** Programs that failed to compile or link: logged once, then their draws are skipped (D-07). */
     readonly #failedPrograms = new Set<number>();
     readonly #emissiveScratch = new Float32Array(3);
@@ -618,6 +700,7 @@ export class WebGL2Backend implements RenderBackend {
         data[9] = parameters.fogFar;
         data[10] = parameters.fogDensity;
         data[11] = TONE_MAPPING_CODES[parameters.toneMapping] ?? 0;
+        data[12] = parameters.time;
         this.#passDirty = true;
         this.#shadowCenter.x = parameters.targetX;
         this.#shadowCenter.y = parameters.targetY;
@@ -778,6 +861,7 @@ export class WebGL2Backend implements RenderBackend {
                 depth: 0,
                 opacity: 1,
                 castsShadow: false,
+                shader: undefined,
             };
             this.#itemPool.push(item);
         }
@@ -795,6 +879,11 @@ export class WebGL2Backend implements RenderBackend {
         item.depth = vp[3] * x + vp[7] * y + vp[11] * z + vp[15];
         item.opacity = opacity;
         item.castsShadow = (shadowFlags & SHADOW_CAST) !== 0;
+        const shader = material.shader;
+        item.shader =
+            typeof shader === "object" && shader.isLoaded && (shader.fragment || shader.vertex)
+                ? shader
+                : undefined;
         if (
             this.#shadowLight >= 0 &&
             (shadowFlags & SHADOW_RECEIVE) !== 0 &&
@@ -959,6 +1048,7 @@ export class WebGL2Backend implements RenderBackend {
         this.#passUbo = null;
         this.#passDirty = true;
         this.#failedPrograms.clear();
+        this.#shaderVersions.clear();
         this.#shadowTexture = null;
         this.#shadowFramebuffer = null;
         this.#shadowResolution = 0;
@@ -1001,7 +1091,7 @@ export class WebGL2Backend implements RenderBackend {
             (item.features & FEATURE_SHADOW) !== 0 && !this.#shadowReady
                 ? item.features & ~FEATURE_SHADOW
                 : item.features;
-        const info = this.#programFor(gl, features);
+        const info = this.#programFor(gl, features, item.shader);
         if (!info) return;
 
         if (this.#currentProgram !== info.program) {
@@ -1062,6 +1152,7 @@ export class WebGL2Backend implements RenderBackend {
             );
             gl.uniform1f(info.uShadowStrength, settings[5]);
         }
+        if (info.custom) this.#uploadParameters(gl, info, material);
 
         this.#setCull(!material.doubleSided && !material.wireframe);
         // A mirroring transform flips the winding, so front faces become clockwise (as in three.js)
@@ -1227,23 +1318,39 @@ export class WebGL2Backend implements RenderBackend {
         return handle;
     }
 
-    #programFor(gl: WebGL2RenderingContext, features: number): ProgramInfo | undefined {
-        const cached = this.#programs.get(features);
+    #programFor(
+        gl: WebGL2RenderingContext,
+        features: number,
+        shader?: BrioShader,
+    ): ProgramInfo | undefined {
+        if (shader) {
+            // A new source (hot reload) drops the programs built from the previous one
+            if (this.#shaderVersions.get(shader.id) !== shader.version) {
+                this.#forgetShaderPrograms(gl, shader);
+                this.#shaderVersions.set(shader.id, shader.version);
+            }
+        }
+        const key = shader ? features + FEATURE_KEY_SPAN * shader.id : features;
+        const cached = this.#programs.get(key);
         if (cached) return cached;
-        if (this.#failedPrograms.has(features)) return undefined;
+        // A failed custom shader falls back to the built-in program of the same features
+        if (this.#failedPrograms.has(key))
+            return shader ? this.#programFor(gl, features) : undefined;
 
         // A shader error must never throw from a draw (D-07): log it once with the driver's message and skip the
-        // draws of that variant, so the rest of the frame still renders
+        // draws of that variant (or fall back to the built-in shader), so the rest of the frame still renders
         let program: WebGLProgram | undefined;
         try {
-            program = this.#linkProgram(gl, features);
+            program = this.#linkProgram(gl, features, shader);
         } catch (err) {
-            this.#failedPrograms.add(features);
+            this.#failedPrograms.add(key);
             console.error(
-                `BrioJS WebGL2Backend: shader program (features ${features}) failed; its meshes are not drawn.`,
+                shader
+                    ? `BrioJS WebGL2Backend: BrioShader '${shader.name}' failed to compile; its materials use the built-in shader. In the driver message, line numbers of source 1 are lines of the hook.`
+                    : `BrioJS WebGL2Backend: shader program (features ${features}) failed; its meshes are not drawn.`,
                 err,
             );
-            return undefined;
+            return shader ? this.#programFor(gl, features) : undefined;
         }
 
         const info: ProgramInfo = {
@@ -1260,6 +1367,8 @@ export class WebGL2Backend implements RenderBackend {
             uShadowMatrix: gl.getUniformLocation(program, "uShadowMatrix"),
             uShadowParams: gl.getUniformLocation(program, "uShadowParams"),
             uShadowStrength: gl.getUniformLocation(program, "uShadowStrength"),
+            custom: shader !== undefined,
+            parameters: new Map(),
         };
         // Programs read the shared BrioLights (lit variants) and BrioPass uniform buffers
         const lightsIndex = gl.getUniformBlockIndex(program, "BrioLights");
@@ -1270,8 +1379,47 @@ export class WebGL2Backend implements RenderBackend {
         if (typeof passIndex === "number" && passIndex !== INVALID_INDEX) {
             gl.uniformBlockBinding(program, passIndex, PASS_BINDING);
         }
-        this.#programs.set(features, info);
+        this.#programs.set(key, info);
         return info;
+    }
+
+    /** Deletes the cached programs of `shader` (every feature combination) and forgets its failures. */
+    #forgetShaderPrograms(gl: WebGL2RenderingContext, shader: BrioShader): void {
+        for (const [key, info] of this.#programs) {
+            if (Math.floor(key / FEATURE_KEY_SPAN) !== shader.id) continue;
+            if (!this.#contextLost) gl.deleteProgram(info.program);
+            if (this.#currentProgram === info.program) this.#currentProgram = null;
+            this.#programs.delete(key);
+        }
+        for (const key of this.#failedPrograms) {
+            if (Math.floor(key / FEATURE_KEY_SPAN) === shader.id) this.#failedPrograms.delete(key);
+        }
+    }
+
+    /** Uploads `material.parameters` to the uniforms of the same name (numbers, 2-4 vectors, CSS colors). */
+    #uploadParameters(gl: WebGL2RenderingContext, info: ProgramInfo, material: BrioMaterial): void {
+        const parameters = material.parameters;
+        for (const name in parameters) {
+            let location = info.parameters.get(name);
+            if (location === undefined) {
+                location = gl.getUniformLocation(info.program, name);
+                info.parameters.set(name, location);
+            }
+            if (location === null) continue;
+            const value = parameters[name];
+            if (typeof value === "number") {
+                gl.uniform1f(location, value);
+            } else if (typeof value === "string") {
+                const c = this.#linearColor(value);
+                gl.uniform3f(location, c[0], c[1], c[2]);
+            } else if (value.length === 2) {
+                gl.uniform2f(location, value[0], value[1]);
+            } else if (value.length === 3) {
+                gl.uniform3f(location, value[0], value[1], value[2]);
+            } else if (value.length >= 4) {
+                gl.uniform4f(location, value[0], value[1], value[2], value[3]);
+            }
+        }
     }
 
     /**
@@ -1408,8 +1556,8 @@ export class WebGL2Backend implements RenderBackend {
     }
 
     /** Compiles and links the program of `features`; throws with the info log when it fails. */
-    #linkProgram(gl: WebGL2RenderingContext, features: number): WebGLProgram {
-        const sources = buildShaderSources(features);
+    #linkProgram(gl: WebGL2RenderingContext, features: number, shader?: BrioShader): WebGLProgram {
+        const sources = buildShaderSources(features, shader);
         const vs = this.#compile(gl, gl.VERTEX_SHADER, sources.vertex);
         let fs: WebGLShader;
         try {

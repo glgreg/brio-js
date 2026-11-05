@@ -23,6 +23,8 @@ export interface RenderPassParameters {
     targetX: number;
     targetY: number;
     targetZ: number;
+    /** Game time in seconds (`game.time`), exposed to custom shaders as `TIME`. */
+    time: number;
     /** Tone mapping operator (`ToneMappingMode`). */
     toneMapping: ToneMappingMode;
     /** Exposure multiplier applied before tone mapping. */

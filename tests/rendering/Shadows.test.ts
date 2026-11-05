@@ -18,6 +18,7 @@ const PASS = {
     targetX: 0,
     targetY: 0,
     targetZ: 0,
+    time: 0,
     toneMapping: "none" as const,
     exposure: 1,
     fogMode: 0,
