@@ -25,8 +25,16 @@ A configured object template used to spawn and recycle multiple identical object
 _Avoid_: Prototype, Clone Source, Blueprint
 
 **Transform2D (`BrioTransform2D`)**:
-The spatial state of a 2D object, encompassing 2D position, base size, render size, scale, scalar rotation, skew, pivot, flip, visibility, opacity, layer, and local-to-world parent-child hierarchy.
+The spatial state of a 2D object, encompassing 2D position, base size, render size, scale, scalar rotation, skew, pivot, flip, visibility, opacity, depth (drawing order inside its layer), and local-to-world parent-child hierarchy.
 _Avoid_: Coordinates, Bounds, Placement
+
+**Depth (`transform.depth`)**:
+The drawing order of an object inside its layer (higher values draw on top). Called `transform.layer` before v0.2.
+_Avoid_: Layer (for this value), Z-Index, ZOrder
+
+**Tag (`object.tag`)**:
+A free-form group label on an object (`"enemy"`, `"coin"`) copied to its clones, used to tell objects apart in collision listeners and gameplay code.
+_Avoid_: Type, Category, Group (for this label)
 
 **Transform3D (`BrioTransform3D`)**:
 The spatial state of a 3D object, encompassing 3D position, scale, quaternion/Euler rotation, visibility, opacity, and local-to-world parent-child hierarchy.
@@ -37,6 +45,14 @@ A high-speed binary capture of a scene's complete entity and component state at 
 _Avoid_: Cache, Dump, StringifiedState
 
 ## Rendering, Cameras & Composition
+
+**Text (`BrioText`)**:
+A 2D object that draws a string with a font, color, alignment, wrapping, outline and shadow; its size is measured from the text.
+_Avoid_: Label, TextSprite, Caption (as class names)
+
+**Pixel Ratio (`game.pixelRatio`)**:
+The number of canvas pixels per logical pixel. Game code, cameras and input always use logical pixels; the backing store is scaled by the pixel ratio (device pixel ratio times the fit scale).
+_Avoid_: Resolution, DPI, Zoom (for this factor)
 
 **Layer (`BrioLayer`)**:
 A discrete rendering plane with a defined update policy (`static`, `parallax`, `dynamic`, or `ui`) and ordering index, used to isolate redraw costs and stack gameplay graphics, dialogue boxes, and HUD overlays.
@@ -79,8 +95,8 @@ A time-based sequence of sprite frames or property transitions applied to an obj
 _Avoid_: Render, Draw, Loop
 
 **TileMap (`BrioTileMap`)**:
-A grid-based 2D spatial map composed of reusable visual cells from an atlas or spritesheet and automatically merged static collision boundaries.
-_Avoid_: BackgroundSprite, GridMap
+A grid-based 2D spatial map composed of reusable visual cells from a spritesheet (its **tileset**) and automatically merged static collision boundaries. It is drawn by the layer that holds it in cached **chunks** of tiles; maps can be imported from Tiled JSON.
+_Avoid_: BackgroundSprite, GridMap, Level (for the map itself)
 
 **Mesh (`BrioMesh`)**:
 A 3D geometric surface composed of vertices, normals, UV coordinates, and indices ready to be rendered on a `BrioObject3D`.
@@ -102,9 +118,19 @@ _Avoid_: Blocker, HardCollider, Wall
 
 **Trigger**:
 A collider mode (`colliderType: "trigger"`) that detects spatial overlap without obstructing physical movement.
-_Current state_: overlap is detected only when game code calls `BrioCollision.isColliding` / `isColliding3D` (optionally after a `SpatialHash2D` / `SpatialOctree3D` broad phase); a trigger makes `BrioCollision.resolveCollision` skip displacement. No collision or trigger events are dispatched by the engine yet.
+Overlaps raise collision events like solid colliders do; a trigger makes `BrioCollision.resolveCollision` skip displacement.
 _Avoid_: Intangible, Sensor, Ghost, PassThrough
+
+**Collision Event**:
+A notification dispatched by the engine once per frame, after `update()`, when two registered colliders start (`enter`), keep (`stay`) or stop (`exit`) overlapping; registered with `onCollisionEnter` / `onCollisionStay` / `onCollisionExit`. Events report contacts; they do not resolve them.
+_Avoid_: Hit, Callback (as the concept), OnTrigger
 
 **RigidBody (`BrioRigidBody`)**:
 An optional physical simulation profile attached to an object that governs velocity, acceleration, gravity, mass, friction, and restitution.
 _Avoid_: PhysicsBody, Mover
+
+## Input
+
+**Action**:
+A named gameplay intent (`"jump"`, `"left"`) bound to one or more inputs (keys, mouse buttons, gamepad buttons or axes, touch) in the **Input Map** (`game.input`, `BrioInputMap`). Gameplay code queries actions instead of devices, so controls can be rebound and saved.
+_Avoid_: Command, Control, Keybind (for the action itself)
