@@ -14,7 +14,14 @@ import {
 } from "./limits";
 
 /** Byte size of each glTF `componentType`. */
-const COMPONENT_SIZES: Record<number, number> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
+const COMPONENT_SIZES: Record<number, number> = {
+    5120: 1,
+    5121: 1,
+    5122: 2,
+    5123: 2,
+    5125: 4,
+    5126: 4,
+};
 /** Number of components of each glTF accessor `type`. */
 const TYPE_COMPONENTS: Record<string, number> = {
     SCALAR: 1,
@@ -183,7 +190,9 @@ export function extractGLTFAccessor(
     const componentType = accessor.componentType;
     const componentSize = COMPONENT_SIZES[componentType];
     if (!Number.isInteger(count) || count < 0) {
-        throw new ModelLimitError(`glTF accessor ${accessorIndex} has an invalid count (${count}).`);
+        throw new ModelLimitError(
+            `glTF accessor ${accessorIndex} has an invalid count (${count}).`,
+        );
     }
     if (numComponents === undefined || componentSize === undefined) {
         throw new ModelLimitError(
@@ -207,7 +216,9 @@ export function extractGLTFAccessor(
 
     const bufferView = json.bufferViews?.[accessor.bufferView];
     if (!bufferView) {
-        throw new ModelLimitError(`glTF accessor ${accessorIndex} references a missing bufferView.`);
+        throw new ModelLimitError(
+            `glTF accessor ${accessorIndex} references a missing bufferView.`,
+        );
     }
     const binBuffer = bufferForView(buffers, bufferView, accessor.bufferView);
     const viewOffset = bufferView.byteOffset ?? 0;
@@ -227,11 +238,20 @@ export function extractGLTFAccessor(
     const elementSize = numComponents * componentSize;
     const stride = bufferView.byteStride || elementSize;
     const accessorOffset = accessor.byteOffset ?? 0;
-    if (!Number.isInteger(stride) || stride < elementSize || !Number.isInteger(accessorOffset) || accessorOffset < 0) {
-        throw new ModelLimitError(`glTF accessor ${accessorIndex} has an invalid byteStride or byteOffset.`);
+    if (
+        !Number.isInteger(stride) ||
+        stride < elementSize ||
+        !Number.isInteger(accessorOffset) ||
+        accessorOffset < 0
+    ) {
+        throw new ModelLimitError(
+            `glTF accessor ${accessorIndex} has an invalid byteStride or byteOffset.`,
+        );
     }
     if (count > 0 && accessorOffset + (count - 1) * stride + elementSize > viewLength) {
-        throw new ModelLimitError(`glTF accessor ${accessorIndex} reads past the end of its bufferView.`);
+        throw new ModelLimitError(
+            `glTF accessor ${accessorIndex} reads past the end of its bufferView.`,
+        );
     }
     const byteOffset = viewOffset + accessorOffset;
 
@@ -309,7 +329,10 @@ export function extractGLTFAccessor(
 /**
  * Computes flat normals per triangle for geometries without precomputed normals.
  */
-function computeFlatNormals(positions: Float32Array, indices: Uint16Array | Uint32Array): Float32Array {
+function computeFlatNormals(
+    positions: Float32Array,
+    indices: Uint16Array | Uint32Array,
+): Float32Array {
     const normals = new Float32Array(positions.length);
 
     for (let i = 0; i < indices.length; i += 3) {
@@ -398,7 +421,9 @@ function collectMeshWorldMatrices(json: any): Map<number, Mat4> {
         const node = nodes[index];
         if (!node || visited.has(index)) return;
         if (depth > maxDepth) {
-            throw new ModelLimitError(`glTF node hierarchy is deeper than the limit of ${maxDepth}.`);
+            throw new ModelLimitError(
+                `glTF node hierarchy is deeper than the limit of ${maxDepth}.`,
+            );
         }
         visited.add(index);
         const world = Matrix4.multiply(Matrix4.create(), parent, nodeLocalMatrix(node));
@@ -433,7 +458,10 @@ function bakeTransform(positions: Float32Array, normals: Float32Array, world: Ma
         positions[i + 1] = m[1] * x + m[5] * y + m[9] * z + m[13];
         positions[i + 2] = m[2] * x + m[6] * y + m[10] * z + m[14];
     }
-    const normalMatrix = Matrix4.transpose(Matrix4.create(), Matrix4.invert(Matrix4.create(), world));
+    const normalMatrix = Matrix4.transpose(
+        Matrix4.create(),
+        Matrix4.invert(Matrix4.create(), world),
+    );
     const n = normalMatrix;
     for (let i = 0; i < normals.length; i += 3) {
         const x = normals[i];
@@ -488,7 +516,9 @@ export class GLBLoader {
         const limits = getModelLoaderLimits();
         assertByteLimit("GLB file", buffer.byteLength, limits.maxFileBytes);
         if (buffer.byteLength < 12) {
-            throw new ModelLimitError(`GLB file is only ${buffer.byteLength} bytes; the header needs 12.`);
+            throw new ModelLimitError(
+                `GLB file is only ${buffer.byteLength} bytes; the header needs 12.`,
+            );
         }
         const view = new DataView(buffer);
 
@@ -499,7 +529,9 @@ export class GLBLoader {
 
         // Magic 0x46546C67 is ASCII "glTF"
         if (magic !== 0x46546c67) {
-            throw new Error(`Invalid GLB binary magic: 0x${magic.toString(16)}. Expected 0x46546C67 ('glTF').`);
+            throw new Error(
+                `Invalid GLB binary magic: 0x${magic.toString(16)}. Expected 0x46546C67 ('glTF').`,
+            );
         }
 
         if (version !== 2) {
@@ -621,7 +653,11 @@ export class GLBLoader {
                 });
                 materials.push(material);
 
-                const pending = GLBLoader.#resolveTextureSource(json, binBuffer, pbr?.baseColorTexture?.index);
+                const pending = GLBLoader.#resolveTextureSource(
+                    json,
+                    binBuffer,
+                    pbr?.baseColorTexture?.index,
+                );
                 if (pending) pendingTextures.push({ ...pending, material });
             }
         }
@@ -644,13 +680,19 @@ export class GLBLoader {
                         continue;
                     }
 
-                    const positions = extractGLTFAccessor(json, binBuffer, attrs.POSITION) as Float32Array;
+                    const positions = extractGLTFAccessor(
+                        json,
+                        binBuffer,
+                        attrs.POSITION,
+                    ) as Float32Array;
                     const numVertices = positions.length / 3;
 
                     // Extract or generate indices
                     let indices: Uint16Array | Uint32Array;
                     if (prim.indices !== undefined) {
-                        indices = extractGLTFAccessor(json, binBuffer, prim.indices) as Uint16Array | Uint32Array;
+                        indices = extractGLTFAccessor(json, binBuffer, prim.indices) as
+                            | Uint16Array
+                            | Uint32Array;
                     } else {
                         // Generate sequential indices
                         indices =
@@ -662,7 +704,8 @@ export class GLBLoader {
 
                     // Out-of-range indices would read garbage on the CPU rasterizer and fail GPU draw validation
                     let maxIndex = -1;
-                    for (let k = 0; k < indices.length; k++) if (indices[k] > maxIndex) maxIndex = indices[k];
+                    for (let k = 0; k < indices.length; k++)
+                        if (indices[k] > maxIndex) maxIndex = indices[k];
                     if (maxIndex >= numVertices || indices.length % 3 !== 0) {
                         warnings.push(
                             `Primitive ${pIdx} of mesh ${mIdx} skipped: its indices do not form triangles within its ${numVertices} vertices.`,
@@ -673,8 +716,15 @@ export class GLBLoader {
                     // Extract or generate normals (also when the attribute does not match the vertex count)
                     let normals: Float32Array | undefined;
                     if (attrs.NORMAL !== undefined) {
-                        normals = extractGLTFAccessor(json, binBuffer, attrs.NORMAL) as Float32Array;
-                        if (!(normals instanceof Float32Array) || normals.length !== positions.length) {
+                        normals = extractGLTFAccessor(
+                            json,
+                            binBuffer,
+                            attrs.NORMAL,
+                        ) as Float32Array;
+                        if (
+                            !(normals instanceof Float32Array) ||
+                            normals.length !== positions.length
+                        ) {
                             normals = undefined;
                         }
                     }
@@ -683,8 +733,13 @@ export class GLBLoader {
                     // Extract or generate UVs
                     let uvs: Float32Array | undefined;
                     if (attrs.TEXCOORD_0 !== undefined) {
-                        uvs = extractGLTFAccessor(json, binBuffer, attrs.TEXCOORD_0) as Float32Array;
-                        if (!(uvs instanceof Float32Array) || uvs.length !== numVertices * 2) uvs = undefined;
+                        uvs = extractGLTFAccessor(
+                            json,
+                            binBuffer,
+                            attrs.TEXCOORD_0,
+                        ) as Float32Array;
+                        if (!(uvs instanceof Float32Array) || uvs.length !== numVertices * 2)
+                            uvs = undefined;
                     }
                     uvs ??= new Float32Array(numVertices * 2);
 
@@ -732,7 +787,11 @@ export class GLBLoader {
                 return undefined;
             }
             const start = view.byteOffset ?? 0;
-            if (start < 0 || !(view.byteLength >= 0) || start + view.byteLength > binBuffer.byteLength) {
+            if (
+                start < 0 ||
+                !(view.byteLength >= 0) ||
+                start + view.byteLength > binBuffer.byteLength
+            ) {
                 return undefined;
             }
             const bytes = new Uint8Array(binBuffer, start, view.byteLength);
@@ -768,9 +827,16 @@ export class GLBLoader {
      * const failures = await GLBLoader.decodeTextures(data, "./assets/models/");
      * ```
      */
-    public static async decodeTextures(data: ParsedModelData, baseUrl: string = ""): Promise<string[]> {
+    public static async decodeTextures(
+        data: ParsedModelData,
+        baseUrl: string = "",
+    ): Promise<string[]> {
         const pending = data.pendingTextures ?? [];
-        if (pending.length === 0 || typeof createImageBitmap !== "function" || typeof Blob === "undefined") {
+        if (
+            pending.length === 0 ||
+            typeof createImageBitmap !== "function" ||
+            typeof Blob === "undefined"
+        ) {
             return [];
         }
 
@@ -779,7 +845,8 @@ export class GLBLoader {
         const decode = async (item: PendingTexture): Promise<BrioTexture | undefined> => {
             try {
                 const bytes =
-                    item.bytes ?? new Uint8Array(await fetchLimited(`${baseUrl}${item.uri}`, "texture"));
+                    item.bytes ??
+                    new Uint8Array(await fetchLimited(`${baseUrl}${item.uri}`, "texture"));
                 // A tiny compressed image can declare a huge size: check the header before decoding
                 const size = readImageDimensions(bytes);
                 const maxSize = getModelLoaderLimits().maxImageDimension;
@@ -791,7 +858,9 @@ export class GLBLoader {
                 const blob = new Blob([bytes as BlobPart], { type: item.mimeType });
                 return await BrioTexture.fromBlob(`${item.material.name}#${item.key}`, blob);
             } catch (err) {
-                failures.push(`Texture '${item.key}' of material '${item.material.name}' could not be decoded: ${(err as Error)?.message ?? err}`);
+                failures.push(
+                    `Texture '${item.key}' of material '${item.material.name}' could not be decoded: ${(err as Error)?.message ?? err}`,
+                );
                 return undefined;
             }
         };
@@ -821,7 +890,13 @@ export class GLBLoader {
      */
     public static async load(url: string, modelName?: string): Promise<ParsedModelData> {
         const buffer = await fetchLimited(url, "GLB asset");
-        const resolvedName = modelName ?? url.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? "model";
+        const resolvedName =
+            modelName ??
+            url
+                .split("/")
+                .pop()
+                ?.replace(/\.[^/.]+$/, "") ??
+            "model";
         const baseUrl = url.substring(0, url.lastIndexOf("/") + 1);
         const { json, bin } = GLBLoader.#readContainer(buffer);
         const external = await fetchGLTFExternalBuffers(json, baseUrl);

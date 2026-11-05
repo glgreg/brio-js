@@ -300,7 +300,9 @@ export class BrioCamera2D {
             // `lerpFactor` is the fraction covered per 60 Hz frame; raising its complement to `dt * 60` covers
             // the same distance per second at any framerate (120 Hz takes two smaller steps, 30 Hz one larger)
             const t =
-                this.#followLerp >= 1 ? 1 : 1 - Math.pow(1 - this.#followLerp, Math.max(0, dt) * 60);
+                this.#followLerp >= 1
+                    ? 1
+                    : 1 - Math.pow(1 - this.#followLerp, Math.max(0, dt) * 60);
             let nextX = lerp(this.#pos.x, desiredPosX, t);
             let nextY = lerp(this.#pos.y, desiredPosY, t);
             if (Math.abs(desiredPosX - nextX) < FOLLOW_SNAP_EPSILON) nextX = desiredPosX;

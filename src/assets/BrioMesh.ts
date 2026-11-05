@@ -88,17 +88,83 @@ export class BrioMesh {
         // 6 faces * 4 vertices = 24 vertices
         const positions = new Float32Array([
             // Front (+Z)
-            -hx, -hy, hz, hx, -hy, hz, hx, hy, hz, -hx, hy, hz,
+            -hx,
+            -hy,
+            hz,
+            hx,
+            -hy,
+            hz,
+            hx,
+            hy,
+            hz,
+            -hx,
+            hy,
+            hz,
             // Back (-Z)
-            hx, -hy, -hz, -hx, -hy, -hz, -hx, hy, -hz, hx, hy, -hz,
+            hx,
+            -hy,
+            -hz,
+            -hx,
+            -hy,
+            -hz,
+            -hx,
+            hy,
+            -hz,
+            hx,
+            hy,
+            -hz,
             // Top (+Y)
-            -hx, hy, hz, hx, hy, hz, hx, hy, -hz, -hx, hy, -hz,
+            -hx,
+            hy,
+            hz,
+            hx,
+            hy,
+            hz,
+            hx,
+            hy,
+            -hz,
+            -hx,
+            hy,
+            -hz,
             // Bottom (-Y)
-            -hx, -hy, -hz, hx, -hy, -hz, hx, -hy, hz, -hx, -hy, hz,
+            -hx,
+            -hy,
+            -hz,
+            hx,
+            -hy,
+            -hz,
+            hx,
+            -hy,
+            hz,
+            -hx,
+            -hy,
+            hz,
             // Right (+X)
-            hx, -hy, hz, hx, -hy, -hz, hx, hy, -hz, hx, hy, hz,
+            hx,
+            -hy,
+            hz,
+            hx,
+            -hy,
+            -hz,
+            hx,
+            hy,
+            -hz,
+            hx,
+            hy,
+            hz,
             // Left (-X)
-            -hx, -hy, -hz, -hx, -hy, hz, -hx, hy, hz, -hx, hy, -hz,
+            -hx,
+            -hy,
+            -hz,
+            -hx,
+            -hy,
+            hz,
+            -hx,
+            hy,
+            hz,
+            -hx,
+            hy,
+            -hz,
         ]);
 
         const normals = new Float32Array([
@@ -117,12 +183,8 @@ export class BrioMesh {
         ]);
 
         const uvs = new Float32Array([
-            0, 0, 1, 0, 1, 1, 0, 1,
-            0, 0, 1, 0, 1, 1, 0, 1,
-            0, 0, 1, 0, 1, 1, 0, 1,
-            0, 0, 1, 0, 1, 1, 0, 1,
-            0, 0, 1, 0, 1, 1, 0, 1,
-            0, 0, 1, 0, 1, 1, 0, 1,
+            0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1,
+            1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1,
         ]);
 
         const indices = new Uint16Array(36);
@@ -214,11 +276,7 @@ export class BrioMesh {
      * const ball = BrioMesh.createSphere("mesh_ball", 1.5, 16);
      * ```
      */
-    public static createSphere(
-        name: string,
-        radius: number = 1,
-        segments: number = 12,
-    ): BrioMesh {
+    public static createSphere(name: string, radius: number = 1, segments: number = 12): BrioMesh {
         const rings = Math.max(3, Math.floor(segments));
         const sectors = Math.max(3, Math.floor(segments));
 
@@ -464,4 +522,3 @@ export class BrioMesh {
         return BrioMesh.#emptyInstance;
     }
 }
-

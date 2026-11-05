@@ -170,7 +170,9 @@ export class BrioAudio {
         if (!this.#element) {
             this.#element = new Audio(this.#src);
             this.#applyElementVolume();
-            this.#unsubscribeVolume = BrioAudioMixer.onVolumeChange(() => this.#applyElementVolume());
+            this.#unsubscribeVolume = BrioAudioMixer.onVolumeChange(() =>
+                this.#applyElementVolume(),
+            );
         }
         return this.#element;
     }
@@ -275,7 +277,9 @@ export class BrioAudio {
                 };
                 const onError = (): void => {
                     cleanup();
-                    reject(new Error(`Error loading the audio '${this.#name}' from '${this.#src}'.`));
+                    reject(
+                        new Error(`Error loading the audio '${this.#name}' from '${this.#src}'.`),
+                    );
                 };
                 const cleanup = (): void => {
                     element.removeEventListener("canplaythrough", onReady);

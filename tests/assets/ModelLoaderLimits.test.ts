@@ -30,7 +30,9 @@ function triangleDoc() {
 /** Minimal PNG header declaring `width x height`. */
 function pngHeader(width: number, height: number): Uint8Array {
     const bytes = new Uint8Array(33);
-    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+    bytes.set([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52,
+    ]);
     const view = new DataView(bytes.buffer);
     view.setUint32(16, width);
     view.setUint32(20, height);
@@ -54,30 +56,42 @@ describe("Model loader resource limits", () => {
     it("rejects accessors whose count would allocate beyond the limit", () => {
         const { json, bin } = triangleDoc();
         json.accessors[0].count = 2 ** 30;
-        expect(() => extractGLTFAccessor(json, bin.buffer as ArrayBuffer, 0)).toThrow(ModelLimitError);
+        expect(() => extractGLTFAccessor(json, bin.buffer as ArrayBuffer, 0)).toThrow(
+            ModelLimitError,
+        );
     });
 
     it("rejects accessors and bufferViews that read outside the binary buffer", () => {
         const { json, bin } = triangleDoc();
         json.accessors[0].count = 10;
-        expect(() => extractGLTFAccessor(json, bin.buffer as ArrayBuffer, 0)).toThrow(/past the end/);
+        expect(() => extractGLTFAccessor(json, bin.buffer as ArrayBuffer, 0)).toThrow(
+            /past the end/,
+        );
 
         const doc2 = triangleDoc();
         doc2.json.bufferViews[0].byteLength = 1_000_000;
-        expect(() => extractGLTFAccessor(doc2.json, doc2.bin.buffer as ArrayBuffer, 0)).toThrow(/outside/);
+        expect(() => extractGLTFAccessor(doc2.json, doc2.bin.buffer as ArrayBuffer, 0)).toThrow(
+            /outside/,
+        );
 
         const doc3 = triangleDoc();
         doc3.json.bufferViews[0].byteStride = 4; // smaller than a VEC3 float element
-        expect(() => extractGLTFAccessor(doc3.json, doc3.bin.buffer as ArrayBuffer, 0)).toThrow(/byteStride/);
+        expect(() => extractGLTFAccessor(doc3.json, doc3.bin.buffer as ArrayBuffer, 0)).toThrow(
+            /byteStride/,
+        );
     });
 
     it("rejects unknown component types and invalid counts", () => {
         const { json, bin } = triangleDoc();
         json.accessors[0].componentType = 9999;
-        expect(() => extractGLTFAccessor(json, bin.buffer as ArrayBuffer, 0)).toThrow(/unsupported/);
+        expect(() => extractGLTFAccessor(json, bin.buffer as ArrayBuffer, 0)).toThrow(
+            /unsupported/,
+        );
         json.accessors[0].componentType = 5126;
         json.accessors[0].count = -1;
-        expect(() => extractGLTFAccessor(json, bin.buffer as ArrayBuffer, 0)).toThrow(/invalid count/);
+        expect(() => extractGLTFAccessor(json, bin.buffer as ArrayBuffer, 0)).toThrow(
+            /invalid count/,
+        );
     });
 
     it("returns zeros for accessors without bufferView (sparse-only) within the limit", () => {
@@ -117,24 +131,34 @@ describe("Model loader resource limits", () => {
         const arrayBuffer = vi.fn();
         vi.stubGlobal(
             "fetch",
-            vi.fn(async () => ({ ok: true, status: 200, headers: new Headers({ "content-length": "5000" }), arrayBuffer })),
+            vi.fn(async () => ({
+                ok: true,
+                status: 200,
+                headers: new Headers({ "content-length": "5000" }),
+                arrayBuffer,
+            })),
         );
-        await expect(GLBLoader.load("./huge.glb", "m")).rejects.toThrow(/above the 1000-byte limit/);
+        await expect(GLBLoader.load("./huge.glb", "m")).rejects.toThrow(
+            /above the 1000-byte limit/,
+        );
         expect(arrayBuffer).not.toHaveBeenCalled();
     });
 
     it("guards against cyclic or very deep node graphs", () => {
         const { json, bin } = triangleDoc();
-        json.nodes = [
-            { children: [1], mesh: 0 },
-            { children: [0] },
-        ];
+        json.nodes = [{ children: [1], mesh: 0 }, { children: [0] }];
         json.scenes = [{ nodes: [0] }];
-        expect(GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "m").meshes).toHaveLength(1);
+        expect(
+            GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "m").meshes,
+        ).toHaveLength(1);
 
         configureModelLoaderLimits({ maxNodeDepth: 3 });
-        json.nodes = Array.from({ length: 10 }, (_, i) => (i < 9 ? { children: [i + 1] } : { mesh: 0 }));
-        expect(() => GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "m")).toThrow(/deeper/);
+        json.nodes = Array.from({ length: 10 }, (_, i) =>
+            i < 9 ? { children: [i + 1] } : { mesh: 0 },
+        );
+        expect(() => GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "m")).toThrow(
+            /deeper/,
+        );
     });
 
     it("reads image sizes from PNG, GIF, JPEG and WebP headers", () => {
@@ -142,7 +166,8 @@ describe("Model loader resource limits", () => {
         const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x20, 0x00, 0x10, 0x00]);
         expect(readImageDimensions(gif)).toEqual({ width: 32, height: 16 });
         const jpeg = new Uint8Array([
-            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x00, 0x00, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x01, 0x00, 0x02, 0x00, 0x03,
+            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x00, 0x00, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x01,
+            0x00, 0x02, 0x00, 0x03,
         ]);
         expect(readImageDimensions(jpeg)).toEqual({ width: 512, height: 256 });
         const webp = new Uint8Array(30);
@@ -161,7 +186,12 @@ describe("Model loader resource limits", () => {
         const { json, bin } = triangleDoc();
         const data = GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "m");
         data.pendingTextures = [
-            { material: data.materials[0] ?? ({ name: "mat" } as any), key: "image0", bytes: pngHeader(40000, 40000), mimeType: "image/png" },
+            {
+                material: data.materials[0] ?? ({ name: "mat" } as any),
+                key: "image0",
+                bytes: pngHeader(40000, 40000),
+                mimeType: "image/png",
+            },
         ];
         const failures = await GLBLoader.decodeTextures(data);
         expect(failures[0]).toMatch(/40000x40000/);

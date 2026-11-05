@@ -49,14 +49,23 @@ function linearRgb(color: string): [number, number, number] {
     let cached = colorCache.get(color);
     if (!cached) {
         const rgba = parseCanvasColor(color.trim()) ?? [255, 255, 255, 1];
-        cached = [srgbToLinear(rgba[0] / 255), srgbToLinear(rgba[1] / 255), srgbToLinear(rgba[2] / 255)];
+        cached = [
+            srgbToLinear(rgba[0] / 255),
+            srgbToLinear(rgba[1] / 255),
+            srgbToLinear(rgba[2] / 255),
+        ];
         if (colorCache.size > 256) colorCache.clear();
         colorCache.set(color, cached);
     }
     return cached;
 }
 
-function addScaled(out: Float32Array, offset: number, rgb: [number, number, number], k: number): void {
+function addScaled(
+    out: Float32Array,
+    offset: number,
+    rgb: [number, number, number],
+    k: number,
+): void {
     out[offset] += rgb[0] * k;
     out[offset + 1] += rgb[1] * k;
     out[offset + 2] += rgb[2] * k;
@@ -123,14 +132,20 @@ export function buildLightingEnvironment(
  * @param nz Normal Z
  * @returns Linear luminance (may exceed `1`)
  */
-export function irradianceLuminance(env: LightingEnvironment, nx: number, ny: number, nz: number): number {
+export function irradianceLuminance(
+    env: LightingEnvironment,
+    nx: number,
+    ny: number,
+    nz: number,
+): number {
     const h = ny * 0.5 + 0.5;
     let r = env.ambient[0] + env.ground[0] + (env.sky[0] - env.ground[0]) * h;
     let g = env.ambient[1] + env.ground[1] + (env.sky[1] - env.ground[1]) * h;
     let b = env.ambient[2] + env.ground[2] + (env.sky[2] - env.ground[2]) * h;
     for (let i = 0; i < env.directionalCount; i++) {
         const o = i * 3;
-        const lambert = nx * env.directions[o] + ny * env.directions[o + 1] + nz * env.directions[o + 2];
+        const lambert =
+            nx * env.directions[o] + ny * env.directions[o + 1] + nz * env.directions[o + 2];
         if (lambert <= 0) continue;
         r += env.colors[o] * lambert;
         g += env.colors[o + 1] * lambert;

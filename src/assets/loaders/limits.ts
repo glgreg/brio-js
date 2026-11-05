@@ -96,15 +96,29 @@ export async function fetchLimited(url: string, what: string): Promise<ArrayBuff
  * @param bytes Leading bytes of the encoded image (the whole file for JPEG with large metadata)
  * @returns `{ width, height }`, or `undefined` for unknown or truncated formats
  */
-export function readImageDimensions(bytes: Uint8Array): { width: number; height: number } | undefined {
+export function readImageDimensions(
+    bytes: Uint8Array,
+): { width: number; height: number } | undefined {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const len = bytes.byteLength;
     // PNG: signature, then the IHDR chunk with big-endian width/height
-    if (len >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    if (
+        len >= 24 &&
+        bytes[0] === 0x89 &&
+        bytes[1] === 0x50 &&
+        bytes[2] === 0x4e &&
+        bytes[3] === 0x47
+    ) {
         return { width: view.getUint32(16), height: view.getUint32(20) };
     }
     // GIF: "GIF8", then little-endian logical screen size
-    if (len >= 10 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
+    if (
+        len >= 10 &&
+        bytes[0] === 0x47 &&
+        bytes[1] === 0x49 &&
+        bytes[2] === 0x46 &&
+        bytes[3] === 0x38
+    ) {
         return { width: view.getUint16(6, true), height: view.getUint16(8, true) };
     }
     // JPEG: walk the segments until a start-of-frame marker
@@ -119,7 +133,11 @@ export function readImageDimensions(bytes: Uint8Array): { width: number; height:
             }
             const segmentLength = view.getUint16(offset + 2);
             const isFrame =
-                marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+                marker >= 0xc0 &&
+                marker <= 0xcf &&
+                marker !== 0xc4 &&
+                marker !== 0xc8 &&
+                marker !== 0xcc;
             if (isFrame) {
                 return { width: view.getUint16(offset + 7), height: view.getUint16(offset + 5) };
             }
@@ -132,7 +150,10 @@ export function readImageDimensions(bytes: Uint8Array): { width: number; height:
     if (len >= 30 && view.getUint32(0) === 0x52494646 && view.getUint32(8) === 0x57454250) {
         const chunk = view.getUint32(12);
         if (chunk === 0x56503820) {
-            return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff };
+            return {
+                width: view.getUint16(26, true) & 0x3fff,
+                height: view.getUint16(28, true) & 0x3fff,
+            };
         }
         if (chunk === 0x5650384c) {
             const bits = view.getUint32(21, true);

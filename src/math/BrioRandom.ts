@@ -73,7 +73,8 @@ export class BrioRandom {
         return new Uint32Array(this.#s);
     }
     public set state(value: ArrayLike<number>) {
-        if (value.length !== 4) throw new Error("BrioRandom state must contain 4 unsigned 32-bit words.");
+        if (value.length !== 4)
+            throw new Error("BrioRandom state must contain 4 unsigned 32-bit words.");
         for (let i = 0; i < 4; i++) this.#s[i] = value[i] >>> 0;
         if ((this.#s[0] | this.#s[1] | this.#s[2] | this.#s[3]) === 0) this.#s[0] = 1;
     }
