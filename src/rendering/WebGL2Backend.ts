@@ -6,6 +6,7 @@ import { Mat4 } from "../math/index";
 import { BrioLight } from "../objects/BrioLight";
 import { parseCanvasColor, srgbToLinear } from "./color";
 import { RenderBackend, RenderBackendType } from "./contracts/RenderBackend";
+import { sortInPlace } from "../tools/sort";
 import {
     buildLightingEnvironment,
     createLightingEnvironment,
@@ -146,6 +147,8 @@ interface DrawItem {
     materialId: number;
     /** Clip-space `w` of the object origin (view depth), used for sorting. */
     depth: number;
+    /** Object opacity (`transform.opacity`), multiplied with `material.opacity`. */
+    opacity: number;
 }
 
 /** Opaque items: group by program and material (fewer state changes), then front-to-back (early-z). */
@@ -208,6 +211,7 @@ export class WebGL2Backend implements RenderBackend {
     readonly #itemPool: DrawItem[] = [];
     readonly #opaque: DrawItem[] = [];
     readonly #transparent: DrawItem[] = [];
+    readonly #sortScratch: DrawItem[] = [];
     #itemCount = 0;
 
     // Pixel rect of the current pass (top-left origin, as on the 2D canvas)
@@ -228,7 +232,7 @@ export class WebGL2Backend implements RenderBackend {
     /** `BrioLights` uniform buffer and its CPU copy (std140). */
     #lightsUbo: WebGLBuffer | null = null;
     readonly #lightData = new Float32Array(LIGHTS_FLOATS);
-    #lightsKey: string | undefined;
+    #lightsVersion = -1;
     #lightsDirty = true;
 
     readonly #normalMatrix = new Float32Array(9);
@@ -248,8 +252,8 @@ export class WebGL2Backend implements RenderBackend {
      * @param environment Lights reduced by `buildLightingEnvironment()`
      */
     public setLights(environment: LightingEnvironment): void {
-        if (environment.key === this.#lightsKey) return;
-        this.#lightsKey = environment.key;
+        if (environment.version === this.#lightsVersion) return;
+        this.#lightsVersion = environment.version;
         const data = this.#lightData;
         data.fill(0);
         data.set(environment.ambient, 0);
@@ -389,14 +393,16 @@ export class WebGL2Backend implements RenderBackend {
      * @param material `BrioMaterial` appearance
      * @param worldMatrix Object 4x4 world matrix
      * @param viewProjMatrix Camera 4x4 view-projection matrix
+     * @param opacity Object opacity (`transform.opacity`), multiplied with `material.opacity`
      */
     public renderMesh3D(
         mesh: BrioMesh,
         material: BrioMaterial,
         worldMatrix: Mat4,
         viewProjMatrix: Mat4,
+        opacity: number = 1,
     ): void {
-        if (!this.#gl || this.#contextLost || mesh.indices.length === 0) return;
+        if (!this.#gl || this.#contextLost || mesh.indices.length === 0 || opacity <= 0) return;
 
         let item = this.#itemPool[this.#itemCount];
         if (!item) {
@@ -408,6 +414,7 @@ export class WebGL2Backend implements RenderBackend {
                 features: 0,
                 materialId: 0,
                 depth: 0,
+                opacity: 1,
             };
             this.#itemPool.push(item);
         }
@@ -423,8 +430,9 @@ export class WebGL2Backend implements RenderBackend {
         const y = worldMatrix[13];
         const z = worldMatrix[14];
         item.depth = vp[3] * x + vp[7] * y + vp[11] * z + vp[15];
+        item.opacity = opacity;
 
-        if (material.opacity < 1) this.#transparent.push(item);
+        if (material.opacity * opacity < 1) this.#transparent.push(item);
         else this.#opaque.push(item);
     }
 
@@ -442,8 +450,14 @@ export class WebGL2Backend implements RenderBackend {
             gl.bufferSubData(gl.UNIFORM_BUFFER, 0, this.#lightData);
             this.#lightsDirty = false;
         }
-        this.#opaque.sort(compareOpaque);
-        this.#transparent.sort(compareTransparent);
+        // Unlike Array.prototype.sort, allocates no work buffer per frame
+        sortInPlace(this.#opaque, this.#opaque.length, compareOpaque, this.#sortScratch);
+        sortInPlace(
+            this.#transparent,
+            this.#transparent.length,
+            compareTransparent,
+            this.#sortScratch,
+        );
 
         this.#setBlend(false);
         this.#setDepthMask(true);
@@ -603,7 +617,7 @@ export class WebGL2Backend implements RenderBackend {
         rgba[0] = color[0];
         rgba[1] = color[1];
         rgba[2] = color[2];
-        rgba[3] = color[3] * material.opacity;
+        rgba[3] = color[3] * material.opacity * item.opacity;
         gl.uniform4fv(info.uColor, rgba);
 
         if ((item.features & FEATURE_MAP) !== 0) {

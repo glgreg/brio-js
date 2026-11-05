@@ -49,12 +49,14 @@ export interface RenderBackend {
      * @param material 3D surface appearance
      * @param worldMatrix Object 4x4 local-to-world matrix
      * @param viewProjMatrix Camera 4x4 view-projection matrix
+     * @param opacity Object opacity (`transform.opacity`, defaults to `1`), multiplied with `material.opacity`
      */
     renderMesh3D(
         mesh: BrioMesh,
         material: BrioMaterial,
         worldMatrix: Mat4,
         viewProjMatrix: Mat4,
+        opacity?: number,
     ): void;
 
     /**

@@ -1,3 +1,5 @@
+import { sortInPlace } from "../tools/sort";
+
 /**
  * Callback of a collision event: `other` is the object touched, `self` the object the listener belongs to (useful
  * for listeners shared by every clone of a prefab).
@@ -102,6 +104,7 @@ export class CollisionEventSystem<T extends CollisionParticipant<T>> {
     /** Objects with a non-empty contact set (their exits must be reported even after they stop being candidates). */
     readonly #tracked = new Set<T>();
     readonly #entries: SweepEntry<T>[] = [];
+    readonly #sortScratch: SweepEntry<T>[] = [];
     #entryCount: number = 0;
     /** Flat event queue: `[phase, self, other]` triples, dispatched after detection. */
     readonly #queuePhase: CollisionPhase[] = [];
@@ -175,16 +178,8 @@ export class CollisionEventSystem<T extends CollisionParticipant<T>> {
         const count = this.#entryCount;
         const frame = this.#frame;
 
-        // Insertion sort: candidates keep their order between frames, so this is close to linear and allocation-free
-        for (let i = 1; i < count; i++) {
-            const entry = entries[i];
-            let j = i - 1;
-            while (j >= 0 && compareSweep(entries[j], entry) > 0) {
-                entries[j + 1] = entries[j];
-                j--;
-            }
-            entries[j + 1] = entry;
-        }
+        // Candidates are added in registration order every frame: an O(n log n) sort with a reused buffer
+        sortInPlace(entries, count, compareSweep, this.#sortScratch);
 
         for (let i = 0; i < count; i++) {
             const a = entries[i].object!;

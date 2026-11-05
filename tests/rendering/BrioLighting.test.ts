@@ -39,16 +39,19 @@ describe("Lighting environment", () => {
         expect(env.directionalCount).toBe(1);
         expect(Array.from(env.directions.subarray(0, 3))).toEqual([-0, 1, -0]);
         expect(env.colors[0]).toBeCloseTo(2);
-        expect(env.key).not.toContain("off");
+        expect(env.version).toBeGreaterThan(0);
     });
 
-    it("caps directional lights and changes the key when a light changes", () => {
+    it("caps directional lights and changes the version only when a light changes", () => {
         const lights = Array.from({ length: 6 }, (_, i) => new BrioLight(`d${i}`, "directional"));
         const env = buildLightingEnvironment(lights, createLightingEnvironment());
         expect(env.directionalCount).toBe(MAX_DIRECTIONAL_LIGHTS);
-        const key = env.key;
+        const version = env.version;
+        expect(buildLightingEnvironment(lights, env).version).toBe(version);
         lights[0].direction.x = 5;
-        expect(buildLightingEnvironment(lights, env).key).not.toBe(key);
+        const changed = buildLightingEnvironment(lights, env).version;
+        expect(changed).not.toBe(version);
+        expect(buildLightingEnvironment(lights.slice(1), env).version).not.toBe(changed);
     });
 
     it("computes luminance from hemisphere blend and Lambert terms", () => {
@@ -189,12 +192,12 @@ describe("Lights in BrioGame and BrioScene", () => {
         });
         game.preload(() => [BrioMesh.createBox("box")]);
         await game.ready();
-        // The compositor reuses one environment object, so record each key when it is handed over
+        // The compositor reuses one environment object, so record its source lights when it is handed over
         const keys: string[] = [];
         const backend = game.renderBackend!;
         const original = backend.setLights!.bind(backend);
         backend.setLights = (env) => {
-            keys.push(env.key);
+            keys.push(env.sources.map((light) => `${light.name}:`).join(""));
             original(env);
         };
 

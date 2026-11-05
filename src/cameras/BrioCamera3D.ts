@@ -83,6 +83,8 @@ export class BrioCamera3D {
     readonly #inverseViewProjection: Mat4 = Matrix4.create();
     #viewDirty: boolean = true;
     #projDirty: boolean = true;
+    /** Whether the view or the projection changed since `viewProjectionMatrix` was last multiplied. */
+    #viewProjDirty: boolean = true;
     /** Six normalized frustum planes `(a, b, c, d)` in world space: left, right, bottom, top, near, far. */
     readonly #frustumPlanes: Float64Array = new Float64Array(24);
     #planesDirty: boolean = true;
@@ -104,14 +106,17 @@ export class BrioCamera3D {
         this.#position = new BrioVec3(p.x, p.y, p.z, () => {
             this.#viewDirty = true;
             this.#planesDirty = true;
+            this.#viewProjDirty = true;
         });
         this.#target = new BrioVec3(t.x, t.y, t.z, () => {
             this.#viewDirty = true;
             this.#planesDirty = true;
+            this.#viewProjDirty = true;
         });
         this.#up = new BrioVec3(u.x, u.y, u.z, () => {
             this.#viewDirty = true;
             this.#planesDirty = true;
+            this.#viewProjDirty = true;
         });
 
         this.#fov = options.fov ?? Math.PI / 3;
@@ -136,6 +141,7 @@ export class BrioCamera3D {
         this.#projection = value;
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Camera world position `{ x, y, z }`. */
@@ -170,6 +176,7 @@ export class BrioCamera3D {
         this.#fov = value;
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Viewport aspect ratio (`width / height`). */
@@ -180,6 +187,7 @@ export class BrioCamera3D {
         this.#aspect = Math.max(1e-4, value);
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Near clipping plane distance. */
@@ -190,6 +198,7 @@ export class BrioCamera3D {
         this.#near = Math.max(1e-4, value);
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Far clipping plane distance. */
@@ -200,6 +209,7 @@ export class BrioCamera3D {
         this.#far = Math.max(this.#near + 1e-3, value);
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Half-height in world units for `"orthographic"` projection. */
@@ -210,6 +220,7 @@ export class BrioCamera3D {
         this.#orthoSize = Math.max(1e-3, value);
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Normalized screen `BrioViewport` assigned to this camera. */
@@ -279,9 +290,13 @@ export class BrioCamera3D {
      * Computes and returns the combined 4x4 `projectionMatrix * viewMatrix` (`Mat4`).
      */
     public get viewProjectionMatrix(): Mat4 {
-        const v = this.viewMatrix;
-        const p = this.projectionMatrix;
-        Matrix4.multiply(this.#viewProjectionMatrix, p, v);
+        // Read every frame (and by every frustum test): multiply only after the view or projection changed
+        if (this.#viewProjDirty || this.#viewDirty || this.#projDirty) {
+            const v = this.viewMatrix;
+            const p = this.projectionMatrix;
+            Matrix4.multiply(this.#viewProjectionMatrix, p, v);
+            this.#viewProjDirty = false;
+        }
         return this.#viewProjectionMatrix;
     }
 
