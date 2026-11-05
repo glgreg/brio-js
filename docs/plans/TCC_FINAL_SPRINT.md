@@ -144,15 +144,15 @@ game.preload(() => [
 - [ ] Per-texel alpha blend, object-level sort.
 - [ ] `"toon"` shading.
 
-### S5 Shadows `[ ]`
+### S5 Shadows `[~]`
 
 Design in WP-20. Evidence in [`nvidia.md`](../../temp/research/nvidia.md#shadows) and `three: WebGLShadowMap.js`.
 
-- [ ] Internal depth render target and shadow atlas; hardware PCF through `sampler2DShadow`.
-- [ ] Directional shadows with up to 4 cascades, practical split with default weight 0.5, casters culled per split.
+- [~] Internal depth render target and shadow atlas; hardware PCF through `sampler2DShadow`. One depth map per pass (no atlas yet), hardware PCF plus a 3x3 kernel.
+- [~] Directional shadows with up to 4 cascades, practical split with default weight 0.5, casters culled per split.
 - [ ] Spot shadows.
 - [ ] Point shadows, with a limit.
-- [ ] `castShadow`, `receiveShadow`, `bias`, `normalBias`; `autoUpdate` and `needsUpdate` for static scenes.
+- [~] `castShadow`, `receiveShadow`, `bias`, `normalBias`; `autoUpdate` and `needsUpdate` for static scenes. Done except `autoUpdate` / `needsUpdate`.
 - [ ] Custom `vertex()` hooks and skinning apply in the shadow pass.
 
 ### S6 Post-processing and tone mapping `[ ]`
@@ -273,5 +273,6 @@ Add one line per merged item: date, item, pull request, and anything the maintai
 | 2026-10-31 | Planning | Sprint created; planning documents not yet committed |
 | 2026-10-31 | S0 | PR #13. Node and npm not installed; Bun sequence accepted as the equivalent for now |
 | 2026-11-05 | v0.2.0 | PR #14, released as 0.2.0. S1 rig, D-20, 3D frustum culling, scene camera random, text, tile maps, input map, DPR and fit |
+| 2026-11-05 | S5 | `feat/3d-shadows`: one directional shadow map (no cascades), centered on the camera target, texel-snapped, PCF. Visual tuning of bias pending on a desktop machine |
 | 2026-11-05 | S4 | `feat/3d-lighting`: point and spot lights, `"standard"` shading, emissive, tone mapping, exposure and fog per camera, D-07 logging (no fallback material yet). Shaders validated offline with `glslangValidator`; browser goldens pending on a desktop machine |
 | 2026-11-05 | S2 | `fix/s2-repairs`: D-01, D-04, D-06, D-12, D-14, D-18, D-19, empty 3D pass clear, loop error boundary, pause when hidden, touch-action, heap budget test. D-02 (glTF accessors) stays open. Browser and performance runs moved to a desktop machine: [`PERFORMANCE_FOLLOWUPS.md`](./PERFORMANCE_FOLLOWUPS.md) |

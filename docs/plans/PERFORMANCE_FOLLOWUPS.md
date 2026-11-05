@@ -80,7 +80,11 @@ The 3D work changes pixels in some cases. Regenerate the goldens on the desktop 
   so the WebGL2 goldens should still match. The **Canvas2D** golden of `e2e/orbit-gallery.spec.ts` can change: the
   fallback now lights triangles with world-space normals (rotated objects used to keep the lighting of their rest
   pose).
-- Later 3D branches (shadows, custom shaders, the 3D demo) add new goldens that must be generated on the desktop
+- `feat/3d-shadows`: no existing example casts shadows, so goldens are unchanged. Check the shadow look on the 3D
+  demo: acne (stripes on lit faces: raise `bias` / `normalBias`), peter-panning (shadows detached from their
+  casters: lower them), and the shadow box `size` against the camera distance. Defaults: `bias` 0.0008,
+  `normalBias` 0.04, `size` 15, `resolution` 2048. Also measure the cost of the extra depth pass (P-2).
+- Later 3D branches (custom shaders, the 3D demo) add new goldens that must be generated on the desktop
   machine; their specs are written to fail clearly when a golden is missing.
 
 ## Fixed without a new measurement
