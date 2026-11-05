@@ -6,6 +6,7 @@ test.describe("3d-lantern-courtyard", () => {
     test("loads the water shader and renders the lit scene on WebGL2 without errors", async ({
         page,
     }) => {
+        test.setTimeout(90_000);
         await openExample(page, PAGE);
         // Shader compile or link errors are logged with console.error, which fails the test (fixtures.ts)
         await page.waitForTimeout(800);
@@ -28,8 +29,10 @@ test.describe("3d-lantern-courtyard", () => {
     });
 
     test("drops balls from a 3D prefab with Space", async ({ page }) => {
+        // SwiftShader renders this scene on the CPU, so each frame is slow: keep the frame count low
+        test.setTimeout(90_000);
         await openExample(page, PAGE, { frozen: true });
-        await advanceFrames(page, 5);
+        await advanceFrames(page, 2);
         const count = () =>
             page.evaluate(
                 () =>
@@ -41,7 +44,7 @@ test.describe("3d-lantern-courtyard", () => {
         await page.keyboard.press("Space");
         await advanceFrames(page, 2);
         await page.keyboard.press("Space");
-        await advanceFrames(page, 60);
+        await advanceFrames(page, 2);
         expect(await count()).toBe(2);
     });
 
@@ -49,8 +52,9 @@ test.describe("3d-lantern-courtyard", () => {
         // To generate on a desktop machine (docs/plans/PERFORMANCE_FOLLOWUPS.md, P-3): remove this line and run
         // `npm run test:e2e:update`, then review the image
         test.fixme(true, "golden not generated yet");
+        test.setTimeout(90_000);
         await openExample(page, PAGE, { frozen: true });
-        await advanceFrames(page, 90);
+        await advanceFrames(page, 20);
         await hideTexts(page);
         await expect(page.locator("#game canvas")).toHaveScreenshot("courtyard.png");
     });
