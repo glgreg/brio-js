@@ -21,7 +21,11 @@ describe("BrioAudio over the Web Audio API", () => {
         // 100 bytes -> 10 s buffer in the fake decoder
         vi.stubGlobal(
             "fetch",
-            vi.fn(async () => ({ ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(100) })),
+            vi.fn(async () => ({
+                ok: true,
+                status: 200,
+                arrayBuffer: async () => new ArrayBuffer(100),
+            })),
         );
     });
 
@@ -149,8 +153,13 @@ describe("BrioAudio over the Web Audio API", () => {
     });
 
     it("rejects load() when the file cannot be fetched", async () => {
-        vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 404 })));
-        await expect(new BrioAudio("aud_missing", "./missing.wav").load()).rejects.toThrow("HTTP 404");
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => ({ ok: false, status: 404 })),
+        );
+        await expect(new BrioAudio("aud_missing", "./missing.wav").load()).rejects.toThrow(
+            "HTTP 404",
+        );
     });
 });
 

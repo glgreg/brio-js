@@ -29,11 +29,36 @@ game.useKeyboard();
 const hud = document.getElementById("hud");
 
 const SHAPES = [
-    { name: "box", mesh: () => BrioMesh.createBox("mesh_box", 1.4, 1.4, 1.4), radius: 1.2, color: "#f97316" },
-    { name: "sphere", mesh: () => BrioMesh.createSphere("mesh_sphere", 0.9, 32), radius: 0.9, color: "#22d3ee" },
-    { name: "cylinder", mesh: () => BrioMesh.createCylinder("mesh_cylinder", 0.6, 0.6, 1.8, 32), radius: 1.1, color: "#a3e635" },
-    { name: "cone", mesh: () => BrioMesh.createCylinder("mesh_cone", 0, 0.9, 1.8, 32), radius: 1.1, color: "#f472b6" },
-    { name: "pillar", mesh: () => BrioMesh.createCylinder("mesh_pillar", 0.35, 0.6, 2.4, 6), radius: 1.3, color: "#facc15" },
+    {
+        name: "box",
+        mesh: () => BrioMesh.createBox("mesh_box", 1.4, 1.4, 1.4),
+        radius: 1.2,
+        color: "#f97316",
+    },
+    {
+        name: "sphere",
+        mesh: () => BrioMesh.createSphere("mesh_sphere", 0.9, 32),
+        radius: 0.9,
+        color: "#22d3ee",
+    },
+    {
+        name: "cylinder",
+        mesh: () => BrioMesh.createCylinder("mesh_cylinder", 0.6, 0.6, 1.8, 32),
+        radius: 1.1,
+        color: "#a3e635",
+    },
+    {
+        name: "cone",
+        mesh: () => BrioMesh.createCylinder("mesh_cone", 0, 0.9, 1.8, 32),
+        radius: 1.1,
+        color: "#f472b6",
+    },
+    {
+        name: "pillar",
+        mesh: () => BrioMesh.createCylinder("mesh_pillar", 0.35, 0.6, 2.4, 6),
+        radius: 1.3,
+        color: "#facc15",
+    },
 ];
 
 game.preload(() => [
@@ -46,9 +71,22 @@ game.preload(() => [
 ]);
 
 const sun = new BrioLight("light_sun", "directional", { color: "#fff4e0", intensity: 2.2 });
-const sky = new BrioLight("light_sky", "hemisphere", { color: "#9cc3ff", groundColor: "#2b2118", intensity: 0.7 });
-const fill = new BrioLight("light_fill", "directional", { color: "#7aa2ff", intensity: 0.4, direction: { x: 1, y: -0.3, z: 1 } });
-const camera = new BrioCamera3D("cam_orbit", { fov: Math.PI / 3.5, clearColor: "#0b1220", near: 0.1, far: 200 });
+const sky = new BrioLight("light_sky", "hemisphere", {
+    color: "#9cc3ff",
+    groundColor: "#2b2118",
+    intensity: 0.7,
+});
+const fill = new BrioLight("light_fill", "directional", {
+    color: "#7aa2ff",
+    intensity: 0.4,
+    direction: { x: 1, y: -0.3, z: 1 },
+});
+const camera = new BrioCamera3D("cam_orbit", {
+    fov: Math.PI / 3.5,
+    clearColor: "#0b1220",
+    near: 0.1,
+    far: 200,
+});
 
 /** @type {{ object: any, radius: number }[]} */
 const pickables = [];
@@ -59,7 +97,11 @@ game.load(() => {
 
     const shapes = SHAPES.map((shape, i) => {
         const angle = (i / SHAPES.length) * Math.PI * 2;
-        const obj = new BrioObject3D(`obj_${shape.name}`, `mesh_${shape.name}`, `mat_${shape.name}`);
+        const obj = new BrioObject3D(
+            `obj_${shape.name}`,
+            `mesh_${shape.name}`,
+            `mat_${shape.name}`,
+        );
         obj.transform.position = { x: Math.cos(angle) * 4, y: 0, z: Math.sin(angle) * 4 };
         pickables.push({ object: obj, radius: shape.radius });
         return obj;
@@ -141,7 +183,8 @@ game.update((updater, dt) => {
     }
 
     // Shapes spin; the sun circles the scene; L toggles it
-    for (const p of pickables) p.object.transform.rotation.y += dt * (p.object === selected ? 2.5 : 0.4);
+    for (const p of pickables)
+        p.object.transform.rotation.y += dt * (p.object === selected ? 2.5 : 0.4);
     sun.direction = { x: Math.cos(time * 0.3), y: -1, z: Math.sin(time * 0.3) };
     if (keys.isPressed("l")) sun.enabled = !sun.enabled;
 

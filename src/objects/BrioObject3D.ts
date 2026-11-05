@@ -1,3 +1,4 @@
+import { CollisionListener, CollisionListeners } from "../physics/BrioCollisionEvents";
 import { Vec3 } from "../math/vec3";
 import { CollisionColliderType } from "./BrioObject2D";
 import { BrioTransform3D } from "./BrioTransform3D";
@@ -24,6 +25,30 @@ export interface Collision3DType {
 }
 
 /**
+ * Properties of a `BrioObject3D` that live outside the ECS buffers (mesh, material, tag, collider and the list of
+ * child parts). Captured by checkpoints next to the ECS bytes.
+ */
+export interface BrioObject3DState {
+    readonly mesh: string;
+    readonly material: string;
+    readonly tag: string;
+    readonly collision: Collision3DType | undefined;
+    readonly children: readonly BrioObject3D[];
+}
+
+/** Deep copy of a 3D collider (or `undefined`). */
+function copyCollision3D(collision: Collision3DType | undefined): Collision3DType | undefined {
+    if (!collision) return undefined;
+    return {
+        enabled: collision.enabled,
+        shape: collision.shape,
+        colliderType: collision.colliderType,
+        pos: { x: collision.pos.x, y: collision.pos.y, z: collision.pos.z },
+        size: { x: collision.size.x, y: collision.size.y, z: collision.size.z },
+    };
+}
+
+/**
  * Concrete 3D interactive entity within a scene (`BrioObject3D`).
  * Possesses a 3D spatial transform (`BrioTransform3D`), optional mesh and material identifiers,
  * an optional 3D collider (`Collision3DType`), an ECS entity handle (`entityId` + `entityGeneration`),
@@ -46,6 +71,90 @@ export class BrioObject3D {
     readonly #children: BrioObject3D[] = [];
     /** Sequential 1-based instance ID when spawned via `game.instantiate()`, or `0` for a manually created object. */
     public instanceId: number = 0;
+    /**
+     * Free-form group label (e.g. `"enemy"`, `"pickup"`), copied to clones by `game.instantiate()`; handy to tell
+     * objects apart in collision callbacks without parsing names.
+     */
+    public tag: string = "";
+
+    /** Collision listeners of this object (`undefined` until one is registered). */
+    #collisionListeners?: CollisionListeners<BrioObject3D>;
+
+    /**
+     * Collision listeners registered through `onCollisionEnter` / `onCollisionStay` / `onCollisionExit`
+     * (`undefined` when none was registered). Read by the engine's collision event pass.
+     */
+    public get collisionListeners(): CollisionListeners<BrioObject3D> | undefined {
+        return this.#collisionListeners;
+    }
+
+    #listeners(): CollisionListeners<BrioObject3D> {
+        return (this.#collisionListeners ??= new CollisionListeners<BrioObject3D>());
+    }
+
+    /**
+     * Registers `listener` for the first frame this object's collider overlaps another enabled collider
+     * (`"solid"` or `"trigger"`). Both objects must be registered in the game or in the active scene. Events fire
+     * once per frame, after the `update()` callback; they only report contacts (there is no 3D contact solver yet), tested
+     * with `BrioCollision.isColliding3D` on the colliders added by `addCollider3D()`. Clones made by `game.instantiate()` inherit the
+     * prefab's listeners, so use the `self` argument instead of the prefab variable inside a shared listener.
+     *
+     * @param listener Callback receiving the other object and this object
+     * @returns Function that unregisters the listener
+     * @example
+     * ```ts
+     * ship.onCollisionEnter((other) => {
+     *     if (other.tag === "asteroid") game.destroy(other);
+     * });
+     * ```
+     */
+    public onCollisionEnter(listener: CollisionListener<BrioObject3D>): () => void {
+        return this.#listeners().add("enter", listener);
+    }
+
+    /**
+     * Registers `listener` for every frame after the first one in which this object keeps overlapping another
+     * collider (see `onCollisionEnter` for the rules).
+     *
+     * @param listener Callback receiving the other object and this object
+     * @returns Function that unregisters the listener
+     * @example
+     * ```ts
+     * ship.onCollisionStay((other) => {
+     *     if (other.tag === "lava") health -= 10 * dt;
+     * });
+     * ```
+     */
+    public onCollisionStay(listener: CollisionListener<BrioObject3D>): () => void {
+        return this.#listeners().add("stay", listener);
+    }
+
+    /**
+     * Registers `listener` for the first frame this object stops overlapping another collider, including when the
+     * other object is destroyed or its collider disabled (see `onCollisionEnter` for the rules).
+     *
+     * @param listener Callback receiving the other object and this object
+     * @returns Function that unregisters the listener
+     * @example
+     * ```ts
+     * zone.onCollisionExit((other) => {
+     *     if (other === ship) hint.transform.visibility = false;
+     * });
+     * ```
+     */
+    public onCollisionExit(listener: CollisionListener<BrioObject3D>): () => void {
+        return this.#listeners().add("exit", listener);
+    }
+
+    /**
+     * Copies every collision listener of `source` onto this object (`game.instantiate()` does it for clones).
+     *
+     * @param source Object whose listeners are copied
+     */
+    public copyCollisionListenersFrom(source: BrioObject3D): void {
+        const listeners = source.collisionListeners;
+        if (listeners && !listeners.isEmpty) this.#listeners().copyFrom(listeners);
+    }
     /** Generation of the `ECSWorld` slot captured when `entityId` was assigned. */
     public entityGeneration: number = 0;
     /** Optional 3D collider configuration. */
@@ -59,17 +168,17 @@ export class BrioObject3D {
      * @param name Unique identifier for the 3D object
      * @param mesh Identifier of the `BrioMesh` geometry asset (defaults to `""`)
      * @param material Identifier of the `BrioMaterial` asset (defaults to `""`)
-     * @param layer Rendering layer index (defaults to `1`)
+     * @param depth Non-negative drawing order (`transform.depth`, defaults to `1`)
      * @example
      * ```ts
      * const ship = new BrioObject3D("obj_ship", "mesh_fighter", "mat_hull");
      * ```
      */
-    constructor(name: string, mesh: string = "", material: string = "", layer: number = 1) {
+    constructor(name: string, mesh: string = "", material: string = "", depth: number = 1) {
         this.#name = name;
         this.#mesh = mesh;
         this.#material = material;
-        this.#transform.layer = Math.round(Math.abs(layer));
+        this.#transform.depth = Math.round(Math.abs(depth));
     }
 
     /** Unique identifier of this `BrioObject3D`. */
@@ -134,22 +243,26 @@ export class BrioObject3D {
     }
 
     /**
-     * Creates a deep copy of a `BrioObject3D`, preserving its 3D transform, mesh, material, and 3D collider.
+     * Creates a deep copy of a `BrioObject3D`, preserving its 3D transform, mesh, material, `tag`, 3D collider and
+     * (recursively) its child parts. Child names that start with the source name are renamed to start with `name`
+     * (`"ship/hull"` becomes `"ship-2/hull"`), so parts of different copies stay distinguishable.
      *
      * @param source Source `BrioObject3D` to clone
+     * @param name Name of the copy (defaults to the source name)
      * @returns Cloned `BrioObject3D`
      * @example
      * ```ts
-     * const clonedCrate = BrioObject3D.clone(cratePrefab);
+     * const clonedCrate = BrioObject3D.clone(cratePrefab, "obj_crate_2");
      * ```
      */
-    public static clone(source: BrioObject3D): BrioObject3D {
+    public static clone(source: BrioObject3D, name: string = source.#name): BrioObject3D {
         const copy = new BrioObject3D(
-            source.#name,
+            name,
             source.#mesh,
             source.#material,
-            source.#transform.layer,
+            source.#transform.depth,
         );
+        copy.tag = source.tag;
         copy.transform.position = {
             x: source.transform.position.x,
             y: source.transform.position.y,
@@ -186,7 +299,54 @@ export class BrioObject3D {
                 },
             };
         }
+        for (const child of source.#children) {
+            const childName = child.#name.startsWith(source.#name)
+                ? name + child.#name.slice(source.#name.length)
+                : child.#name;
+            copy.addChild(BrioObject3D.clone(child, childName));
+        }
         return copy;
+    }
+
+    /**
+     * Captures the properties of this object that are not stored in the ECS (see `BrioObject3DState`).
+     *
+     * @returns Plain state accepted by `restoreState()`
+     * @example
+     * ```ts
+     * const saved = ship.captureState();
+     * ship.material = "mat_damaged";
+     * ship.restoreState(saved);
+     * ```
+     */
+    public captureState(): BrioObject3DState {
+        return {
+            mesh: this.#mesh,
+            material: this.#material,
+            tag: this.tag,
+            collision: copyCollision3D(this.collision),
+            children: this.#children.slice(),
+        };
+    }
+
+    /**
+     * Restores the properties captured by `captureState()`, re-attaching captured child parts that were removed
+     * and detaching parts added afterwards.
+     *
+     * @param state State captured from this object
+     */
+    public restoreState(state: BrioObject3DState): void {
+        this.#mesh = state.mesh;
+        this.#material = state.material;
+        this.tag = state.tag;
+        this.collision = copyCollision3D(state.collision);
+        for (let i = this.#children.length - 1; i >= 0; i--) {
+            const child = this.#children[i];
+            if (!state.children.includes(child)) this.removeChild(child);
+        }
+        for (const child of state.children) {
+            if (child.#parent !== this) this.addChild(child);
+        }
     }
 
     /** Parent `BrioObject3D`, if this object is a child part. */

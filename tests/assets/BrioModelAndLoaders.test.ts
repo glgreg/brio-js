@@ -105,7 +105,11 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
             const uvBytes = new Uint8Array(uvs.buffer);
             const idxBytes = new Uint8Array(indices.buffer);
 
-            const binLength = posBytes.byteLength + normBytes.byteLength + uvBytes.byteLength + idxBytes.byteLength;
+            const binLength =
+                posBytes.byteLength +
+                normBytes.byteLength +
+                uvBytes.byteLength +
+                idxBytes.byteLength;
             const binBuffer = new Uint8Array(binLength);
             let offset = 0;
 
@@ -338,7 +342,12 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
                     retrievedModel.primaryMaterial?.name,
                 );
                 ship.transform.position.set(0, 5, -20);
-                ship.addCollider3D("box", "solid", { x: 0, y: 0, z: 0 }, retrievedModel.boundingBox.size);
+                ship.addCollider3D(
+                    "box",
+                    "solid",
+                    { x: 0, y: 0, z: 0 },
+                    retrievedModel.boundingBox.size,
+                );
                 loadedShipObj = ship;
                 return [ship];
             });
@@ -363,7 +372,9 @@ describe("3D Model Asset Pipeline (OBJLoader, GLBLoader, GLTFLoader, BrioModel)"
             expect(restored).toBe(true);
             expect(game.gameObjects3D.has("obj_player_ship")).toBe(true);
             expect(loadedShipObj!.transform.position.y).toBe(5);
-            expect(game.ecsWorld.isAlive(loadedShipObj!.entityId, loadedShipObj!.entityGeneration)).toBe(true);
+            expect(
+                game.ecsWorld.isAlive(loadedShipObj!.entityId, loadedShipObj!.entityGeneration),
+            ).toBe(true);
 
             // Meshes and materials of preloaded models are registered for the 3D passes
             expect(game.loadedMeshes.has("mesh_fighter")).toBe(true);

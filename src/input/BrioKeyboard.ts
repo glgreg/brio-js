@@ -2,6 +2,26 @@ import { BrioConsole } from "../debugging/BrioConsole";
 import { KeyboardKey } from "../tools/base_types";
 
 /**
+ * Returns the opposite-case variant of a single-letter `KeyboardEvent.key` (`"w"` -> `"W"`), or `undefined`
+ * for any other key.
+ *
+ * @param key `KeyboardEvent.key` value
+ * @returns The other-case letter, or `undefined`
+ * @example
+ * ```ts
+ * otherLetterCase("a"); // "A"
+ * otherLetterCase("Enter"); // undefined
+ * ```
+ */
+export function otherLetterCase(key: string): string | undefined {
+    if (key.length !== 1) return undefined;
+    const lower = key.toLowerCase();
+    if (lower !== key) return lower;
+    const upper = key.toUpperCase();
+    return upper !== key ? upper : undefined;
+}
+
+/**
  * Manages keyboard input state (`isDown`, `isPressed`, `isUp`) and custom key-press callbacks (`customActions`).
  * Activated via `game.useKeyboard()` and accessed via `game.keyboard`.
  *
@@ -89,7 +109,9 @@ export class BrioKeyboard {
         this.#keyboardPrevState = keyboardPrevStateMap;
 
         this.#onKeyDown = (event: KeyboardEvent) => {
-            if (this.preventDefaultKeys.has(event.key)) {
+            // DOM boundary: `event.key` may hold values outside the `KeyboardKey` union ("Dead", "ç"...)
+            const key = event.key as KeyboardKey;
+            if (this.preventDefaultKeys.has(key)) {
                 event.preventDefault();
             }
 
@@ -100,13 +122,13 @@ export class BrioKeyboard {
             this.#keyboardState.set(event.key, true);
             BrioKeyboard.#globalKeyDown(event.key);
 
-            const customHandler = this.#customEventMaps.get(event.key);
+            const customHandler = this.#customEventMaps.get(key);
             if (customHandler) {
                 customHandler();
             }
         };
         this.#onKeyUp = (event: KeyboardEvent) => {
-            if (this.preventDefaultKeys.has(event.key)) {
+            if (this.preventDefaultKeys.has(event.key as KeyboardKey)) {
                 event.preventDefault();
             }
 
@@ -115,6 +137,15 @@ export class BrioKeyboard {
                 this.#releasedEdges.add(event.key);
             }
             BrioKeyboard.#globalKeyUp(event.key);
+
+            // Shift toggled while a letter is held changes its `key` ("w" down, "W" up): release the other
+            // case too, otherwise the original one stays stuck down
+            const other = otherLetterCase(event.key);
+            if (other !== undefined && this.#keyboardState.get(other) === true) {
+                this.#keyboardState.set(other, false);
+                this.#releasedEdges.add(other);
+                BrioKeyboard.#globalKeyUp(other);
+            }
         };
         this.#onBlur = () => {
             this.releaseAll();
@@ -146,6 +177,8 @@ export class BrioKeyboard {
         });
         window.addEventListener("keyup", (event: KeyboardEvent) => {
             BrioKeyboard.#globalKeyUp(event.key);
+            const other = otherLetterCase(event.key);
+            if (other !== undefined) BrioKeyboard.#globalKeyUp(other);
         });
         window.addEventListener("blur", () => {
             BrioKeyboard.#globalState.forEach(BrioKeyboard.#releaseGlobalHeld);
@@ -225,6 +258,19 @@ export class BrioKeyboard {
         this.#globalSynced = true;
         this.#globalReleased.clear();
         this.#globalState.forEach(BrioKeyboard.#copyGlobalToPrev);
+    }
+
+    /**
+     * Keys that went down during the current frame (latched press edges), for "press any key" prompts and
+     * rebinding screens. The set is live and owned by the controller; it is emptied by `endFrame()`.
+     *
+     * @example
+     * ```ts
+     * if (game.keyboard.pressedKeys.size > 0) startGame();
+     * ```
+     */
+    public get pressedKeys(): ReadonlySet<string> {
+        return this.#pressedEdges;
     }
 
     /** Whether this controller currently has its DOM listeners attached. */

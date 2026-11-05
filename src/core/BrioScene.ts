@@ -2,9 +2,10 @@ import { BrioCamera2D } from "../cameras/BrioCamera2D";
 import { BrioCamera3D } from "../cameras/BrioCamera3D";
 import { ComponentMask, ComponentStorageLayout, StorageLayoutFlag } from "../ecs/ComponentStorage";
 import { ECSWorld } from "../ecs/ECSWorld";
-import { BrioObject2D } from "../objects/BrioObject2D";
-import { BrioObject3D } from "../objects/BrioObject3D";
+import { BrioObject2D, BrioObject2DState } from "../objects/BrioObject2D";
+import { BrioObject3D, BrioObject3DState } from "../objects/BrioObject3D";
 import { BrioLight } from "../objects/BrioLight";
+import { BrioTileMap } from "../assets/BrioTileMap";
 import { BrioSerializer } from "../storage/BrioSerializer";
 import { CompositorSource } from "../rendering/BrioCompositor";
 import { BrioLayer } from "./BrioLayer";
@@ -19,7 +20,8 @@ export type SceneContent =
     | BrioCamera2D
     | BrioCamera3D
     | BrioLayer
-    | BrioLight;
+    | BrioLight
+    | BrioTileMap;
 
 /**
  * Captured state of a `BrioScene`: the `ECSWorld` bytes plus the handle of every registered object, so a
@@ -28,12 +30,27 @@ export type SceneContent =
 export interface BrioSceneState {
     /** Binary `ECSWorld` snapshot (`BrioSerializer`). */
     readonly bytes: Uint8Array;
-    /** 2D objects registered at capture time, with their slot and layer. */
-    readonly objects2D: ReadonlyArray<{ object: BrioObject2D; entityId: number; layer?: BrioLayer }>;
-    /** 3D objects registered at capture time, with their slot. */
-    readonly objects3D: ReadonlyArray<{ object: BrioObject3D; entityId: number }>;
-    /** Descendant parts of the captured 3D objects, with their slot. */
-    readonly parts3D: ReadonlyArray<{ object: BrioObject3D; entityId: number }>;
+    /** 2D objects registered at capture time, with their slot, layer and state kept outside the ECS. */
+    readonly objects2D: ReadonlyArray<{
+        object: BrioObject2D;
+        entityId: number;
+        layer?: BrioLayer;
+        state: BrioObject2DState;
+    }>;
+    /** 3D objects registered at capture time, with their slot and state kept outside the ECS. */
+    readonly objects3D: ReadonlyArray<{
+        object: BrioObject3D;
+        entityId: number;
+        state: BrioObject3DState;
+    }>;
+    /** Descendant parts of the captured 3D objects, with their slot and state. */
+    readonly parts3D: ReadonlyArray<{
+        object: BrioObject3D;
+        entityId: number;
+        state: BrioObject3DState;
+    }>;
+    /** Tiles of every tile map of the scene. */
+    readonly tileMaps: ReadonlyArray<{ map: BrioTileMap; tiles: Uint32Array }>;
 }
 
 /**
@@ -62,6 +79,7 @@ export class BrioScene {
     readonly #layers = new BrioRegistry<BrioLayer>();
     readonly #objects2D = new Map<string, BrioObject2D>();
     readonly #objects3D = new BrioRegistry<BrioObject3D>();
+    readonly #tileMaps = new Map<string, BrioTileMap>();
     readonly #cameras2D = new BrioRegistry<BrioCamera2D>();
     readonly #cameras3D = new BrioRegistry<BrioCamera3D>();
     readonly #lights = new BrioRegistry<BrioLight>();
@@ -269,6 +287,7 @@ export class BrioScene {
                 if (item instanceof BrioCamera2D) this.addCamera2D(item);
                 else if (item instanceof BrioCamera3D) this.addCamera3D(item);
                 else if (item instanceof BrioLight) this.addLight(item);
+                else if (item instanceof BrioTileMap) this.addTileMap(item);
             }
             for (const item of content) {
                 if (item instanceof BrioObject3D) {
@@ -305,17 +324,33 @@ export class BrioScene {
      * @returns Opaque `BrioSceneState` accepted by `restoreState()`
      */
     public captureState(): BrioSceneState {
-        const objects2D: Array<{ object: BrioObject2D; entityId: number; layer?: BrioLayer }> = [];
+        const objects2D: Array<BrioSceneState["objects2D"][number]> = [];
         for (const object of this.#objects2D.values()) {
-            objects2D.push({ object, entityId: object.entityId, layer: this.#layerHolding(object) });
+            objects2D.push({
+                object,
+                entityId: object.entityId,
+                layer: this.#layerHolding(object),
+                state: object.captureState(),
+            });
         }
-        const objects3D: Array<{ object: BrioObject3D; entityId: number }> = [];
-        const parts3D: Array<{ object: BrioObject3D; entityId: number }> = [];
+        const objects3D: Array<BrioSceneState["objects3D"][number]> = [];
+        const parts3D: Array<BrioSceneState["parts3D"][number]> = [];
         for (const object of this.#objects3D.list) {
-            objects3D.push({ object, entityId: object.entityId });
-            object.forEachDescendant((part) => parts3D.push({ object: part, entityId: part.entityId }));
+            objects3D.push({ object, entityId: object.entityId, state: object.captureState() });
+            object.forEachDescendant((part) =>
+                parts3D.push({ object: part, entityId: part.entityId, state: part.captureState() }),
+            );
         }
-        return { bytes: BrioSerializer.captureSnapshot(this.#world), objects2D, objects3D, parts3D };
+        const tileMaps: Array<BrioSceneState["tileMaps"][number]> = [];
+        for (const map of this.#tileMaps.values())
+            tileMaps.push({ map, tiles: map.captureTiles() });
+        return {
+            bytes: BrioSerializer.captureSnapshot(this.#world),
+            objects2D,
+            objects3D,
+            parts3D,
+            tileMaps,
+        };
     }
 
     /**
@@ -350,10 +385,11 @@ export class BrioScene {
         const storage = this.#world.storage;
 
         this.#objects2D.clear();
-        for (const { object, entityId, layer } of state.objects2D) {
+        for (const { object, entityId, layer, state: objectState } of state.objects2D) {
             object.entityId = entityId;
             object.entityGeneration = this.#world.generationOf(entityId);
             object.transform.bindECS(storage, entityId, true);
+            object.restoreState(objectState);
             this.#objects2D.set(object.name, object);
             const target = layer && this.#layers.get(layer.name) === layer ? layer : undefined;
             const current = this.#layerHolding(object);
@@ -366,6 +402,10 @@ export class BrioScene {
         }
 
         this.#objects3D.clear();
+        for (const { object, state: objectState } of state.objects3D)
+            object.restoreState(objectState);
+        for (const { object, state: objectState } of state.parts3D)
+            object.restoreState(objectState);
         for (const { object, entityId } of state.objects3D) {
             object.entityId = entityId;
             object.entityGeneration = this.#world.generationOf(entityId);
@@ -378,6 +418,35 @@ export class BrioScene {
             object.entityGeneration = this.#world.generationOf(entityId);
             object.transform.bindECS(storage, entityId, true);
         }
+        for (const { map, tiles } of state.tileMaps ?? []) {
+            if (this.#tileMaps.get(map.name) === map) map.restoreTiles(tiles);
+        }
+    }
+
+    /**
+     * Registers a `BrioTileMap` in this scene and draws it in `layerName` (unless one of the scene layers already
+     * holds it). Its tiles are part of the scene checkpoints and of `restart()`.
+     *
+     * @param map Tile map to register
+     * @param layerName Layer that draws the map (defaults to `"default"`)
+     * @returns This scene
+     * @example
+     * ```ts
+     * scene.addTileMap(BrioTileMap.fromTiled(levelJson, { tileset: tiles }), "ground");
+     * ```
+     */
+    public addTileMap(map: BrioTileMap, layerName: string = "default"): this {
+        this.#tileMaps.set(map.name, map);
+        for (const layer of this.#layers.list) {
+            if (layer.hasTileMap(map)) return this;
+        }
+        this.#layers.get(layerName)?.addTileMap(map);
+        return this;
+    }
+
+    /** Tile maps registered in this scene, keyed by name. */
+    public get tileMaps(): ReadonlyMap<string, BrioTileMap> {
+        return this.#tileMaps;
     }
 
     /** Allocates a 2D slot in the scene world and binds `object` to it, pushing its current values. */
@@ -417,7 +486,10 @@ export class BrioScene {
         this.#detach(object);
         if (object instanceof BrioObject3D) {
             object.forEachDescendant((part) => {
-                if (part.entityId >= 0 && this.#world.isAlive(part.entityId, part.entityGeneration)) {
+                if (
+                    part.entityId >= 0 &&
+                    this.#world.isAlive(part.entityId, part.entityGeneration)
+                ) {
                     this.#world.destroyEntity(part.entityId);
                 }
                 this.#detach(part);
@@ -637,7 +709,9 @@ export class BrioScene {
     public restoreCheckpoint(snapshot?: Uint8Array): void {
         if (!snapshot) {
             if (!this.#checkpointState) {
-                throw new Error(`No checkpoint snapshot available to restore in scene "${this.#name}".`);
+                throw new Error(
+                    `No checkpoint snapshot available to restore in scene "${this.#name}".`,
+                );
             }
             this.restoreState(this.#checkpointState);
             return;
@@ -709,6 +783,7 @@ export class BrioScene {
         this.#cameras2D.clear();
         this.#cameras3D.clear();
         this.#lights.clear();
+        this.#tileMaps.clear();
         this.#layers.clear();
         this.addLayer(new BrioLayer({ name: "default", order: 0, policy: "dynamic" }));
         this.#checkpointState = undefined;

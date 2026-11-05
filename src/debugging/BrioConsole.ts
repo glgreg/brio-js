@@ -179,4 +179,3 @@ export class BrioConsole {
         this.out("warn", `Exception id ${exceptionId} not found.`);
     }
 }
-

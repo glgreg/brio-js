@@ -74,7 +74,13 @@ describe("BrioGame fixed timestep", () => {
     });
 
     it("runs fixedUpdate at the fixed rate regardless of frame duration", () => {
-        const game = new BrioGame({ width: 100, height: 100, container, fixedTimestep: 0.01, maxDeltaTime: 1 });
+        const game = new BrioGame({
+            width: 100,
+            height: 100,
+            container,
+            fixedTimestep: 0.01,
+            maxDeltaTime: 1,
+        });
         const steps: number[] = [];
         const frames: number[] = [];
         game.fixedUpdate((_u, dt) => steps.push(dt));
@@ -91,7 +97,13 @@ describe("BrioGame fixed timestep", () => {
     });
 
     it("defaults to 1/60 when fixedUpdate is registered and caps steps per frame", () => {
-        const game = new BrioGame({ width: 100, height: 100, container, maxDeltaTime: 0, maxFixedSteps: 3 });
+        const game = new BrioGame({
+            width: 100,
+            height: 100,
+            container,
+            maxDeltaTime: 0,
+            maxFixedSteps: 3,
+        });
         let steps = 0;
         game.fixedUpdate(() => steps++);
         expect(game.fixedTimestep).toBeCloseTo(1 / 60);

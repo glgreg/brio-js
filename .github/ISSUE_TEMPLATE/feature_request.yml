@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest a new feature or an improvement to an existing API.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [`docs/ROADMAP.md`](https://github.com/glgreg/brio-js/blob/main/docs/ROADMAP.md) and the existing
+        issues first: the feature may already be planned. Use the terms from
+        [`GLOSSARY.md`](https://github.com/glgreg/brio-js/blob/main/GLOSSARY.md) where you can.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to build, and what makes it hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: The API or behavior you would like to see. A short code sample of the intended usage helps.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you use today, or how other engines solve this.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Rendering (2D)
+        - Rendering (3D)
+        - Scenes, layers and cameras
+        - ECS and objects
+        - Physics and collision
+        - Input
+        - Audio
+        - Assets and loaders
+        - Storage and snapshots
+        - Tooling, docs or examples
+        - Other
+    validations:
+      required: true

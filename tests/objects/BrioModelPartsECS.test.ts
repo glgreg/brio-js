@@ -7,7 +7,10 @@ import { BrioObject3D } from "../../src/objects/BrioObject3D";
 import { createRecordingContext } from "../helpers/recordingContext";
 
 function twoPartModel(): BrioModel {
-    return BrioModel.fromData("mod_robot", [BrioMesh.createBox("mesh_body"), BrioMesh.createSphere("mesh_head")]);
+    return BrioModel.fromData("mod_robot", [
+        BrioMesh.createBox("mesh_body"),
+        BrioMesh.createSphere("mesh_head"),
+    ]);
 }
 
 describe("BrioModel parts are registered in the ECS", () => {
@@ -19,7 +22,12 @@ describe("BrioModel parts are registered in the ECS", () => {
     });
 
     it("binds every part to its own slot and restores part transforms from game checkpoints", () => {
-        const game = new BrioGame({ width: 64, height: 64, container: document.createElement("div"), dimension: "3d" });
+        const game = new BrioGame({
+            width: 64,
+            height: 64,
+            container: document.createElement("div"),
+            dimension: "3d",
+        });
         const robot = game.addObject(twoPartModel().instantiate("obj_robot"));
         const [body, head] = robot.children;
         expect(body.entityId).toBeGreaterThanOrEqual(0);
@@ -38,7 +46,12 @@ describe("BrioModel parts are registered in the ECS", () => {
     });
 
     it("releases part slots when the root is destroyed", () => {
-        const game = new BrioGame({ width: 64, height: 64, container: document.createElement("div"), dimension: "3d" });
+        const game = new BrioGame({
+            width: 64,
+            height: 64,
+            container: document.createElement("div"),
+            dimension: "3d",
+        });
         const robot = game.addObject(twoPartModel().instantiate("obj_robot"));
         const head = robot.children[1];
         const alive = game.ecsWorld.activeCount;
@@ -49,7 +62,12 @@ describe("BrioModel parts are registered in the ECS", () => {
     });
 
     it("covers parts in scene checkpoints and restart()", async () => {
-        const game = new BrioGame({ width: 64, height: 64, container: document.createElement("div"), dimension: "3d" });
+        const game = new BrioGame({
+            width: 64,
+            height: 64,
+            container: document.createElement("div"),
+            dimension: "3d",
+        });
         const root = new BrioObject3D("obj_root");
         const arm = new BrioObject3D("obj_arm");
         root.addChild(arm);

@@ -25,11 +25,13 @@ targets modern browsers and is designed to run inside Electron and Capacitor she
 
 ## 4. Lifecycle Stage
 
-Active development. Version 0.1.0 is the first public release: the API is usable but may still change between minor
-versions, so refactoring is acceptable when it serves the target architecture, as long as public API changes are
-recorded in `CHANGELOG.md`. Next milestone: the TCC final presentation on 2026-11-13, with code freeze proposed for
-2026-11-08 (`docs/plans/TCC_FINAL_SPRINT.md`). `develop` is the base of that work. WebGPU and the other v0.2 items in
-`docs/ROADMAP.md` come after it.
+Active development, public preview. Version 0.2.0 targets simple 2D and 3D games (text, collision events, tile maps,
+input map, high-DPI, complete checkpoints); the API is usable but may still change between minor versions, so
+refactoring is acceptable when it serves the target architecture, as long as public API changes are recorded in
+`CHANGELOG.md`. Next milestone: the TCC final presentation on 2026-11-13, with code freeze proposed for 2026-11-08
+(`docs/plans/TCC_FINAL_SPRINT.md`); `develop` is the base of that work. After it: v0.3 (WebGPU backend, UI widgets,
+camera controllers, point/spot lights, particles). Before 1.0, the public API surface review listed in
+`docs/ROADMAP.md` ("Before 1.0") decides what the package root exports.
 
 ## 5. Project Metadata
 
@@ -45,6 +47,6 @@ recorded in `CHANGELOG.md`. Next milestone: the TCC final presentation on 2026-1
     `docs/architecture/ENGINE_COMPLETION_STUDY.md`, which links the local study base in the gitignored `temp/` folder
     (`temp/research/` notes, `temp/repos/` reference clones). Read that base before working on a package.
   - `docs/tcc/` (local, gitignored): TCC questions, research gaps and the provenance of algorithms and reference code.
-  - `docs/ROADMAP.md`: known issues and planned work (English); `TODO.md`: detailed engineering checklist
-    (written in Portuguese before the switch to English).
+  - `docs/ROADMAP.md`: known issues and planned work; `TODO.md`: detailed engineering checklist.
+  - `CONTRIBUTING.md`: setup, checks (`npm run check`, `npm run test:e2e`), branches and conventions.
   - TSDoc on every public symbol; `npm run doc` generates the TypeDoc reference in `docs/api/` (not versioned).

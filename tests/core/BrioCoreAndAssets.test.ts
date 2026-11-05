@@ -10,7 +10,8 @@ import { BrioTimer } from "../../src/core/BrioTimer";
 import { BrioGame } from "../../src/game/BrioGame";
 import { BrioObject2D } from "../../src/objects/BrioObject2D";
 import { BrioObject3D } from "../../src/objects/BrioObject3D";
-import { BrioRenderer, Canvas2DBackend } from "../../src/rendering/BrioRenderer";
+import { BrioRenderer } from "../../src/rendering/BrioRenderer";
+import { Canvas2DBackend } from "../../src/rendering/Canvas2DBackend";
 
 describe("Core Subsystems, Cameras, Assets, 3D Renderer & Game Checkpoints", () => {
     it("schedules and pauses frame-synchronized tasks in BrioTimer", () => {

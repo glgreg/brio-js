@@ -5,6 +5,7 @@ import {
     CSSBackgroundRepeat,
     CSSBackgroundSize,
     CSSColor,
+    CSSGradient,
 } from "../tools/base_types";
 
 /**
@@ -12,7 +13,7 @@ import {
  */
 export interface CanvasBackground {
     /** CSS color or gradient string (e.g. `"#020319"`, `"linear-gradient(...)"`). */
-    color?: CSSColor;
+    color?: CSSColor | CSSGradient;
     /** URL or relative path to a background image. */
     image?: string;
     /** CSS `background-repeat` mode (`"no-repeat"`, `"repeat"`, `"repeat-x"`, etc.). */
@@ -226,4 +227,3 @@ export class BrioCanvasBackground implements CanvasBackground {
         return this.#rendering;
     }
 }
-

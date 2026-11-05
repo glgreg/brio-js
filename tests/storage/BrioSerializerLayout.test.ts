@@ -39,7 +39,7 @@ function buildV1Snapshot(x2D: number): Uint8Array {
     return new Uint8Array(buffer);
 }
 
-describe("BrioSerializer storage layouts (snapshot v2)", () => {
+describe("BrioSerializer storage layouts (snapshot v2+)", () => {
     it("omits the 3D section for 2D-only worlds and records the layout in the header", () => {
         const world2D = new ECSWorld(16, false, { transform3D: false });
         const worldBoth = new ECSWorld(16);
@@ -53,7 +53,7 @@ describe("BrioSerializer storage layouts (snapshot v2)", () => {
         expect(snapBoth.byteLength - snap2D.byteLength).toBe(TRANSFORM_3D_STRIDE * 4);
 
         const header = new Uint32Array(snap2D.buffer, 0, 6);
-        expect(header[1]).toBe(2);
+        expect(header[1]).toBe(3);
         expect(header[5]).toBe(StorageLayoutFlag.TRANSFORM_2D);
 
         const restored = new ECSWorld(16, false, { transform3D: false });

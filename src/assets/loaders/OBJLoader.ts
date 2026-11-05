@@ -102,9 +102,18 @@ export class OBJLoader {
                 currentColor = "#ffffff";
                 currentOpacity = 1;
             } else if (keyword === "kd") {
-                const r = Math.min(255, Math.max(0, Math.round(parseFloat(tokens[1] || "1") * 255)));
-                const g = Math.min(255, Math.max(0, Math.round(parseFloat(tokens[2] || "1") * 255)));
-                const b = Math.min(255, Math.max(0, Math.round(parseFloat(tokens[3] || "1") * 255)));
+                const r = Math.min(
+                    255,
+                    Math.max(0, Math.round(parseFloat(tokens[1] || "1") * 255)),
+                );
+                const g = Math.min(
+                    255,
+                    Math.max(0, Math.round(parseFloat(tokens[2] || "1") * 255)),
+                );
+                const b = Math.min(
+                    255,
+                    Math.max(0, Math.round(parseFloat(tokens[3] || "1") * 255)),
+                );
                 currentColor = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
             } else if (keyword === "d") {
                 currentOpacity = parseFloat(tokens[1] || "1");
@@ -128,11 +137,17 @@ export class OBJLoader {
      * @returns Decoded `ParsedModelData`
      * @throws {ModelLimitError} When the text or a group exceeds `ModelLoaderLimits`
      */
-    public static parse(objText: string, mtlText?: string, modelName: string = "model"): ParsedModelData {
+    public static parse(
+        objText: string,
+        mtlText?: string,
+        modelName: string = "model",
+    ): ParsedModelData {
         const maxBytes = getModelLoaderLimits().maxFileBytes;
         assertByteLimit("OBJ text", objText.length, maxBytes);
         if (mtlText) assertByteLimit("MTL text", mtlText.length, maxBytes);
-        const materials: BrioMaterial[] = mtlText ? OBJLoader.parseMTL(mtlText, `${modelName}/`) : [];
+        const materials: BrioMaterial[] = mtlText
+            ? OBJLoader.parseMTL(mtlText, `${modelName}/`)
+            : [];
         const materialNames = new Set(materials.map((m) => m.name));
 
         const groups = parseOBJGeometry(objText, { split: true });
@@ -195,7 +210,10 @@ export class OBJLoader {
      * @param options Optional loading settings (`mtlSource`, `modelName`)
      * @returns Decoded `ParsedModelData`
      */
-    public static async load(url: string, options: OBJLoaderOptions = {}): Promise<ParsedModelData> {
+    public static async load(
+        url: string,
+        options: OBJLoaderOptions = {},
+    ): Promise<ParsedModelData> {
         const decoder = new TextDecoder("utf-8");
         const objText = decoder.decode(await fetchLimited(url, "OBJ asset"));
 
@@ -225,7 +243,13 @@ export class OBJLoader {
             }
         }
 
-        const modelName = options.modelName ?? url.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? "model";
+        const modelName =
+            options.modelName ??
+            url
+                .split("/")
+                .pop()
+                ?.replace(/\.[^/.]+$/, "") ??
+            "model";
         return OBJLoader.parse(objText, mtlText, modelName);
     }
 }

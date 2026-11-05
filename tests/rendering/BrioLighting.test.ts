@@ -7,7 +7,7 @@ import {
     MAX_DIRECTIONAL_LIGHTS,
 } from "../../src/rendering/lighting";
 import { WebGL2Backend } from "../../src/rendering/WebGL2Backend";
-import { Canvas2DBackend } from "../../src/rendering/BrioRenderer";
+import { Canvas2DBackend } from "../../src/rendering/Canvas2DBackend";
 import { BrioMesh } from "../../src/assets/BrioMesh";
 import { BrioMaterial } from "../../src/assets/BrioMaterial";
 import { BrioGame } from "../../src/game/BrioGame";
@@ -24,7 +24,10 @@ describe("Lighting environment", () => {
             [
                 new BrioLight("amb", "ambient", { color: "#ffffff", intensity: 0.5 }),
                 new BrioLight("hemi", "hemisphere", { color: "#ff0000", groundColor: "#0000ff" }),
-                new BrioLight("sun", "directional", { direction: { x: 0, y: -2, z: 0 }, intensity: 2 }),
+                new BrioLight("sun", "directional", {
+                    direction: { x: 0, y: -2, z: 0 },
+                    intensity: 2,
+                }),
                 new BrioLight("off", "directional", { enabled: false }),
             ],
             createLightingEnvironment(),
@@ -127,7 +130,12 @@ describe("Canvas2DBackend lights", () => {
         const vp = Matrix4.multiply(
             Matrix4.create(),
             Matrix4.perspective(Matrix4.create(), 1, 1, 0.1, 100),
-            Matrix4.lookAt(Matrix4.create(), { x: 0, y: 0, z: 3 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }),
+            Matrix4.lookAt(
+                Matrix4.create(),
+                { x: 0, y: 0, z: 3 },
+                { x: 0, y: 0, z: 0 },
+                { x: 0, y: 1, z: 0 },
+            ),
         );
         const plane = new BrioMesh(
             "tri",
@@ -139,17 +147,28 @@ describe("Canvas2DBackend lights", () => {
         const render = (): string => {
             fills.length = 0;
             backend.beginFrame({ x: 0, y: 0, width: 1, height: 1 });
-            backend.renderMesh3D(plane, new BrioMaterial("white", { color: "#ffffff" }), Matrix4.create(), vp);
+            backend.renderMesh3D(
+                plane,
+                new BrioMaterial("white", { color: "#ffffff" }),
+                Matrix4.create(),
+                vp,
+            );
             backend.endFrame();
             return fills[fills.length - 1];
         };
 
         backend.setLights(
-            buildLightingEnvironment([new BrioLight("a", "ambient", { intensity: 1 })], createLightingEnvironment()),
+            buildLightingEnvironment(
+                [new BrioLight("a", "ambient", { intensity: 1 })],
+                createLightingEnvironment(),
+            ),
         );
         expect(render()).toBe("rgb(255, 255, 255)");
         backend.setLights(
-            buildLightingEnvironment([new BrioLight("a", "ambient", { intensity: 0 })], createLightingEnvironment()),
+            buildLightingEnvironment(
+                [new BrioLight("a", "ambient", { intensity: 0 })],
+                createLightingEnvironment(),
+            ),
         );
         expect(render()).toBe("rgb(0, 0, 0)");
     });
