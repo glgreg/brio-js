@@ -8,6 +8,11 @@ While the major version is `0`, minor releases may include breaking changes.
 
 ### Added
 
+- Directional shadows on WebGL2: `castShadow` and `shadow` (`size`, `distance`, `resolution`, `bias`, `normalBias`,
+  `strength`) on `BrioLight`, `castShadow` / `receiveShadow` on `BrioObject3D`. One shadow map per pass, centered on
+  the camera target, snapped to texels and filtered with hardware PCF plus a 3x3 kernel;
+  `RenderBackend.renderMesh3D()` takes optional shadow flags (`SHADOW_CAST`, `SHADOW_RECEIVE`).
+
 - `"point"` and `"spot"` `BrioLight`s with `position`, `range`, `decay`, `angle` and `penumbra` (up to 8 per pass,
   `KHR_lights_punctual` attenuation), on WebGL2 and on the Canvas2D fallback.
 - `shading: "standard"` on `BrioMaterial`: metallic-roughness shading with GGX highlights, Fresnel and reflections
