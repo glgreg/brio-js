@@ -66,7 +66,7 @@ describe("BrioTransform2D", () => {
 
     it("normalizes negative layer values to positive", () => {
         const transform = new BrioTransform2D(create(0, 0), create(32, 32));
-        transform.layer = -5;
-        expect(transform.layer).toBe(5);
+        transform.depth = -5;
+        expect(transform.depth).toBe(5);
     });
 });

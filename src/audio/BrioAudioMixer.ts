@@ -20,6 +20,9 @@ interface BusState {
  * installs one-shot listeners that resume it on the first pointer, key, or touch event, so sounds started before
  * that (e.g. music in `load()`) begin as soon as the player interacts.
  *
+ * `suspend()` (called by `BrioGame.pause()`) holds the context suspended: gestures no longer auto-unlock it until
+ * `resume()` (called by `BrioGame.resume()`) or an explicit `unlock()` releases the hold.
+ *
  * Runtimes without Web Audio (old browsers, Node.js, jsdom) fall back to `HTMLAudioElement` playback in
  * `BrioAudio`, with bus volumes and mutes applied to each element's `volume`.
  *
@@ -39,6 +42,8 @@ export class BrioAudioMixer {
     };
     static #unlockTarget?: EventTarget;
     static #unlockHandler?: () => void;
+    /** Set by `suspend()`: the auto-unlock gesture listeners leave the context suspended while it is `true`. */
+    static #held: boolean = false;
     /** Callbacks of fallback (`HTMLAudioElement`) audios, re-run whenever a bus volume or mute changes. */
     static readonly #volumeListeners = new Set<() => void>();
 
@@ -148,11 +153,25 @@ export class BrioAudioMixer {
     }
 
     /**
-     * Resumes the `AudioContext`. Must run inside (or after) a user gesture to satisfy autoplay policies.
+     * Whether `suspend()` holds the context suspended (until `resume()` or `unlock()`), e.g. while the game is
+     * paused.
+     */
+    public static get isSuspended(): boolean {
+        return BrioAudioMixer.#held;
+    }
+
+    /**
+     * Resumes the `AudioContext` and releases the hold taken by `suspend()`. Must run inside (or after) a user
+     * gesture to satisfy autoplay policies.
      *
      * @returns Resolves to `true` once the context is running (always `true` in fallback mode)
+     * @example
+     * ```ts
+     * button.addEventListener("click", () => void BrioAudioMixer.unlock());
+     * ```
      */
     public static async unlock(): Promise<boolean> {
+        BrioAudioMixer.#held = false;
         const context = BrioAudioMixer.context;
         if (!context) return true;
         if (context.state !== "running") {
@@ -178,6 +197,8 @@ export class BrioAudioMixer {
         if (!eventTarget || BrioAudioMixer.#unlockTarget === eventTarget) return;
         BrioAudioMixer.#removeUnlockListeners();
         const handler = (): void => {
+            // A paused game keeps its audio suspended; the listeners stay until resume() or unlock()
+            if (BrioAudioMixer.#held) return;
             void BrioAudioMixer.unlock();
         };
         for (const type of UNLOCK_EVENTS) eventTarget.addEventListener(type, handler);
@@ -186,11 +207,48 @@ export class BrioAudioMixer {
     }
 
     /**
-     * Suspends the `AudioContext` (e.g. while the game is paused or the tab is hidden).
+     * Suspends the `AudioContext` (e.g. while the game is paused or the tab is hidden) and holds it suspended:
+     * user gestures no longer auto-unlock it until `resume()` or `unlock()`. Never creates the context; in fallback
+     * mode (`HTMLAudioElement`) it only sets the hold.
+     *
+     * @example
+     * ```ts
+     * document.addEventListener("visibilitychange", () => {
+     *     if (document.hidden) void BrioAudioMixer.suspend();
+     *     else void BrioAudioMixer.resume();
+     * });
+     * ```
      */
     public static async suspend(): Promise<void> {
+        BrioAudioMixer.#held = true;
         const context = BrioAudioMixer.#context;
         if (context && context.state === "running") await context.suspend();
+    }
+
+    /**
+     * Releases the hold taken by `suspend()` and resumes the `AudioContext` if one exists (it is never created here).
+     * Outside a user gesture the browser may keep the context suspended; it then starts on the next gesture.
+     *
+     * @returns Resolves to `true` once the context is running (always `true` without a context)
+     * @example
+     * ```ts
+     * void BrioAudioMixer.resume();
+     * ```
+     */
+    public static async resume(): Promise<boolean> {
+        BrioAudioMixer.#held = false;
+        const context = BrioAudioMixer.#context;
+        if (!context) return true;
+        try {
+            // Called even when the state still reads "running": a suspend() issued just before may not have
+            // settled yet, and resuming a running context is a no-op
+            await context.resume();
+        } catch {
+            return false;
+        }
+        const running = context.state === "running";
+        if (running) BrioAudioMixer.#removeUnlockListeners();
+        return running;
     }
 
     /**
@@ -225,6 +283,7 @@ export class BrioAudioMixer {
         const context = BrioAudioMixer.#context;
         if (context && typeof context.close === "function") void context.close().catch(() => {});
         BrioAudioMixer.#context = undefined;
+        BrioAudioMixer.#held = false;
         for (const bus of Object.values(BrioAudioMixer.#buses)) {
             bus.volume = 1;
             bus.muted = false;

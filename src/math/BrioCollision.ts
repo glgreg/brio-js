@@ -136,25 +136,17 @@ export class BrioCollision {
 
             return dx * dx + dy * dy <= radiusSum * radiusSum;
         } else {
-            const rect1 = {
-                x: one.transform.position.x + one.collision.pos.x,
-                y: one.transform.position.y + one.collision.pos.y,
-                w: one.collision.size.x,
-                h: one.collision.size.y,
-            };
-
-            const rect2 = {
-                x: two.transform.position.x + two.collision.pos.x,
-                y: two.transform.position.y + two.collision.pos.y,
-                w: two.collision.size.x,
-                h: two.collision.size.y,
-            };
+            // Scalars instead of rectangle literals: this runs for every candidate pair, every frame
+            const ax = one.transform.position.x + one.collision.pos.x;
+            const ay = one.transform.position.y + one.collision.pos.y;
+            const bx = two.transform.position.x + two.collision.pos.x;
+            const by = two.transform.position.y + two.collision.pos.y;
 
             return !(
-                rect1.x + rect1.w <= rect2.x ||
-                rect2.x + rect2.w <= rect1.x ||
-                rect1.y + rect1.h <= rect2.y ||
-                rect2.y + rect2.h <= rect1.y
+                ax + one.collision.size.x <= bx ||
+                bx + two.collision.size.x <= ax ||
+                ay + one.collision.size.y <= by ||
+                by + two.collision.size.y <= ay
             );
         }
     }
@@ -162,6 +154,11 @@ export class BrioCollision {
     /**
      * Computes the Minimum Translation Vector (MTV) needed to push `one` out of penetration with `two`.
      * Returns `null` if the two objects are not colliding.
+     *
+     * Circle vs circle pushes along the line between centers; circle vs rectangle/square pushes
+     * along the normal from the closest point of the rectangle to the circle center (or through
+     * the nearest face when the center is inside the rectangle); rectangle vs rectangle pushes
+     * along the axis of least overlap. Touching shapes yield a zero-length MTV.
      *
      * @param one Moving or primary `BrioObject2D`
      * @param two Obstacle or secondary `BrioObject2D`
@@ -202,6 +199,57 @@ export class BrioCollision {
             };
         }
 
+        if (c1.shape === "circle" || c2.shape === "circle") {
+            const circleIsOne = c1.shape === "circle";
+            const circleObj = circleIsOne ? one : two;
+            const rectObj = circleIsOne ? two : one;
+            const cc = circleObj.collision!;
+            const rc = rectObj.collision!;
+
+            const r = Math.min(cc.size.x, cc.size.y) / 2;
+            const cx = circleObj.transform.position.x + cc.pos.x + r;
+            const cy = circleObj.transform.position.y + cc.pos.y + r;
+            const minX = rectObj.transform.position.x + rc.pos.x;
+            const minY = rectObj.transform.position.y + rc.pos.y;
+            const maxX = minX + rc.size.x;
+            const maxY = minY + rc.size.y;
+
+            // Direction (nx, ny) pushes the circle out of the rectangle by `depth`.
+            let nx: number;
+            let ny: number;
+            let depth: number;
+
+            const dx = cx - Math.max(minX, Math.min(cx, maxX));
+            const dy = cy - Math.max(minY, Math.min(cy, maxY));
+            const dist = Math.hypot(dx, dy);
+
+            if (dist > 0) {
+                // Center outside the rectangle: push along the closest-point normal.
+                nx = dx / dist;
+                ny = dy / dist;
+                depth = r - dist;
+            } else {
+                // Center inside the rectangle: exit through the nearest face.
+                const toLeft = cx - minX;
+                const toRight = maxX - cx;
+                const toTop = cy - minY;
+                const toBottom = maxY - cy;
+                const nearest = Math.min(toLeft, toRight, toTop, toBottom);
+                nx = 0;
+                ny = 0;
+                if (nearest === toLeft) nx = -1;
+                else if (nearest === toRight) nx = 1;
+                else if (nearest === toTop) ny = -1;
+                else ny = 1;
+                depth = nearest + r;
+            }
+
+            // The MTV moves `one`: away from the rectangle when `one` is the circle, toward it
+            // otherwise. `+ 0` turns `-0` into `0` for zero components.
+            const push = circleIsOne ? depth : -depth;
+            return { x: nx * push + 0, y: ny * push + 0 };
+        }
+
         const x1 = one.transform.position.x + c1.pos.x;
         const y1 = one.transform.position.y + c1.pos.y;
         const w1 = c1.size.x;
@@ -230,6 +278,8 @@ export class BrioCollision {
     /**
      * Resolves physical penetration between `mover` and `obstacle` when both colliders are `"solid"`.
      * If either collider has `colliderType === "trigger"`, no displacement is applied and `null` is returned.
+     * Only positions change; pass the returned MTV to `BrioRigidBody.applyCollisionResponse` to update
+     * the mover's velocity with its restitution.
      *
      * @param mover Dynamic `BrioObject2D` whose position will be adjusted
      * @param obstacle Solid obstacle `BrioObject2D`
@@ -430,4 +480,3 @@ export class BrioCollision {
         };
     }
 }
-

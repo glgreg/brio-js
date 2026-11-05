@@ -55,7 +55,9 @@ describe("BrioScene lifecycle unified with BrioGame", () => {
         expect(game.activeScene).toBe(level);
         expect(game.loadedMeshes.get("mesh_scene_box")).toBe(mesh);
         expect(level.layers.get("hud")!.hasObject(score)).toBe(true);
-        expect(level.layers.get("default")!.hasObject(level.objects2D.get("obj_enemy")!)).toBe(true);
+        expect(level.layers.get("default")!.hasObject(level.objects2D.get("obj_enemy")!)).toBe(
+            true,
+        );
         expect(level.cameras2D.has("cam_level")).toBe(true);
         expect(level.objects3D.has("obj_crate")).toBe(true);
 

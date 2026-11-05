@@ -179,7 +179,9 @@ describe("Model-namespaced mesh and material names", () => {
         const { json, bin } = createDocument();
         const a = GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "mod_gwen");
         const b = GLBLoader.extractModelData(json, bin.buffer as ArrayBuffer, "mod_spider");
-        const names = new Set([...a.meshes, ...b.meshes, ...a.materials, ...b.materials].map((x) => x.name));
+        const names = new Set(
+            [...a.meshes, ...b.meshes, ...a.materials, ...b.materials].map((x) => x.name),
+        );
         expect(names.size).toBe(a.meshes.length * 2 + a.materials.length * 2);
         expect(a.materials[0].name).toBe("mod_gwen/mat_skin");
         expect(b.materials[0].name).toBe("mod_spider/mat_skin");

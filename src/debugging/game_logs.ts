@@ -39,4 +39,3 @@ export const exceptions: ConsoleLogEntry[] = [
             "A negative value was given in a place where it shouldn't. By default, the value was turned into an absolute of itself",
     },
 ];
-

@@ -17,6 +17,10 @@ export class SpatialHash2D {
     readonly #cellSize: number;
     readonly #invCellSize: number;
     readonly #cells = new Map<string, BrioObject2D[]>();
+    /** Insertion index of each object since the last `clear()`, used for identity-based pair keys. */
+    readonly #indices = new Map<BrioObject2D, number>();
+    /** Numeric pair keys already emitted by `getPotentialPairs`; reused between calls. */
+    readonly #seenPairs = new Set<number>();
 
     /**
      * Creates a new `SpatialHash2D` broadphase structure.
@@ -43,6 +47,7 @@ export class SpatialHash2D {
      */
     public clear(): void {
         this.#cells.clear();
+        this.#indices.clear();
     }
 
     /**
@@ -56,6 +61,7 @@ export class SpatialHash2D {
      */
     public insert(object: BrioObject2D): void {
         if (object.collision && !object.collision.enabled) return;
+        if (!this.#indices.has(object)) this.#indices.set(object, this.#indices.size);
 
         const minX = object.transform.position.x + (object.collision ? object.collision.pos.x : 0);
         const minY = object.transform.position.y + (object.collision ? object.collision.pos.y : 0);
@@ -119,6 +125,8 @@ export class SpatialHash2D {
 
     /**
      * Populates the grid from `objects` and returns all unique candidate collision pairs `[a, b]`.
+     * Pairs are deduplicated by object identity, so objects that share a `name` are still paired.
+     * The grid is cleared and rebuilt on every call.
      *
      * @param objects Collection of 2D objects to partition
      * @returns Array of unique candidate `[BrioObject2D, BrioObject2D]` pairs
@@ -135,7 +143,10 @@ export class SpatialHash2D {
             }
         }
 
-        const seenPairs = new Set<string>();
+        const seen = this.#seenPairs;
+        const indices = this.#indices;
+        const count = indices.size;
+        seen.clear();
         const pairs: [BrioObject2D, BrioObject2D][] = [];
 
         for (const bucket of this.#cells.values()) {
@@ -146,10 +157,13 @@ export class SpatialHash2D {
                 for (let j = i + 1; j < len; j++) {
                     const a = bucket[i];
                     const b = bucket[j];
-                    const key =
-                        a.name < b.name ? `${a.name}::${b.name}` : `${b.name}::${a.name}`;
-                    if (!seenPairs.has(key)) {
-                        seenPairs.add(key);
+                    if (a === b) continue;
+                    // Identity-based key: objects sharing a name still yield distinct pairs.
+                    const ia = indices.get(a)!;
+                    const ib = indices.get(b)!;
+                    const key = ia < ib ? ia * count + ib : ib * count + ia;
+                    if (!seen.has(key)) {
+                        seen.add(key);
                         pairs.push([a, b]);
                     }
                 }

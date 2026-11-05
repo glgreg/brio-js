@@ -12,8 +12,12 @@ function outwardRatio(mesh: BrioMesh): number {
         const a = idx[i] * 3;
         const b = idx[i + 1] * 3;
         const c = idx[i + 2] * 3;
-        const ux = p[b] - p[a], uy = p[b + 1] - p[a + 1], uz = p[b + 2] - p[a + 2];
-        const vx = p[c] - p[a], vy = p[c + 1] - p[a + 1], vz = p[c + 2] - p[a + 2];
+        const ux = p[b] - p[a],
+            uy = p[b + 1] - p[a + 1],
+            uz = p[b + 2] - p[a + 2];
+        const vx = p[c] - p[a],
+            vy = p[c + 1] - p[a + 1],
+            vz = p[c + 2] - p[a + 2];
         const gx = uy * vz - uz * vy;
         const gy = uz * vx - ux * vz;
         const gz = ux * vy - uy * vx;

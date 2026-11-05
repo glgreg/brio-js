@@ -11,3 +11,8 @@ BrioJS separates 2D and 3D entities into concrete classes (`BrioObject2D` and `B
 ## Consequences
 
 - **Strict Ubiquitous Language Rule**: Aliases may only be introduced when abstracting technical complexity (such as preset configurations), never as semantic synonyms for the same concept. Every domain concept has exactly one canonical name (for example, `trigger` instead of `intangible`, `BrioAtlas` instead of `BrioSpriteAtlas`, `BrioObject2D` and `BrioObject3D` instead of an ambiguous `BrioObject` alias), and JSDoc/TSDoc is responsible for explaining its behavior.
+
+## Implementation status (2026-10-28)
+
+- `BrioGame` also accepts a `"hybrid"` preset (2D layers plus 3D passes on the same canvas).
+- The game `ECSWorld` honors the preset: a `"2d"` game skips the 3D transform buffer, while `"3d"` and `"hybrid"` games allocate both. A `BrioScene` world allocates both buffers by default; a layout can be passed to the `BrioScene` constructor or applied with `scene.useLayout()` while the scene has no captured state, which is how a scene world is narrowed to the preset of the game that hosts it.

@@ -3,13 +3,14 @@ import { BrioModel } from "../assets/BrioModel";
 import { BrioMesh } from "../assets/BrioMesh";
 import { BrioMaterial } from "../assets/BrioMaterial";
 import { BrioTileMap } from "../assets/BrioTileMap";
-import { BrioObject2D } from "../objects/BrioObject2D";
-import { BrioObject3D } from "../objects/BrioObject3D";
+import { BrioObject2D, BrioObject2DState } from "../objects/BrioObject2D";
+import { BrioObject3D, BrioObject3DState } from "../objects/BrioObject3D";
 import { BrioLight } from "../objects/BrioLight";
 import { BrioKeyboard } from "../input/BrioKeyboard";
 import { BrioMouse } from "../input/BrioMouse";
 import { BrioTouch } from "../input/BrioTouch";
 import { BrioGamepad } from "../input/BrioGamepad";
+import { BrioInputMap } from "../input/BrioInputMap";
 import { BrioCamera2D } from "../cameras/BrioCamera2D";
 import { BrioCamera3D } from "../cameras/BrioCamera3D";
 import { BrioLayer } from "../core/BrioLayer";
@@ -23,6 +24,7 @@ import {
 import { BrioRenderer } from "../rendering/BrioRenderer";
 import { RenderBackend, RenderBackendType } from "../rendering/contracts/RenderBackend";
 import { BrioAudio } from "../assets/BrioAudio";
+import { BrioAudioMixer } from "../audio/BrioAudioMixer";
 import { BrioConsole } from "../debugging/BrioConsole";
 import { BrioSpriteRenderer } from "./BrioSpriteRenderer";
 import { BrioDebugger } from "../debugging/BrioDebugger";
@@ -32,11 +34,15 @@ import { BrioAssetManager } from "./BrioAssetManager";
 import { BrioVec2, create } from "../math/vec2";
 import { BrioRandom, BrioRandomSeed } from "../math/BrioRandom";
 import { BrioAtlas } from "../assets/BrioAtlas";
+import { BrioSpriteSheet } from "../assets/BrioSpriteSheet";
+import type { BrioTexture } from "../assets/BrioTexture";
 import { ECSWorld } from "../ecs/ECSWorld";
 import { ComponentMask } from "../ecs/ComponentStorage";
 import { BrioTimer } from "../core/BrioTimer";
 import { BrioScene, BrioSceneState } from "../core/BrioScene";
 import { BrioSerializer } from "../storage/BrioSerializer";
+import { BrioCollision } from "../math/BrioCollision";
+import { CollisionEventSystem } from "../physics/BrioCollisionEvents";
 
 // #region --> TYPES-INTERFACES
 
@@ -64,7 +70,12 @@ export interface BrioGameConfig {
      * Prevents huge simulation steps after the tab was throttled or hidden.
      */
     maxDeltaTime?: number;
-    /** Preferred graphics backend for 3D passes (`"auto"` by default; unimplemented backends fall back to `"canvas2d"`). */
+    /**
+     * Preferred graphics backend for 3D passes (`"auto"` by default). The preferred backend is tried first when it
+     * is implemented and supported; if it is unavailable or fails to initialize, `BrioRenderer.initBackend()` tries
+     * every other usable backend of the cascade (`webgpu -> webgl2 -> webgl1 -> canvas2d`) in order. When none
+     * initializes, 3D passes stay disabled.
+     */
     renderBackend?: RenderBackendType | "auto";
     /**
      * Fixed simulation step in seconds for `fixedUpdate()` callbacks (e.g. `1 / 60`). Defaults to `1 / 60` once a
@@ -82,7 +93,23 @@ export interface BrioGameConfig {
     seed?: BrioRandomSeed;
     /** Optional Canvas 2D context settings. */
     contextSettings?: CanvasRenderingContext2DSettings;
+    /**
+     * Canvas pixels per logical pixel. `"auto"` (the default) follows `window.devicePixelRatio`, capped at
+     * `maxPixelRatio`, so the game stays sharp on high-DPI screens while gameplay coordinates stay in logical pixels.
+     * `1` renders exactly `width x height` canvas pixels (the behavior of BrioJS 0.1).
+     */
+    pixelRatio?: number | "auto";
+    /** Upper bound of the `"auto"` pixel ratio (defaults to `2`), limiting fill cost on very dense screens. */
+    maxPixelRatio?: number;
 }
+
+/**
+ * How `game.useFullScreen()` adapts the game to the browser window:
+ * - `"resize"`: the logical size becomes the window size (more world is visible on bigger windows);
+ * - `"fit"`: the logical size is kept and the canvas is scaled uniformly to the largest size that fits the window
+ *   (letterboxed), rendering at the displayed resolution so it stays sharp.
+ */
+export type FullScreenMode = "resize" | "fit";
 
 /**
  * Lifecycle state machine stages of a `BrioGame` instance.
@@ -112,6 +139,8 @@ export interface AssetLoaderParam {
     getAudio: (audioName: string) => BrioAudio;
     /** Retrieves a preloaded `BrioAtlas` by its `atlasName`, or `undefined` if not found. */
     getAtlas: (atlasName: string) => BrioAtlas | undefined;
+    /** Retrieves a preloaded `BrioSpriteSheet` by its name, or `undefined` if not found. */
+    getSpriteSheet: (sheetName: string) => BrioSpriteSheet | undefined;
     /** Retrieves a preloaded `BrioModel` by its `modelName`, or an empty fallback instance if not found. */
     getModel: (modelName: string) => BrioModel;
     /** Instantiates a preloaded `BrioModel` into a configured `BrioObject3D` scene entity. */
@@ -131,7 +160,30 @@ export type LoaderCallbackFunction = (
  * Assets accepted by `game.preload()`. `BrioMesh` and `BrioMaterial` instances are registered as-is
  * (procedural geometry), while `BrioModel` meshes and materials are registered after loading.
  */
-export type PreloadAsset = BrioSprite | BrioAudio | BrioAtlas | BrioModel | BrioMesh | BrioMaterial;
+export type PreloadAsset =
+    | BrioSprite
+    | BrioSpriteSheet
+    | BrioAudio
+    | BrioAtlas
+    | BrioModel
+    | BrioMesh
+    | BrioMaterial;
+
+/**
+ * Progress of a `preload()` (of the game or of a scene), reported by `game.onLoadProgress()` after every asset.
+ */
+export interface LoadProgress {
+    /** Assets finished so far in this preload. */
+    readonly loaded: number;
+    /** Assets requested by this preload (procedural meshes and materials count as loaded immediately). */
+    readonly total: number;
+    /** `loaded / total`, from `0` to `1`. */
+    readonly ratio: number;
+    /** Name of the asset that just finished. */
+    readonly asset: string;
+    /** Name of the scene whose `preload()` is running, or `undefined` for the game's own `preload()`. */
+    readonly scene: string | undefined;
+}
 
 /** Name of the layer every `BrioObject2D` joins when no other layer is specified. */
 export const DEFAULT_LAYER_NAME = "default";
@@ -139,10 +191,18 @@ export const DEFAULT_LAYER_NAME = "default";
 /** Captured ECS bytes plus the object handles needed to re-adopt them on restore. */
 interface GameStateCapture {
     bytes: Uint8Array;
-    objects2D: Array<{ object: BrioObject2D; entityId: number; layer?: BrioLayer }>;
-    objects3D: Array<{ object: BrioObject3D; entityId: number }>;
+    /** Registered 2D objects with their slot, layer and the state kept outside the ECS (sprite, flip, ...). */
+    objects2D: Array<{
+        object: BrioObject2D;
+        entityId: number;
+        layer?: BrioLayer;
+        state: BrioObject2DState;
+    }>;
+    objects3D: Array<{ object: BrioObject3D; entityId: number; state: BrioObject3DState }>;
     /** Descendant parts of the captured 3D objects (bound to the ECS, but not registered as roots). */
-    parts3D: Array<{ object: BrioObject3D; entityId: number }>;
+    parts3D: Array<{ object: BrioObject3D; entityId: number; state: BrioObject3DState }>;
+    /** Tiles of every registered tile map (tiles changed by `setTile()` are restored too). */
+    tileMaps: Array<{ map: BrioTileMap; tiles: Uint32Array }>;
     /** `game.random` state, so restoring replays the same random sequence. */
     random: Uint32Array;
     /** Active scene at capture time and its own state (scenes own a separate `ECSWorld`). */
@@ -157,6 +217,45 @@ export interface CanvasRendering {
     mode: "smooth" | "pixelated";
     /** Browser smoothing quality level when `mode === "smooth"`. */
     smoothness: ImageSmoothingQuality;
+}
+
+/** Simulated position of an object temporarily replaced by its interpolated one (pooled, reused every frame). */
+interface InterpolatedRecord {
+    object: BrioObject2D | BrioObject3D | undefined;
+    x: number;
+    y: number;
+    z: number;
+}
+
+/** X extent of an enabled 2D collider (sweep of the collision event pass). */
+function colliderExtent2D(object: BrioObject2D, out: { minX: number; maxX: number }): boolean {
+    const collision = object.collision;
+    if (!collision || !collision.enabled || object.entityId < 0) return false;
+    out.minX = object.transform.position.x + collision.pos.x;
+    out.maxX = out.minX + collision.size.x;
+    return true;
+}
+
+/** X extent of an enabled 3D collider (sweep of the collision event pass). */
+function colliderExtent3D(object: BrioObject3D, out: { minX: number; maxX: number }): boolean {
+    const collision = object.collision;
+    if (!collision || !collision.enabled || object.entityId < 0) return false;
+    out.minX = object.transform.position.x + collision.pos.x;
+    out.maxX = out.minX + collision.size.x;
+    return true;
+}
+
+function isColliding2D(a: BrioObject2D, b: BrioObject2D): boolean {
+    return BrioCollision.isColliding(a, b);
+}
+
+function isColliding3D(a: BrioObject3D, b: BrioObject3D): boolean {
+    return BrioCollision.isColliding3D(a, b);
+}
+
+/** Stops every voice of `audio` (module-level so `end()` passes no new closure to `Map.forEach`). */
+function stopAudio(audio: BrioAudio): void {
+    audio.stop();
 }
 
 // #endregion --> TYPES-INTERFACES
@@ -213,6 +312,13 @@ export class BrioGame {
     #rendering: CanvasRendering = { mode: "smooth", smoothness: "medium" };
     /** Global scale multiplier applied to all rendered objects. */
     #scale: number = 1;
+    /** Requested pixel ratio (`"auto"` follows `devicePixelRatio`). */
+    #pixelRatioSetting: number | "auto" = "auto";
+    #maxPixelRatio: number = 2;
+    /** CSS scale applied by `useFullScreen("fit")` (`1` otherwise). */
+    #displayScale: number = 1;
+    /** Window listener installed by `useFullScreen()` (removed by `end()` or by the next call). */
+    #fullScreenListener?: () => void;
     // #endregion - CANVAS
 
     // #region - GAME-STATE-LOGIC
@@ -220,18 +326,28 @@ export class BrioGame {
     #currentState: GameState = GameState.UNSET;
     /** Sequential Promise chain coordinating `preload() -> load() -> update()`. */
     #lifecyclePromise: Promise<void> = Promise.resolve();
+    /** Error of the lifecycle stage that failed (rethrown by `ready()`). */
+    #lifecycleError?: Error;
     // #endregion - GAME-STATE-LOGIC
 
     // #region - COMPOSITION-OBJECTS
     #renderer: BrioSpriteRenderer;
     #compositor: BrioCompositor;
-    /** 3D backend chosen by `BrioRenderer.createBackend()` (only for `"3d"` and `"hybrid"` games). */
+    /**
+     * 3D backend initialized by `BrioRenderer.initBackend()` through the backend cascade (only for `"3d"` and
+     * `"hybrid"` games; disposed by `end()`).
+     */
     #backend3D?: RenderBackend;
+    /** Incremented by `end()`, so a backend that finishes initializing after the game ended is disposed. */
+    #session: number = 0;
     #debugger: BrioDebugger;
     #console: BrioConsole;
     #updater: BrioUpdater;
     #assets: BrioAssetManager = new BrioAssetManager();
     #assetAccess?: AssetLoaderParam;
+    /** Who requested each preloaded asset (the game itself or scenes); assets nobody owns any more are unloaded. */
+    readonly #assetOwners = new Map<PreloadAsset, Set<BrioGame | BrioScene>>();
+    readonly #progressListeners: Array<(progress: LoadProgress) => void> = [];
     /** Lights of the game-level 3D passes. */
     #lights = new BrioRegistry<BrioLight>();
     /** Registered `BrioLayer` composition planes (always contains `DEFAULT_LAYER_NAME`). */
@@ -277,10 +393,41 @@ export class BrioGame {
     #fixedAccumulator: number = 0;
     #interpolate: boolean = false;
     /** Position before the latest fixed step, per object (render interpolation). */
-    #previousPositions = new WeakMap<BrioObject2D | BrioObject3D, { x: number; y: number; z: number }>();
+    #previousPositions = new WeakMap<
+        BrioObject2D | BrioObject3D,
+        { x: number; y: number; z: number }
+    >();
     /** Objects whose position was replaced by an interpolated one for the current render, with the real value. */
-    #interpolated: Array<{ object: BrioObject2D | BrioObject3D; x: number; y: number; z: number }> = [];
+    #interpolated: InterpolatedRecord[] = [];
+    /** Number of live records in `#interpolated` this frame (records past it are pooled for reuse). */
+    #interpolatedCount: number = 0;
+    /** `interpolationAlpha` of the frame being rendered, read by `#applyInterpolationVisitor`. */
+    #interpolationFrameAlpha: number = 0;
+    /** Visitors bound once, so `#forEachInterpolable` creates no closures per frame. */
+    readonly #rememberPositionVisitor = (object: BrioObject2D | BrioObject3D): void => {
+        this.#rememberPosition(object);
+    };
+    readonly #applyInterpolationVisitor = (object: BrioObject2D | BrioObject3D): void => {
+        this.#interpolateObject(object);
+    };
     #random: BrioRandom = new BrioRandom();
+    /** Contact trackers behind `onCollisionEnter` / `onCollisionStay` / `onCollisionExit`. */
+    readonly #collisions2D = new CollisionEventSystem<BrioObject2D>(
+        isColliding2D,
+        colliderExtent2D,
+    );
+    readonly #collisions3D = new CollisionEventSystem<BrioObject3D>(
+        isColliding3D,
+        colliderExtent3D,
+    );
+    readonly #addCollider2DVisitor = (object: BrioObject2D): void => {
+        this.#collisions2D.add(object);
+    };
+    readonly #addCollider3DVisitor = (object: BrioObject3D): void => {
+        this.#collisions3D.add(object);
+    };
+    /** Whether `pause()` suspended the shared `BrioAudioMixer`, so `resume()` / `end()` release it. */
+    #audioSuspended: boolean = false;
     // #endregion - UPDATE-LOGIC
 
     // #region - INPUT-LOGIC
@@ -290,6 +437,8 @@ export class BrioGame {
     #mouseInstance?: BrioMouse;
     #touchInstance?: BrioTouch;
     #gamepadInstance?: BrioGamepad;
+    /** Action map over the controllers enabled by `useKeyboard()` / `useMouse()` / `useTouch()` / `useGamepad()`. */
+    readonly #input = new BrioInputMap();
     // #endregion - INPUT-LOGIC
 
     // #region - STORAGE-LOGIC
@@ -347,6 +496,8 @@ export class BrioGame {
             this.#maxFixedSteps = Math.max(1, Math.floor(widthOrConfig.maxFixedSteps ?? 5));
             this.#interpolate = widthOrConfig.interpolate ?? false;
             if (widthOrConfig.seed !== undefined) this.#random.reseed(widthOrConfig.seed);
+            this.#pixelRatioSetting = widthOrConfig.pixelRatio ?? "auto";
+            this.#maxPixelRatio = Math.max(1, widthOrConfig.maxPixelRatio ?? 2);
         } else {
             rawWidth = widthOrConfig;
             rawHeight = height ?? 0;
@@ -383,8 +534,7 @@ export class BrioGame {
         // Canvas element configuration
         this.#canvas = document.createElement("canvas");
         this.#canvas.style.background = "transparent";
-        this.#canvas.width = this.#width;
-        this.#canvas.height = this.#height;
+        this.#applyCanvasSize();
 
         // Canvas 2D context configuration
         this.ctx = this.#canvas.getContext("2d", this.#ctxSettings);
@@ -416,7 +566,10 @@ export class BrioGame {
         };
 
         if (this.#dimension !== "2d") {
+            // Captured now: end() may run before the queued stage starts
+            const session = this.#session;
             this.#chainLifecycle(async () => {
+                if (session !== this.#session) return;
                 // Walks the cascade: a backend that fails to initialize (blocklisted driver, context limit,
                 // test doubles) hands over to the next one instead of jumping straight to the software rasterizer
                 const backend = await BrioRenderer.initBackend(
@@ -429,7 +582,10 @@ export class BrioGame {
                         );
                     },
                 );
-                if (backend) {
+                if (backend && session !== this.#session) {
+                    // end() ran while the backend was initializing: release it instead of rendering with it
+                    backend.dispose();
+                } else if (backend) {
                     this.#backend3D = backend;
                     this.#compositor.configure3D(
                         backend,
@@ -644,6 +800,70 @@ export class BrioGame {
     }
 
     /**
+     * Canvas pixels per logical pixel actually used for rendering: the configured `pixelRatio` (or
+     * `devicePixelRatio` capped at `maxPixelRatio` for `"auto"`) times the scale applied by `useFullScreen("fit")`.
+     * Game logic, cameras, input and `game.width` / `game.height` always use logical pixels.
+     *
+     * @example
+     * ```ts
+     * console.log(game.pixelRatio); // 2 on a typical high-DPI laptop
+     * game.pixelRatio = 1; // render exactly width x height canvas pixels
+     * ```
+     */
+    public get pixelRatio(): number {
+        return this.#basePixelRatio() * this.#displayScale;
+    }
+    public set pixelRatio(value: number | "auto") {
+        this.#pixelRatioSetting = value === "auto" ? "auto" : Math.max(0.25, value);
+        this.#applyCanvasSize();
+    }
+
+    /** Canvas element the game renders into (mounted in the container given to the constructor). */
+    public get canvas(): HTMLCanvasElement {
+        return this.#canvas;
+    }
+
+    #basePixelRatio(): number {
+        if (this.#pixelRatioSetting !== "auto") return this.#pixelRatioSetting;
+        const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+        return Math.min(Math.max(1, dpr), this.#maxPixelRatio);
+    }
+
+    /** Sizes the canvas backing store (logical size x pixel ratio) and its CSS size (logical size x display scale). */
+    #applyCanvasSize(): void {
+        const ratio = this.pixelRatio;
+        const backingWidth = Math.max(1, Math.round(this.#width * ratio));
+        const backingHeight = Math.max(1, Math.round(this.#height * ratio));
+        if (this.#canvas.width !== backingWidth) this.#canvas.width = backingWidth;
+        if (this.#canvas.height !== backingHeight) this.#canvas.height = backingHeight;
+        this.#canvas.style.width = `${this.#width * this.#displayScale}px`;
+        this.#canvas.style.height = `${this.#height * this.#displayScale}px`;
+    }
+
+    /** Maps logical pixels to canvas pixels on the main context (start of every frame). */
+    #applyBaseTransform(): void {
+        const ratio = this.pixelRatio;
+        this.ctx?.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    /**
+     * Changes the logical size of the game (`game.width` / `game.height`); the canvas, cameras without an explicit
+     * size and `"static"` layer caches follow on the next frame.
+     *
+     * @param width New logical width in pixels
+     * @param height New logical height in pixels
+     * @example
+     * ```ts
+     * game.resize(1280, 720);
+     * ```
+     */
+    public resize(width: number, height: number): void {
+        this.#width = Math.max(1, Math.abs(width));
+        this.#height = Math.max(1, Math.abs(height));
+        this.#applyCanvasSize();
+    }
+
+    /**
      * Read-only map of all active `BrioObject2D` entities keyed by `object.name`.
      * Register objects through `load()`, `addObject()`, or `instantiate()` so they are bound to the ECS and to a layer.
      *
@@ -678,6 +898,13 @@ export class BrioGame {
      */
     public get loadedModels(): Map<string, BrioModel> {
         return this.#assets.models;
+    }
+
+    /**
+     * Map of preloaded `BrioSpriteSheet` assets keyed by name (their texture is decoded, ready for tile maps).
+     */
+    public get loadedSpriteSheets(): Map<string, BrioSpriteSheet> {
+        return this.#assets.spriteSheets;
     }
 
     /**
@@ -816,7 +1043,7 @@ export class BrioGame {
      * @example
      * ```ts
      * game.useMouse();
-     * if (game.mouse.isPressed(0)) {
+     * if (game.mouse.isPressed("left")) {
      *     console.log(game.mouse.position);
      * }
      * ```
@@ -863,6 +1090,32 @@ export class BrioGame {
      * const move = game.gamepad.getLeftStick(0);
      * ```
      */
+    /**
+     * Action map (`BrioInputMap`) of this game: bind gameplay actions to keys, mouse buttons, gamepad buttons or
+     * axes and touch, then query the action instead of the device. Controllers enabled with `useKeyboard()`,
+     * `useMouse()`, `useTouch()` and `useGamepad()` are attached automatically, and edges (`isPressed` / `isUp`)
+     * follow the same frame boundary as the controllers. Bindings can be changed at runtime and saved with
+     * `toJSON()` / `load()`.
+     *
+     * @example
+     * ```ts
+     * game.useKeyboard();
+     * game.useGamepad();
+     * game.input
+     *     .bind("jump", " ", "w", BrioInputMap.padButton("south"))
+     *     .bind("left", "ArrowLeft", "a", BrioInputMap.padAxis(0, -1))
+     *     .bind("right", "ArrowRight", "d", BrioInputMap.padAxis(0, 1));
+     *
+     * game.update((updater, dt) => {
+     *     player.transform.position.x += game.input.axis("left", "right") * 200 * dt;
+     *     if (game.input.isPressed("jump")) jump();
+     * });
+     * ```
+     */
+    public get input(): BrioInputMap {
+        return this.#input;
+    }
+
     public get gamepad(): BrioGamepad {
         if (!this.#gamepadInstance) {
             throw this.#console.fatalError(
@@ -880,9 +1133,11 @@ export class BrioGame {
      * First stage of the `BrioGame` lifecycle: asynchronously preloads `BrioSprite`, `BrioAudio`,
      * `BrioAtlas`, and `BrioModel` assets, and registers `BrioMesh` / `BrioMaterial` instances, before `load()` executes.
      *
-     * @param callbackFn Function returning a non-empty array of assets to preload
+     * A game without external assets may return an empty array (or skip `preload()` entirely). When an asset fails
+     * to load, the lifecycle enters `GameState.ERROR` with an `Error` naming the asset; `ready()` rejects with it.
+     *
+     * @param callbackFn Function returning the assets to preload (may be empty)
      * @returns This `BrioGame` instance for method chaining
-     * @throws {Error} When `callbackFn` returns an empty array
      * @example
      * ```ts
      * game.preload(() => {
@@ -896,13 +1151,8 @@ export class BrioGame {
         this.#chainLifecycle(async () => {
             this.#currentState = GameState.PRELOAD;
 
-            const assets = callbackFn();
-
-            if (assets.length === 0) {
-                throw new Error("Zero assets returned. You must return at least one asset.");
-            }
-
-            await this.#preloadAssets(assets);
+            const assets = callbackFn() ?? [];
+            if (assets.length > 0) await this.#preloadAssets(assets, this);
 
             this.#console.out("info", "Preload step complete!");
         });
@@ -910,20 +1160,53 @@ export class BrioGame {
         return this;
     }
 
-    /** Loads `assets` into the shared registries (used by `preload()` and by `BrioScene.preload()`). */
-    async #preloadAssets(assets: PreloadAsset[]): Promise<void> {
-        const sprites = assets.filter(
-            (asset): asset is BrioSprite => asset instanceof BrioSprite,
-        );
+    /**
+     * Loads `assets` into the shared registries (used by `preload()` and by `BrioScene.preload()`), recording
+     * `owner` so `removeScene()` can unload what no other owner still uses.
+     */
+    async #preloadAssets(assets: PreloadAsset[], owner: BrioGame | BrioScene): Promise<void> {
+        for (const asset of assets) {
+            let owners = this.#assetOwners.get(asset);
+            if (!owners) {
+                owners = new Set();
+                this.#assetOwners.set(asset, owners);
+            }
+            owners.add(owner);
+        }
+        const sceneName = owner instanceof BrioScene ? owner.name : undefined;
+        const total = assets.length;
+        let loaded = 0;
+        const progress = (name: string): void => {
+            loaded++;
+            if (this.#progressListeners.length === 0) return;
+            const event: LoadProgress = {
+                loaded,
+                total,
+                ratio: total > 0 ? loaded / total : 1,
+                asset: name,
+                scene: sceneName,
+            };
+            for (const listener of this.#progressListeners.slice()) listener(event);
+        };
+
+        const sprites = assets.filter((asset): asset is BrioSprite => asset instanceof BrioSprite);
         const audios = assets.filter((asset): asset is BrioAudio => asset instanceof BrioAudio);
         const spriteAtlases = assets.filter(
             (asset): asset is BrioAtlas => asset instanceof BrioAtlas,
         );
         const models = assets.filter((asset): asset is BrioModel => asset instanceof BrioModel);
+        const sheets = assets.filter(
+            (asset): asset is BrioSpriteSheet => asset instanceof BrioSpriteSheet,
+        );
 
         for (const asset of assets) {
-            if (asset instanceof BrioMesh) this.#assets.meshes.set(asset.name, asset);
-            else if (asset instanceof BrioMaterial) this.#assets.materials.set(asset.name, asset);
+            if (asset instanceof BrioMesh) {
+                this.#assets.meshes.set(asset.name, asset);
+                progress(asset.name);
+            } else if (asset instanceof BrioMaterial) {
+                this.#assets.materials.set(asset.name, asset);
+                progress(asset.name);
+            }
         }
 
         const spriteLoadPromises = sprites.map((sprite) => {
@@ -932,6 +1215,7 @@ export class BrioGame {
                     sprite.size = create(sprite.element.width, sprite.element.height);
                     this.#assets.sprites.set(sprite.name, sprite);
                     this.#console.out("log", `Sprite: ${sprite.name} sucessfully preloaded.`);
+                    progress(sprite.name);
                     resolve();
                 };
                 // Data URLs and cached images may already be decoded before the handler is attached
@@ -940,8 +1224,12 @@ export class BrioGame {
                     return;
                 }
                 sprite.element.onload = onLoaded;
-                sprite.element.onerror = (_event, _source, _lineno, _colno, err) => {
-                    reject(`Error loading the Sprite '${sprite.name}': ${err?.message}`);
+                sprite.element.onerror = () => {
+                    reject(
+                        new Error(
+                            `Failed to load the sprite '${sprite.name}' from '${sprite.element.src}'.`,
+                        ),
+                    );
                 };
             });
         });
@@ -950,11 +1238,13 @@ export class BrioGame {
             await atlas.mount();
             this.#assets.atlases.set(atlas.name, atlas);
             this.#console.out("log", `Atlas: ${atlas.name} sucessfully preloaded.`);
+            progress(atlas.name);
         });
 
         const audioLoadPromises = audios.map(async (audio) => {
             await audio.load();
             this.#assets.audios.set(audio.name, audio);
+            progress(audio.name);
             this.#console.out(
                 "log",
                 `Audio: ${audio.name} sucessfully preloaded (${audio.usesWebAudio ? "Web Audio" : "HTMLAudioElement"}).`,
@@ -970,8 +1260,23 @@ export class BrioGame {
                 this.#console.out("warn", `Model '${model.name}': ${warning}`);
             }
             this.#console.out("log", `Model: ${model.name} sucessfully preloaded.`);
+            progress(model.name);
         });
 
+        const sheetPromises = sheets.map(async (sheet) => {
+            try {
+                await sheet.texture.decode();
+            } catch (err) {
+                throw new Error(
+                    `Failed to load the sprite sheet '${sheet.name}' from '${sheet.texture.src}'.`,
+                    { cause: err },
+                );
+            }
+            this.#assets.spriteSheets.set(sheet.name, sheet);
+            progress(sheet.name);
+        });
+
+        await Promise.all(sheetPromises);
         await Promise.all(spriteLoadPromises);
         await Promise.all(spriteAtlasPromises);
         await Promise.all(audioLoadPromises);
@@ -1009,7 +1314,7 @@ export class BrioGame {
                 if (item instanceof BrioCamera2D || item instanceof BrioCamera3D) {
                     this.addCamera(item);
                 } else if (item instanceof BrioTileMap) {
-                    this.#assets.tileMaps.set(item.name, item);
+                    this.addTileMap(item);
                 } else if (item instanceof BrioLight) {
                     this.addLight(item);
                 }
@@ -1077,6 +1382,16 @@ export class BrioGame {
 
                 return this.#assets.atlases.get(atlasName);
             },
+            getSpriteSheet: (sheetName: string) => {
+                const sheet = this.#assets.spriteSheets.get(sheetName);
+                if (!sheet) {
+                    this.#console.out(
+                        "error",
+                        `Named sprite sheet asset '${sheetName}' was not found in the preloaded resources, check if you preloaded it correctly and gave it the right name.`,
+                    );
+                }
+                return sheet;
+            },
             getModel: (modelName: string) => {
                 if (!this.#assets.models.has(modelName)) {
                     this.#console.out(
@@ -1142,7 +1457,9 @@ export class BrioGame {
                 }
                 const rawDeltaTime = (currentTime - this.#deltaTimePreviousTime) / 1000;
                 const deltaTime =
-                    this.#maxDeltaTime > 0 ? Math.min(rawDeltaTime, this.#maxDeltaTime) : rawDeltaTime;
+                    this.#maxDeltaTime > 0
+                        ? Math.min(rawDeltaTime, this.#maxDeltaTime)
+                        : rawDeltaTime;
 
                 this.#step(deltaTime, rawDeltaTime, callbackFn);
 
@@ -1196,17 +1513,33 @@ export class BrioGame {
 
     /**
      * Resolves once every lifecycle stage queued so far (`preload`, `load`, `update` start) has settled.
+     * Rejects with the `Error` of the stage that failed (for instance a sprite that could not be loaded); the game
+     * then stays in `GameState.ERROR` and later stages are skipped.
      *
      * @returns Promise resolved after the current lifecycle chain
      * @example
      * ```ts
      * game.preload(...).load(...);
-     * await game.ready();
+     * try {
+     *     await game.ready();
+     * } catch (error) {
+     *     showLoadingError(error);
+     * }
      * ```
      */
     public ready(): Promise<void> {
-        return this.#lifecyclePromise;
+        return this.#lifecyclePromise.then(this.#throwLifecycleError);
     }
+
+    /** `Error` that moved the lifecycle into `GameState.ERROR`, if any. */
+    public get lifecycleError(): Error | undefined {
+        return this.#lifecycleError;
+    }
+
+    /** Bound once so `ready()` passes no new closure per call. */
+    readonly #throwLifecycleError = (): void => {
+        if (this.#lifecycleError) throw this.#lifecycleError;
+    };
 
     // #endregion --> GAME-STATES
 
@@ -1220,6 +1553,7 @@ export class BrioGame {
         rawDeltaTime: number,
         callbackFn: ((updater: BrioUpdater, deltaTime: number) => void) | undefined,
     ): void {
+        this.#applyBaseTransform();
         this.#renderer.clearScreen();
 
         // Debug FPS calculation uses the real (unclamped) frame time
@@ -1236,8 +1570,9 @@ export class BrioGame {
         // Main user update callback
         callbackFn?.(this.#updater, deltaTime);
 
-        // Active scene update, then game-level cameras (follow, bounds, shake)
+        // Active scene update, then collision events, then game-level cameras (follow, bounds, shake)
         this.#activeScene?.step(deltaTime);
+        this.#dispatchCollisionEvents();
         const cameras = this.#assets.cameras2D.list;
         for (let i = 0; i < cameras.length; i++) {
             cameras[i].update(deltaTime);
@@ -1248,12 +1583,32 @@ export class BrioGame {
         this.renderFrame();
         if (interpolating) this.#restoreInterpolation();
 
-        // Snapshot current keyboard/mouse state into previous state for next frame's isPressed / isUp
-        this.#keyboardPrevState.clear();
-        for (const state of this.#keyboardState) {
-            this.#keyboardPrevState.set(state[0], state[1]);
-        }
+        // Close the input frame: the action map reads the controllers' latched edges first, then the controllers
+        // consume them and snapshot the current state for next frame's isPressed / isUp
+        this.#input.endFrame();
+        this.#keyboardInstance?.endFrame();
         this.#mouseInstance?.endFrame();
+        this.#gamepadInstance?.endFrame();
+        // Global key states (BrioKeyboard.globalIsUp) roll over at the same point as the per-instance ones
+        BrioKeyboard.syncGlobalFrame();
+    }
+
+    /** Detects contacts among the game and active-scene objects and calls their collision listeners. */
+    #dispatchCollisionEvents(): void {
+        const scene = this.#activeScene;
+        const collisions2D = this.#collisions2D;
+        collisions2D.begin();
+        this.#assets.objects.forEach(this.#addCollider2DVisitor);
+        scene?.objects2D.forEach(this.#addCollider2DVisitor);
+        collisions2D.update();
+
+        if (this.#dimension === "2d") return;
+        const collisions3D = this.#collisions3D;
+        collisions3D.begin();
+        const objects3D = this.#assets.objects3d.list;
+        for (let i = 0; i < objects3D.length; i++) collisions3D.add(objects3D[i]);
+        scene?.objects3D.forEach(this.#addCollider3DVisitor);
+        collisions3D.update();
     }
 
     /** Runs as many fixed steps as the accumulated time allows (at most `maxFixedSteps`). */
@@ -1263,7 +1618,7 @@ export class BrioGame {
         this.#fixedAccumulator += deltaTime;
         let steps = 0;
         while (this.#fixedAccumulator >= step && steps < this.#maxFixedSteps) {
-            if (this.#interpolate) this.#forEachInterpolable((object) => this.#rememberPosition(object));
+            if (this.#interpolate) this.#forEachInterpolable(this.#rememberPositionVisitor);
             this.#fixedCallback(this.#updater, step);
             this.#fixedAccumulator -= step;
             steps++;
@@ -1300,42 +1655,65 @@ export class BrioGame {
 
     /** Moves every object that moved during the last fixed step to `lerp(previous, current, alpha)` for rendering. */
     #applyInterpolation(): void {
-        const alpha = this.interpolationAlpha;
-        this.#interpolated.length = 0;
-        this.#forEachInterpolable((object) => {
-            const previous = this.#previousPositions.get(object);
-            if (!previous) return;
-            const position = object.transform.position as { x: number; y: number; z?: number };
-            const z = position.z ?? 0;
-            if (previous.x === position.x && previous.y === position.y && previous.z === z) return;
-            this.#interpolated.push({ object, x: position.x, y: position.y, z });
-            const ix = previous.x + (position.x - previous.x) * alpha;
-            const iy = previous.y + (position.y - previous.y) * alpha;
-            if (object instanceof BrioObject3D) {
-                object.transform.position.x = ix;
-                object.transform.position.y = iy;
-                object.transform.position.z = previous.z + (z - previous.z) * alpha;
-            } else {
-                // Silent write: the real position is restored right after rendering
-                (object.transform.position as BrioVec2).setSilent(ix, iy);
-            }
-        });
+        this.#interpolationFrameAlpha = this.interpolationAlpha;
+        this.#interpolatedCount = 0;
+        this.#forEachInterpolable(this.#applyInterpolationVisitor);
+    }
+
+    /** Interpolates one object and records its simulated position in a pooled record. */
+    #interpolateObject(object: BrioObject2D | BrioObject3D): void {
+        const previous = this.#previousPositions.get(object);
+        if (!previous) return;
+        const position = object.transform.position as { x: number; y: number; z?: number };
+        const z = position.z ?? 0;
+        if (previous.x === position.x && previous.y === position.y && previous.z === z) return;
+
+        // Records are pooled: the array only grows when more objects move than in any earlier frame
+        const records = this.#interpolated;
+        let record = records[this.#interpolatedCount];
+        if (!record) {
+            record = { object: undefined, x: 0, y: 0, z: 0 };
+            records.push(record);
+        }
+        this.#interpolatedCount++;
+        record.object = object;
+        record.x = position.x;
+        record.y = position.y;
+        record.z = z;
+
+        const alpha = this.#interpolationFrameAlpha;
+        const ix = previous.x + (position.x - previous.x) * alpha;
+        const iy = previous.y + (position.y - previous.y) * alpha;
+        if (object instanceof BrioObject3D) {
+            object.transform.position.x = ix;
+            object.transform.position.y = iy;
+            object.transform.position.z = previous.z + (z - previous.z) * alpha;
+        } else {
+            // Silent write: the real position is restored right after rendering
+            (object.transform.position as BrioVec2).setSilent(ix, iy);
+        }
     }
 
     /** Restores the simulated positions replaced by `#applyInterpolation()`. */
     #restoreInterpolation(): void {
-        for (const { object, x, y, z } of this.#interpolated) {
+        const records = this.#interpolated;
+        const count = this.#interpolatedCount;
+        for (let i = 0; i < count; i++) {
+            const record = records[i];
+            const object = record.object!;
             if (object instanceof BrioObject3D) {
-                object.transform.position.x = x;
-                object.transform.position.y = y;
-                object.transform.position.z = z;
+                object.transform.position.x = record.x;
+                object.transform.position.y = record.y;
+                object.transform.position.z = record.z;
             } else {
-                (object.transform.position as BrioVec2).setSilent(x, y);
+                (object.transform.position as BrioVec2).setSilent(record.x, record.y);
                 // Cached "static" layers rasterized the interpolated position: redraw them next frame
                 object.transform.markDirty();
             }
+            // Drop the reference so a pooled record does not keep a destroyed object alive
+            record.object = undefined;
         }
-        this.#interpolated.length = 0;
+        this.#interpolatedCount = 0;
     }
 
     /**
@@ -1351,6 +1729,7 @@ export class BrioGame {
      */
     public renderFrame(): void {
         if (!this.ctx) return;
+        this.#applyBaseTransform();
 
         const renderConfig = this.#debugger.render;
         this.#frameDebug.showRenderBounds = renderConfig.showRenderBounds;
@@ -1368,6 +1747,7 @@ export class BrioGame {
             this.#scale,
             sources,
             this.#frameDebug,
+            this.pixelRatio,
         );
 
         if (renderConfig.fpsOverlay.enabled) {
@@ -1391,9 +1771,13 @@ export class BrioGame {
                 if (this.#currentState === GameState.ERROR) return;
                 return stage();
             })
-            .catch((err) => {
+            .catch((err: unknown) => {
                 this.#currentState = GameState.ERROR;
-                this.#console.out("error", `An error occurred during the game lifecycle: ${err}.`);
+                this.#lifecycleError = err instanceof Error ? err : new Error(String(err));
+                this.#console.out(
+                    "error",
+                    `An error occurred during the game lifecycle: ${this.#lifecycleError.message}`,
+                );
             });
     }
 
@@ -1531,6 +1915,39 @@ export class BrioGame {
     }
 
     /**
+     * Registers a `BrioTileMap` (also done for maps returned by `load()`) and draws it in `layerName`, unless a
+     * registered layer already holds it (`layer.addTileMap(map)`). Its tiles are part of checkpoints, `restart()`
+     * and `useSnapshot()`. Give the map a `tileset` (`BrioSpriteSheet`, preloaded with `preload()`) to render it.
+     *
+     * @param map Tile map to register
+     * @param layerName Layer that draws the map (defaults to `"default"`)
+     * @returns This `BrioGame` instance
+     * @throws {Error} When `layerName` is not registered
+     * @example
+     * ```ts
+     * const tiles = new BrioSpriteSheet("sht_tiles", "./tiles.png", 16, 16, 8, 8);
+     * game.preload(() => [tiles]);
+     * game.load(() => {
+     *     const level = BrioTileMap.fromTiled(levelJson, { tileset: tiles });
+     *     return [level, ...level.createColliderObjects()];
+     * });
+     * ```
+     */
+    public addTileMap(map: BrioTileMap, layerName: string = DEFAULT_LAYER_NAME): this {
+        this.#assets.tileMaps.set(map.name, map);
+        const layers = this.#layers.list;
+        for (let i = 0; i < layers.length; i++) {
+            if (layers[i].hasTileMap(map)) return this;
+        }
+        const target = this.#layers.get(layerName);
+        if (!target) {
+            throw this.#console.fatalError(`Layer '${layerName}' is not registered in BrioGame.`);
+        }
+        target.addTileMap(map);
+        return this;
+    }
+
+    /**
      * Registers a `BrioCamera2D` (one 2D pass per camera, clipped to `camera.viewport`) or a `BrioCamera3D`
      * (one 3D pass per camera). Registering 2D cameras enables split-screen and picture-in-picture layouts.
      *
@@ -1636,6 +2053,150 @@ export class BrioGame {
     }
 
     /**
+     * ASSET LIFETIME -------------------------------------------------------------------
+     */
+
+    /**
+     * Registers a listener called after every asset of a `preload()` (the game's or a scene's) finishes loading,
+     * e.g. to drive a loading bar. Draw the bar with DOM elements or a scene that has no assets of its own.
+     *
+     * @param listener Callback receiving the current `LoadProgress`
+     * @returns Function that unregisters the listener
+     * @example
+     * ```ts
+     * game.onLoadProgress(({ ratio }) => {
+     *     loadingBar.style.width = `${Math.round(ratio * 100)}%`;
+     * });
+     * ```
+     */
+    public onLoadProgress(listener: (progress: LoadProgress) => void): () => void {
+        this.#progressListeners.push(listener);
+        return () => {
+            const index = this.#progressListeners.indexOf(listener);
+            if (index >= 0) this.#progressListeners.splice(index, 1);
+        };
+    }
+
+    /**
+     * Unloads a preloaded asset (by instance or by name): removes it from the registries and frees what it holds:
+     * decoded images, audio buffers, and the GPU copies of meshes and textures. A model also unloads its meshes and
+     * materials. Textures shared with another registered sprite sheet, atlas or material are kept. Objects that
+     * still reference the asset by name draw nothing (or the default material) afterwards.
+     *
+     * @param target Asset instance or asset name
+     * @returns `true` when an asset was unloaded
+     * @example
+     * ```ts
+     * game.unloadAsset("mod_boss"); // after the boss fight
+     * ```
+     */
+    public unloadAsset(target: PreloadAsset | string): boolean {
+        const asset = typeof target === "string" ? this.#findAsset(target) : target;
+        if (!asset) return false;
+        this.#assetOwners.delete(asset);
+        const a = this.#assets;
+        if (asset instanceof BrioSprite) {
+            if (a.sprites.get(asset.name) !== asset) return false;
+            a.sprites.delete(asset.name);
+        } else if (asset instanceof BrioSpriteSheet) {
+            if (a.spriteSheets.get(asset.name) !== asset) return false;
+            a.spriteSheets.delete(asset.name);
+            this.#releaseTextureIfUnused(asset.texture);
+        } else if (asset instanceof BrioAtlas) {
+            if (a.atlases.get(asset.name) !== asset) return false;
+            a.atlases.delete(asset.name);
+            this.#releaseTextureIfUnused(asset.texture);
+        } else if (asset instanceof BrioAudio) {
+            if (a.audios.get(asset.name) !== asset) return false;
+            a.audios.delete(asset.name);
+            asset.stop();
+            asset.dispose();
+        } else if (asset instanceof BrioModel) {
+            if (a.models.get(asset.name) !== asset) return false;
+            a.models.delete(asset.name);
+            asset.meshes.forEach((mesh) => this.#unloadMesh(mesh));
+            asset.materials.forEach((material) => this.#unloadMaterial(material));
+        } else if (asset instanceof BrioMesh) {
+            return this.#unloadMesh(asset);
+        } else if (asset instanceof BrioMaterial) {
+            return this.#unloadMaterial(asset);
+        }
+        return true;
+    }
+
+    #findAsset(name: string): PreloadAsset | undefined {
+        const a = this.#assets;
+        return (
+            a.sprites.get(name) ??
+            a.spriteSheets.get(name) ??
+            a.atlases.get(name) ??
+            a.audios.get(name) ??
+            a.models.get(name) ??
+            a.meshes.get(name) ??
+            a.materials.get(name)
+        );
+    }
+
+    #unloadMesh(mesh: BrioMesh): boolean {
+        if (this.#assets.meshes.get(mesh.name) !== mesh) return false;
+        this.#assets.meshes.delete(mesh.name);
+        this.#backend3D?.releaseMesh?.(mesh);
+        return true;
+    }
+
+    #unloadMaterial(material: BrioMaterial): boolean {
+        if (this.#assets.materials.get(material.name) !== material) return false;
+        this.#assets.materials.delete(material.name);
+        if (material.texture) this.#releaseTextureIfUnused(material.texture);
+        return true;
+    }
+
+    /** Frees `texture` (GPU copy and decoded bitmap) unless a registered sheet, atlas or material still uses it. */
+    #releaseTextureIfUnused(texture: BrioTexture): void {
+        for (const sheet of this.#assets.spriteSheets.values())
+            if (sheet.texture === texture) return;
+        for (const atlas of this.#assets.atlases.values()) if (atlas.texture === texture) return;
+        for (const material of this.#assets.materials.values()) {
+            if (material.texture === texture) return;
+        }
+        this.#backend3D?.releaseTexture?.(texture);
+        texture.dispose();
+    }
+
+    /**
+     * Unregisters a scene that is not active, destroys its content and unloads the assets its `preload()`
+     * requested that neither the game nor another registered scene requested too (reference counting by owner).
+     *
+     * @param name Scene name
+     * @returns `true` when the scene was registered and removed
+     * @throws {Error} When `name` is the active scene (activate another one first)
+     * @example
+     * ```ts
+     * game.setScene("scene_level_2");
+     * await game.ready();
+     * game.removeScene("scene_level_1"); // frees level 1 sprites and models
+     * ```
+     */
+    public removeScene(name: string): boolean {
+        const scene = this.#scenes.get(name);
+        if (!scene) return false;
+        if (scene === this.#activeScene) {
+            throw this.#console.fatalError(
+                `Scene '${name}' is active and cannot be removed; activate another scene first.`,
+            );
+        }
+        if (this.#pendingScene === scene) this.#pendingScene = undefined;
+        this.#scenes.delete(name);
+        scene.destroy();
+        const released: PreloadAsset[] = [];
+        this.#assetOwners.forEach((owners, asset) => {
+            if (owners.delete(scene) && owners.size === 0) released.push(asset);
+        });
+        for (const asset of released) this.unloadAsset(asset);
+        return true;
+    }
+
+    /**
      * SCENE MANAGEMENT -----------------------------------------------------------------
      */
 
@@ -1652,6 +2213,8 @@ export class BrioGame {
      * ```
      */
     public addScene(scene: BrioScene): this {
+        // Narrows the scene world to the preset so "2d" scenes allocate no 3D buffer (ADR 0004).
+        scene.useLayout({ transform2D: true, transform3D: this.#dimension !== "2d" });
         this.#scenes.set(scene.name, scene);
         if (!this.#activeScene && !this.#pendingScene) {
             this.setScene(scene.name);
@@ -1688,7 +2251,7 @@ export class BrioGame {
         this.#pendingScene = nextScene;
         this.#chainLifecycle(async () => {
             const assets = nextScene.collectPreloadAssets();
-            if (assets.length > 0) await this.#preloadAssets(assets);
+            if (assets.length > 0) await this.#preloadAssets(assets, nextScene);
             nextScene.mount(this.#assetLoaderParam());
             this.#console.out("info", `Scene '${nextScene.name}' loaded.`);
             // A later setScene() call wins over this one
@@ -1703,6 +2266,10 @@ export class BrioGame {
     #activateScene(scene: BrioScene): void {
         // Scenes without load() still get an initial state, so restart() works for hand-built scenes
         scene.mount(this.#assetLoaderParam());
+        // Scene cameras shake with game.random too, so a fixed seed reproduces them (unless they have their own)
+        scene.cameras2D.forEach((camera) => {
+            if (!camera.random) camera.random = this.#random;
+        });
         if (this.#activeScene && this.#activeScene !== scene) {
             this.#activeScene.pause();
         }
@@ -1719,15 +2286,24 @@ export class BrioGame {
         const objects2D: GameStateCapture["objects2D"] = [];
         this.#assets.objects.forEach((object) => {
             this.#bindObjectToECS(object);
-            objects2D.push({ object, entityId: object.entityId, layer: this.#findLayerOf(object) });
+            objects2D.push({
+                object,
+                entityId: object.entityId,
+                layer: this.#findLayerOf(object),
+                state: object.captureState(),
+            });
         });
         const objects3D: GameStateCapture["objects3D"] = [];
         const parts3D: GameStateCapture["parts3D"] = [];
         for (const object of this.#assets.objects3d.list) {
             this.#bindObject3DToECS(object);
-            objects3D.push({ object, entityId: object.entityId });
-            object.forEachDescendant((part) => parts3D.push({ object: part, entityId: part.entityId }));
+            objects3D.push({ object, entityId: object.entityId, state: object.captureState() });
+            object.forEachDescendant((part) =>
+                parts3D.push({ object: part, entityId: part.entityId, state: part.captureState() }),
+            );
         }
+        const tileMaps: GameStateCapture["tileMaps"] = [];
+        this.#assets.tileMaps.forEach((map) => tileMaps.push({ map, tiles: map.captureTiles() }));
         const scene = this.#activeScene
             ? { scene: this.#activeScene, state: this.#activeScene.captureState() }
             : undefined;
@@ -1738,6 +2314,7 @@ export class BrioGame {
             parts3D,
             random: this.#random.state,
             scene,
+            tileMaps,
         };
     }
 
@@ -1749,6 +2326,9 @@ export class BrioGame {
     #restoreState(state: GameStateCapture, includeScene: boolean = true): void {
         this.#random.state = state.random;
         this.#fixedAccumulator = 0;
+        // Contacts restart from scratch: objects that overlap after the restore report a fresh "enter"
+        this.#collisions2D.clear();
+        this.#collisions3D.clear();
         if (includeScene && state.scene) {
             const { scene, state: sceneState } = state.scene;
             if (this.#scenes.get(scene.name) === scene) {
@@ -1778,10 +2358,11 @@ export class BrioGame {
         const storage = this.#ecsWorld.storage;
 
         this.#assets.objects.clear();
-        for (const { object, entityId, layer } of state.objects2D) {
+        for (const { object, entityId, layer, state: objectState } of state.objects2D) {
             object.entityId = entityId;
             object.entityGeneration = this.#ecsWorld.generationOf(entityId);
             object.transform.bindECS(storage, entityId, true);
+            object.restoreState(objectState);
             this.#assets.objects.set(object.name, object);
             const target = layer && this.#layers.get(layer.name) === layer ? layer : undefined;
             const current = this.#findLayerOf(object);
@@ -1797,6 +2378,11 @@ export class BrioGame {
         }
 
         this.#assets.objects3d.clear();
+        // Hierarchies first, so parts detached after the capture are attached again before they rebind
+        for (const { object, state: objectState } of state.objects3D)
+            object.restoreState(objectState);
+        for (const { object, state: objectState } of state.parts3D)
+            object.restoreState(objectState);
         for (const { object, entityId } of state.objects3D) {
             object.entityId = entityId;
             object.entityGeneration = this.#ecsWorld.generationOf(entityId);
@@ -1808,6 +2394,9 @@ export class BrioGame {
             object.entityId = entityId;
             object.entityGeneration = this.#ecsWorld.generationOf(entityId);
             object.transform.bindECS(storage, entityId, true);
+        }
+        for (const { map, tiles } of state.tileMaps) {
+            if (this.#assets.tileMaps.get(map.name) === map) map.restoreTiles(tiles);
         }
     }
 
@@ -1878,6 +2467,8 @@ export class BrioGame {
 
     /**
      * Pauses the active `update()` game loop and resets the frame timer so resuming does not cause a `deltaTime` spike.
+     * Also suspends the shared `BrioAudioMixer` context (`BrioAudioMixer.suspend()`), so music and effects stop with
+     * the game and a user gesture does not auto-unlock audio while the game stays paused.
      *
      * @example
      * ```ts
@@ -1894,12 +2485,16 @@ export class BrioGame {
             this.#updateIsRunning = false;
             this.#deltaTimePreviousTime = 0;
             cancelAnimationFrame(this.#updateFrameId);
+            this.#audioSuspended = true;
+            BrioAudioMixer.suspend().catch(() => {});
             this.#console.out("info", "Game stopped!");
         }
     }
 
     /**
-     * Resumes the `update()` game loop if it was previously paused.
+     * Resumes the `update()` game loop if it was previously paused, and resumes the `BrioAudioMixer` context that
+     * `pause()` suspended (`BrioAudioMixer.resume()`). Browsers only allow resuming audio during or after a user
+     * gesture: when called outside one, audio starts on the next gesture instead.
      *
      * @example
      * ```ts
@@ -1918,13 +2513,16 @@ export class BrioGame {
             if (this.#updateLoopLogic) {
                 this.#updateFrameId = requestAnimationFrame(this.#updateLoopLogic);
             }
+            this.#releaseAudio();
             this.#console.out("info", "Game resumed!");
         }
     }
 
     /**
-     * Terminates the game session, cancelling the animation loop, detaching input listeners,
-     * and clearing all registered assets, layers, cameras, and entities.
+     * Terminates the game session: cancels the animation loop, detaches input listeners, stops every registered
+     * `BrioAudio`, clears all registered assets (sprites, atlases, audios, models, meshes, materials), layers,
+     * cameras, lights and entities, and disposes the 3D backend (3D passes stay disabled afterwards). The shared
+     * `BrioAudioMixer` is left unsuspended so another game can play audio.
      *
      * @example
      * ```ts
@@ -1940,7 +2538,11 @@ export class BrioGame {
         // Pausing the game update loop
         this.pause();
 
-        // Removing input listeners
+        this.#removeFullScreenListener();
+
+        // Removing input listeners (and releasing a pointer lock held by the canvas)
+        this.#input.cancelCapture();
+        this.#mouseInstance?.exitPointerLock();
         this.#keyboardInstance?.removeListener();
         this.#mouseInstance?.removeListener();
         this.#touchInstance?.removeListener();
@@ -1954,8 +2556,24 @@ export class BrioGame {
             this.#detachObject3D(object);
         }
 
+        // Silencing this session's sounds, then releasing the mixer hold taken by pause()
+        this.#assets.audios.forEach(stopAudio);
+        this.#releaseAudio();
+
+        // Releasing the 3D backend (GPU buffers, textures, programs); a backend still initializing is
+        // disposed when it resolves, because the session counter no longer matches
+        this.#session++;
+        if (this.#backend3D) {
+            this.#backend3D.dispose();
+            this.#backend3D = undefined;
+            this.#compositor.configure3D(undefined, this.#assets.meshes, this.#assets.materials);
+        }
+
         // Clearing asset and state registries
         this.#assets.audios.clear();
+        this.#assets.models.clear();
+        this.#assets.meshes.clear();
+        this.#assets.materials.clear();
         this.#assets.cameras2D.clear();
         this.#assets.cameras3D.clear();
         this.#assets.tileMaps.clear();
@@ -1963,19 +2581,32 @@ export class BrioGame {
         this.#assets.objects3d.clear();
         this.#assets.sprites.clear();
         this.#assets.atlases.clear();
+        this.#assets.spriteSheets.clear();
+        this.#assetOwners.clear();
         this.#layers.clear();
         this.#layers.add(new BrioLayer({ name: DEFAULT_LAYER_NAME, order: 0, policy: "dynamic" }));
         this.#lights.clear();
         this.#cloneCounters.clear();
         this.#keyboardState.clear();
         this.#keyboardPrevState.clear();
+        this.#interpolated.length = 0;
+        this.#interpolatedCount = 0;
         this.#timer.clear();
+        this.#collisions2D.clear();
+        this.#collisions3D.clear();
         this.#ecsWorld.clear();
         this.#initialState = undefined;
         this.#checkpointState = undefined;
         this.#console.loggedErrors.clear();
 
         this.#console.out("info", "Game ended!");
+    }
+
+    /** Resumes the mixer context if this game's `pause()` suspended it. */
+    #releaseAudio(): void {
+        if (!this.#audioSuspended) return;
+        this.#audioSuspended = false;
+        BrioAudioMixer.resume().catch(() => {});
     }
 
     /**
@@ -2065,53 +2696,60 @@ export class BrioGame {
     }
 
     /**
-     * Spawns a new clone of `targetObject` (e.g. a projectile or enemy prefab), naming it `"<name>-<index>"`
-     * (skipping names already in use), copying its `transform` and collider through $O(1)$ ECS slot pooling,
-     * registering it in `game.gameObjects`, and placing it in the same `BrioLayer` as the prefab.
+     * Spawns a new clone of a prefab (e.g. a projectile or enemy), naming it `"<name>-<index>"` (skipping names
+     * already in use) and registering it like `addObject()`:
+     * - a `BrioObject2D` (or subclass such as `BrioText`) copies the prefab transform, `tag`, collider and collision
+     *   listeners, takes a pooled ECS slot in $O(1)$ and joins the prefab's `BrioLayer`;
+     * - a `BrioObject3D` is deep-cloned with its child parts (`BrioObject3D.clone`), each part bound to its own slot.
      *
-     * @param targetObject Template/prefab `BrioObject2D` to instantiate
-     * @returns The newly spawned `BrioObject2D` instance
+     * The prefab does not need to be registered: an unregistered template is a common way to keep it off screen.
+     *
+     * @param targetObject Template/prefab object to instantiate
+     * @returns The newly spawned object, of the same concrete type as the prefab
+     * @throws {Error} When instantiating a `BrioObject3D` in a `"2d"` game
      * @example
      * ```ts
      * const bullet = game.instantiate(projectilePrefab);
      * bullet.transform.position = { x: player.transform.position.x, y: player.transform.position.y };
+     *
+     * const crate = game.instantiate(cratePrefab3D);
+     * crate.transform.position.x = 4;
      * ```
      */
-    public instantiate(targetObject: BrioObject2D): BrioObject2D {
-        const prefab = this.#assets.objects.get(targetObject.name) ?? targetObject;
-        this.#bindObjectToECS(prefab);
+    public instantiate<T extends BrioObject2D | BrioObject3D>(targetObject: T): T {
+        if (targetObject instanceof BrioObject3D) {
+            return this.#instantiate3D(targetObject) as T;
+        }
+        return this.#instantiate2D(targetObject as BrioObject2D) as T;
+    }
 
-        let index = this.#cloneCounters.get(prefab.name) ?? 0;
+    /** Next `"<prefab>-<n>"` name not used by `isTaken`, advancing the prefab's clone counter. */
+    #nextCloneName(prefabName: string, isTaken: (name: string) => boolean): [string, number] {
+        let index = this.#cloneCounters.get(prefabName) ?? 0;
         let cloneName: string;
         do {
             index++;
-            cloneName = `${prefab.name}-${index}`;
-        } while (this.#assets.objects.has(cloneName));
-        this.#cloneCounters.set(prefab.name, index);
+            cloneName = `${prefabName}-${index}`;
+        } while (isTaken(cloneName));
+        this.#cloneCounters.set(prefabName, index);
+        return [cloneName, index];
+    }
 
-        const newObject = new BrioObject2D(cloneName, prefab.sprite, prefab.transform.layer);
-        BrioObject2D.copyTransform(prefab, newObject);
+    #instantiate2D(targetObject: BrioObject2D): BrioObject2D {
+        const prefab = this.#assets.objects.get(targetObject.name) ?? targetObject;
+        this.#bindObjectToECS(prefab);
+
+        const [cloneName, index] = this.#nextCloneName(prefab.name, (name) =>
+            this.#assets.objects.has(name),
+        );
+        const newObject = BrioObject2D.clone(prefab, cloneName);
+        newObject.copyCollisionListenersFrom(prefab);
 
         // Allocate pooled ECS slot, copy template component data in O(1), then bind the facade to it
         const pooledEntityId = this.#ecsWorld.instantiateFrom(prefab.entityId);
         newObject.entityId = pooledEntityId;
         newObject.entityGeneration = this.#ecsWorld.generationOf(pooledEntityId);
         newObject.transform.bindECS(this.#ecsWorld.storage, pooledEntityId);
-
-        // Cloning collider
-        if (prefab.collision) {
-            newObject.addCollisionMask(
-                prefab.collision.shape,
-                prefab.collision.colliderType,
-                prefab.collision.pos.x,
-                prefab.collision.pos.y,
-                prefab.collision.size.x,
-                prefab.collision.size.y,
-            );
-            if (newObject.collision) {
-                newObject.collision.enabled = prefab.collision.enabled;
-            }
-        }
 
         newObject.instanceId = index;
         this.#assets.objects.set(newObject.name, newObject);
@@ -2121,6 +2759,17 @@ export class BrioGame {
         this.#objectLayers.set(newObject, layer);
 
         return newObject;
+    }
+
+    #instantiate3D(targetObject: BrioObject3D): BrioObject3D {
+        const prefab = this.#assets.objects3d.get(targetObject.name) ?? targetObject;
+        const [cloneName, index] = this.#nextCloneName(
+            prefab.name,
+            (name) => this.#assets.objects3d.get(name) !== undefined,
+        );
+        const newObject = BrioObject3D.clone(prefab, cloneName);
+        newObject.instanceId = index;
+        return this.addObject(newObject);
     }
 
     /**
@@ -2165,34 +2814,54 @@ export class BrioGame {
      */
     public translate(px: number, py: number): void {
         if (this.ctx) {
-            this.ctx.setTransform(1, 0, 0, 1, px, py);
+            const ratio = this.pixelRatio;
+            this.ctx.setTransform(ratio, 0, 0, ratio, px * ratio, py * ratio);
         }
     }
 
     // -> GAME UTILITIES
 
     /**
-     * Resizes the game canvas to match `window.innerWidth` and `window.innerHeight` immediately
-     * and automatically updates the dimensions whenever the browser window is loaded or resized.
+     * Adapts the game to the browser window now and on every window resize:
+     * - `"resize"` (the default): the logical size becomes `window.innerWidth x window.innerHeight`;
+     * - `"fit"`: the logical size is kept and the canvas is scaled uniformly to the largest size that fits the
+     *   window (center it with CSS on the container, e.g. `display: grid; place-items: center`). It renders at the
+     *   displayed resolution, so it stays sharp.
      *
+     * Calling it again replaces the previous mode; `end()` removes the window listener.
+     *
+     * @param mode How the game follows the window size
      * @example
      * ```ts
-     * game.useFullScreen();
+     * game.useFullScreen("fit"); // 640x360 game scaled to the window, letterboxed
      * ```
      */
-    public useFullScreen(): void {
-        const applyFullScreen = () => {
-            if (window.innerWidth > 0 && window.innerHeight > 0) {
-                this.#width = window.innerWidth;
-                this.#height = window.innerHeight;
-                this.#canvas.width = this.#width;
-                this.#canvas.height = this.#height;
+    public useFullScreen(mode: FullScreenMode = "resize"): void {
+        this.#removeFullScreenListener();
+        const apply = (): void => {
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            if (windowWidth <= 0 || windowHeight <= 0) return;
+            if (mode === "fit") {
+                this.#displayScale = Math.min(
+                    windowWidth / this.#width,
+                    windowHeight / this.#height,
+                );
+                this.#applyCanvasSize();
+            } else {
+                this.#displayScale = 1;
+                this.resize(windowWidth, windowHeight);
             }
         };
+        apply();
+        this.#fullScreenListener = apply;
+        window.addEventListener("resize", apply);
+    }
 
-        applyFullScreen();
-        window.addEventListener("load", applyFullScreen);
-        window.addEventListener("resize", applyFullScreen);
+    #removeFullScreenListener(): void {
+        if (!this.#fullScreenListener) return;
+        window.removeEventListener("resize", this.#fullScreenListener);
+        this.#fullScreenListener = undefined;
     }
 
     /**
@@ -2224,6 +2893,7 @@ export class BrioGame {
             this.#keyboardPrevState,
             this.#console,
         );
+        this.#input.keyboard = this.#keyboardInstance;
     }
 
     /**
@@ -2236,7 +2906,9 @@ export class BrioGame {
      * ```
      */
     public useMouse(): void {
-        this.#mouseInstance = new BrioMouse(this.#canvas);
+        // Positions are reported in logical game pixels, whatever the canvas CSS size or pixel ratio
+        this.#mouseInstance = new BrioMouse(this.#canvas, true, this);
+        this.#input.mouse = this.#mouseInstance;
     }
 
     /**
@@ -2249,11 +2921,13 @@ export class BrioGame {
      * ```
      */
     public useTouch(): void {
-        this.#touchInstance = new BrioTouch(this.#canvas);
+        this.#touchInstance = new BrioTouch(this.#canvas, this);
+        this.#input.touch = this.#touchInstance;
     }
 
     /**
-     * Initializes the `BrioGamepad` input subsystem and registers browser `gamepadconnected` / `gamepaddisconnected` listeners.
+     * Initializes the `BrioGamepad` input subsystem. Connected gamepads are polled once per frame, at the start of
+     * the frame step, so `game.gamepad` reads a consistent snapshot during fixed steps and the `update()` callback.
      * Must be called before accessing `game.gamepad`.
      *
      * @example
@@ -2263,6 +2937,7 @@ export class BrioGame {
      */
     public useGamepad(): void {
         this.#gamepadInstance = new BrioGamepad();
+        this.#input.gamepad = this.#gamepadInstance;
     }
 
     // #endregion --> METHODS

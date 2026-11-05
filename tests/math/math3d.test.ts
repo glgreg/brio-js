@@ -32,7 +32,11 @@ describe("3D Math (Vector3, Quaternion, Matrix4)", () => {
     });
 
     it("rotates vectors with Quaternion and converts Euler angles and SLERP", () => {
-        const q90Y = Quaternion.fromAxisAngle(Quaternion.create(), { x: 0, y: 1, z: 0 }, Math.PI / 2);
+        const q90Y = Quaternion.fromAxisAngle(
+            Quaternion.create(),
+            { x: 0, y: 1, z: 0 },
+            Math.PI / 2,
+        );
         const rotated = Quaternion.rotateVec3(Vector3.create(), { x: 0, y: 0, z: 1 }, q90Y);
         expect(rotated.x).toBeCloseTo(1, 5);
         expect(rotated.y).toBeCloseTo(0, 5);

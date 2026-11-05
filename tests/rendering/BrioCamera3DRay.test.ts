@@ -4,7 +4,11 @@ import { BrioViewport } from "../../src/core/BrioViewport";
 
 describe("BrioCamera3D.screenToRay", () => {
     it("casts the center pixel straight along the view direction from the near plane", () => {
-        const cam = new BrioCamera3D("cam", { position: { x: 0, y: 2, z: 10 }, target: { x: 0, y: 2, z: 0 }, aspect: 2 });
+        const cam = new BrioCamera3D("cam", {
+            position: { x: 0, y: 2, z: 10 },
+            target: { x: 0, y: 2, z: 0 },
+            aspect: 2,
+        });
         const ray = cam.screenToRay(400, 200, 800, 400);
         expect(ray.direction.x).toBeCloseTo(0);
         expect(ray.direction.y).toBeCloseTo(0);
@@ -14,7 +18,12 @@ describe("BrioCamera3D.screenToRay", () => {
     });
 
     it("maps corner pixels to rays through the frustum edges (fov and aspect)", () => {
-        const cam = new BrioCamera3D("cam", { fov: Math.PI / 2, aspect: 1, position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: -1 } });
+        const cam = new BrioCamera3D("cam", {
+            fov: Math.PI / 2,
+            aspect: 1,
+            position: { x: 0, y: 0, z: 0 },
+            target: { x: 0, y: 0, z: -1 },
+        });
         const topLeft = cam.screenToRay(0, 0, 100, 100);
         // 90 degree fov: the top-left corner direction is (-1, 1, -1) normalized
         const k = 1 / Math.sqrt(3);

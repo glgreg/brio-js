@@ -27,6 +27,7 @@ const METHODS = [
     "fill",
     "stroke",
     "fillText",
+    "strokeText",
     "reset",
 ] as const;
 

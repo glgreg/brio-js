@@ -23,7 +23,7 @@ export interface SpriteSheetCellRect {
 /**
  * Specialized uniform-grid atlas (`BrioSpriteSheet`) organized into `columns` and `rows` of equal-sized
  * `cellWidth x cellHeight` cells over a shared `BrioTexture`. Acts as a factory for `BrioSprite` frames
- * and `BrioAnimation` sequences.
+ * (each with the cell as its `sourceRect`) and `BrioAnimation` sequences.
  *
  * @example
  * ```ts
@@ -125,19 +125,49 @@ export class BrioSpriteSheet {
     }
 
     /**
-     * Creates a `BrioSprite` initialized with this spritesheet's cell dimensions.
+     * Creates a `BrioSprite` that shows one cell of this spritesheet: its `sourceRect` is the cell rectangle
+     * and its `size` the cell size.
      *
      * @param spriteName Unique identifier for the created `BrioSprite`
+     * @param cellIndex Zero-based cell index in row-major order, clamped to the grid (defaults to `0`)
      * @returns Configured `BrioSprite` instance
      * @example
      * ```ts
      * const frame0 = sheet.createSprite("spr_hero_0");
+     * const frame5 = sheet.createSprite("spr_hero_5", 5);
      * ```
      */
-    public createSprite(spriteName: string): BrioSprite {
-        const spr = new BrioSprite(spriteName, this.#texture.src);
-        spr.size = { x: this.#cellWidth, y: this.#cellHeight };
+    public createSprite(spriteName: string, cellIndex: number = 0): BrioSprite {
+        const rect = this.getCellRect(cellIndex);
+        const spr = new BrioSprite(spriteName, this.#texture.src, rect);
+        spr.size = { x: rect.width, y: rect.height };
         return spr;
+    }
+
+    /**
+     * Creates one `BrioSprite` per cell in `[startCell, endCell]`, named `"<sheet>_cell_<i>"`: the frame names
+     * `createAnimation` uses. Return them from `preload()` so animations can resolve their frames.
+     *
+     * @param startCell First cell index (defaults to `0`)
+     * @param endCell Last cell index, inclusive (defaults to the last cell)
+     * @returns Cell sprites in index order
+     * @example
+     * ```ts
+     * game.preload(() => [...sheet.createCellSprites()]);
+     * const walk = sheet.createAnimation("anim_walk", 0, 5, { fps: 10 });
+     * ```
+     */
+    public createCellSprites(
+        startCell: number = 0,
+        endCell: number = this.totalCells - 1,
+    ): BrioSprite[] {
+        const first = Math.max(0, Math.floor(startCell));
+        const last = Math.min(this.totalCells - 1, Math.floor(endCell));
+        const sprites: BrioSprite[] = [];
+        for (let i = first; i <= last; i++) {
+            sprites.push(this.createSprite(`${this.#name}_cell_${i}`, i));
+        }
+        return sprites;
     }
 
     /**

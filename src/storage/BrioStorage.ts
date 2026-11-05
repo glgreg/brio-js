@@ -34,7 +34,8 @@ export interface SyncStorageAdapter {
     delete(key: string): void;
 
     /**
-     * Clears all keys in this storage tier.
+     * Clears all keys owned by this storage tier. For `session` and `local` this removes only the keys
+     * written through the adapter (prefixed with `BRIO_WEB_STORAGE_PREFIX`), never other entries of the origin.
      */
     clear(): void;
 }
@@ -43,6 +44,8 @@ export interface SyncStorageAdapter {
  * Asynchronous database storage adapter backed by `IndexedDB` (with automatic in-memory fallback
  * in headless or restricted environments). Supports storing both structured values and raw binary
  * `Uint8Array` ECS snapshots without Base64 overhead.
+ *
+ * The fallback does not persist across reloads; `isPersistent()` / `persistent` report which backend is in use.
  */
 export class AsyncDatabaseStorage {
     readonly #dbName: string;
@@ -55,8 +58,41 @@ export class AsyncDatabaseStorage {
         this.#storeName = storeName;
     }
 
+    /**
+     * Whether data written through this adapter survives a page reload: `true` once IndexedDB opened,
+     * `false` once the adapter fell back to its in-memory `Map` (IndexedDB missing, blocked or failing to
+     * open), and `undefined` before the first operation resolved the backend. Use `isPersistent()` to
+     * resolve it on demand.
+     *
+     * @example
+     * ```ts
+     * if (!(await BrioStorage.db.isPersistent())) showWarning("Progress will not be saved.");
+     * ```
+     */
+    public get persistent(): boolean | undefined {
+        return this.#persistent;
+    }
+
+    #persistent: boolean | undefined = undefined;
+
+    /**
+     * Resolves the storage backend (opening IndexedDB if needed) and reports whether it persists data.
+     * The fallback to memory is kept so games still run in private modes and headless tests, but it is
+     * observable here instead of silent.
+     *
+     * @returns `true` when backed by IndexedDB, `false` when backed by the in-memory fallback
+     * @example
+     * ```ts
+     * const persistent = await BrioStorage.db.isPersistent();
+     * ```
+     */
+    public async isPersistent(): Promise<boolean> {
+        return (await this.#getDB()) !== null;
+    }
+
     async #getDB(): Promise<IDBDatabase | null> {
         if (typeof indexedDB === "undefined") {
+            this.#persistent = false;
             return null;
         }
         if (!this.#dbPromise) {
@@ -74,6 +110,9 @@ export class AsyncDatabaseStorage {
                 } catch {
                     resolve(null);
                 }
+            }).then((db) => {
+                this.#persistent = db !== null;
+                return db;
             });
         }
         return this.#dbPromise;
@@ -200,6 +239,13 @@ export class AsyncDatabaseStorage {
     }
 }
 
+/**
+ * Prefix prepended to every key that `BrioStorage.session` and `BrioStorage.local` write into Web Storage.
+ * It scopes `clear()` to the engine's own entries, so other data stored by the page under the same origin
+ * survives a reset.
+ */
+export const BRIO_WEB_STORAGE_PREFIX = "brio:";
+
 function createWebStorageAdapter(getWebStorage: () => Storage | undefined): SyncStorageAdapter {
     const fallback = new Map<string, string>();
 
@@ -211,10 +257,15 @@ function createWebStorageAdapter(getWebStorage: () => Storage | undefined): Sync
         }
     };
 
+    // Values written before keys were namespaced are stored unprefixed: `get` / `has` still read them,
+    // `set` migrates them under the prefix and `delete` removes both forms.
+    const readRaw = (storage: Storage, key: string): string | null =>
+        storage.getItem(BRIO_WEB_STORAGE_PREFIX + key) ?? storage.getItem(key);
+
     return {
         get<T = unknown>(key: string): T | undefined {
             const storage = resolveStorage();
-            const raw = storage ? storage.getItem(key) : (fallback.get(key) ?? null);
+            const raw = storage ? readRaw(storage, key) : (fallback.get(key) ?? null);
             if (raw === null) return undefined;
             try {
                 return JSON.parse(raw) as T;
@@ -226,18 +277,20 @@ function createWebStorageAdapter(getWebStorage: () => Storage | undefined): Sync
             const serialized = JSON.stringify(value);
             const storage = resolveStorage();
             if (storage) {
-                storage.setItem(key, serialized);
+                storage.setItem(BRIO_WEB_STORAGE_PREFIX + key, serialized);
+                storage.removeItem(key);
             } else {
                 fallback.set(key, serialized);
             }
         },
         has(key: string): boolean {
             const storage = resolveStorage();
-            return storage ? storage.getItem(key) !== null : fallback.has(key);
+            return storage ? readRaw(storage, key) !== null : fallback.has(key);
         },
         delete(key: string): void {
             const storage = resolveStorage();
             if (storage) {
+                storage.removeItem(BRIO_WEB_STORAGE_PREFIX + key);
                 storage.removeItem(key);
             } else {
                 fallback.delete(key);
@@ -246,7 +299,13 @@ function createWebStorageAdapter(getWebStorage: () => Storage | undefined): Sync
         clear(): void {
             const storage = resolveStorage();
             if (storage) {
-                storage.clear();
+                // Collect first: removing while iterating shifts the indices of `Storage.key`.
+                const owned: string[] = [];
+                for (let i = 0; i < storage.length; i++) {
+                    const key = storage.key(i);
+                    if (key !== null && key.startsWith(BRIO_WEB_STORAGE_PREFIX)) owned.push(key);
+                }
+                for (const key of owned) storage.removeItem(key);
             } else {
                 fallback.clear();
             }
@@ -294,7 +353,14 @@ export class BrioStorage {
     };
 
     /**
+     * Prefix of every key that `session` and `local` write into Web Storage (`"brio:"`); `clear()` removes
+     * only keys with this prefix.
+     */
+    public static readonly webStoragePrefix: string = BRIO_WEB_STORAGE_PREFIX;
+
+    /**
      * Session-scoped storage backed by `window.sessionStorage` (with automatic in-memory fallback).
+     * Keys are stored as `"brio:" + key`; `clear()` removes only those keys.
      */
     public static readonly session: SyncStorageAdapter = createWebStorageAdapter(() =>
         typeof window !== "undefined" ? window.sessionStorage : undefined,
@@ -302,6 +368,7 @@ export class BrioStorage {
 
     /**
      * Persistent key-value storage backed by `window.localStorage` (with automatic in-memory fallback).
+     * Keys are stored as `"brio:" + key`; `clear()` removes only those keys.
      */
     public static readonly local: SyncStorageAdapter = createWebStorageAdapter(() =>
         typeof window !== "undefined" ? window.localStorage : undefined,

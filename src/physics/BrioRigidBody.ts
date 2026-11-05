@@ -12,7 +12,10 @@ export interface BrioRigidBodyOptions {
     gravity?: Vec3;
     /** Linear velocity damping / friction factor in `[0, 1]` applied per second (defaults to `0`). */
     friction?: number;
-    /** Bounciness / coefficient of restitution in `[0, 1]` (defaults to `0`). */
+    /**
+     * Bounciness / coefficient of restitution in `[0, 1]` used by
+     * `BrioRigidBody.applyCollisionResponse` (defaults to `0`).
+     */
     restitution?: number;
     /** If `true`, the body does not move under forces or impulses (defaults to `false`). */
     isStatic?: boolean;
@@ -80,7 +83,10 @@ export class BrioRigidBody {
         this.#friction = Math.max(0, Math.min(1, value));
     }
 
-    /** Coefficient of restitution (bounciness) in `[0, 1]`. */
+    /**
+     * Coefficient of restitution (bounciness) in `[0, 1]`, read by `applyCollisionResponse`:
+     * `0` absorbs the normal velocity on contact, `1` reflects it fully.
+     */
     public get restitution(): number {
         return this.#restitution;
     }
@@ -131,6 +137,48 @@ export class BrioRigidBody {
         this.velocity.x += impulse.x * this.#invMass;
         this.velocity.y += impulse.y * this.#invMass;
         this.velocity.z += (impulse.z ?? 0) * this.#invMass;
+    }
+
+    /**
+     * Applies the velocity response of a contact, using `restitution` to decide how much of the
+     * approach speed bounces back.
+     *
+     * `separation` is the vector that pushed this body out of the obstacle (for example the MTV
+     * returned by `BrioCollision.resolveCollision(mover, obstacle)` for this body as `mover`); only
+     * its direction is used. When the velocity points into the obstacle (`v . n < 0`), its normal
+     * component is reflected and scaled: `v -= (1 + restitution) * (v . n) * n`. With
+     * `restitution = 0` the body stops along the normal (slides along the surface); with `1` it
+     * bounces back at the same speed. The obstacle is treated as immovable, the tangential
+     * component is untouched, and a zero-length `separation` or a static body is a no-op.
+     *
+     * @param separation Separation direction `{ x, y, z? }` pointing from the obstacle to this body
+     * @returns `true` if the velocity was changed, otherwise `false`
+     * @example
+     * ```ts
+     * const mtv = BrioCollision.resolveCollision(ball, wall);
+     * if (mtv) body.applyCollisionResponse(mtv);
+     * ```
+     */
+    public applyCollisionResponse(separation: { x: number; y: number; z?: number }): boolean {
+        if (this.#isStatic) return false;
+
+        const sz = separation.z ?? 0;
+        const len = Math.hypot(separation.x, separation.y, sz);
+        if (len === 0) return false;
+
+        const nx = separation.x / len;
+        const ny = separation.y / len;
+        const nz = sz / len;
+        const vn = this.velocity.x * nx + this.velocity.y * ny + this.velocity.z * nz;
+        if (vn >= 0) return false;
+
+        const j = (1 + this.#restitution) * vn;
+        this.velocity.set(
+            this.velocity.x - j * nx,
+            this.velocity.y - j * ny,
+            this.velocity.z - j * nz,
+        );
+        return true;
     }
 
     /**

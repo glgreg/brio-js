@@ -155,35 +155,69 @@ export function approxEqual(a: number, b: number, epsilon: number = 1e-5): boole
 }
 
 /**
+ * Source of uniformly distributed floats in `[0, 1)` accepted by `randomRange` and `randomInt`.
+ *
+ * Either a function such as `Math.random`, or an object with a `next()` method such as a seeded
+ * `BrioRandom` (for example `game.random`), which makes the helpers deterministic.
+ *
+ * @example
+ * ```ts
+ * const fromFn: RandomSource = Math.random;
+ * const fromRng: RandomSource = game.random;
+ * ```
+ */
+export type RandomSource = (() => number) | { next(): number };
+
+/**
+ * Draws one float in `[0, 1)` from `source` without allocating.
+ *
+ * @param source Function or object with `next()`
+ * @returns Float in `[0, 1)`
+ */
+function draw(source: RandomSource): number {
+    return typeof source === "function" ? source() : source.next();
+}
+
+/**
  * Generates a random floating-point number in `[min, max)`.
+ *
+ * Uses `Math.random()` unless a `source` is given; pass a seeded `BrioRandom` (e.g. `game.random`)
+ * for reproducible results. Exactly one value is drawn from `source` per call.
  *
  * @param min Minimum bound (inclusive)
  * @param max Maximum bound (exclusive)
+ * @param source Random source (defaults to `Math.random`)
  * @returns Random float in `[min, max)`
  * @example
  * ```ts
  * const speed = BrioMath.randomRange(100, 250);
+ * const replayable = BrioMath.randomRange(100, 250, game.random);
  * ```
  */
-export function randomRange(min: number, max: number): number {
-    return min + Math.random() * (max - min);
+export function randomRange(min: number, max: number, source: RandomSource = Math.random): number {
+    return min + draw(source) * (max - min);
 }
 
 /**
  * Generates a random integer in `[min, max]` (both bounds inclusive).
  *
+ * Uses `Math.random()` unless a `source` is given; pass a seeded `BrioRandom` (e.g. `game.random`)
+ * for reproducible results. Exactly one value is drawn from `source` per call.
+ *
  * @param min Minimum integer (inclusive)
  * @param max Maximum integer (inclusive)
+ * @param source Random source (defaults to `Math.random`)
  * @returns Random integer in `[min, max]`
  * @example
  * ```ts
  * const dice = BrioMath.randomInt(1, 6);
+ * const replayableDice = BrioMath.randomInt(1, 6, game.random);
  * ```
  */
-export function randomInt(min: number, max: number): number {
+export function randomInt(min: number, max: number, source: RandomSource = Math.random): number {
     const ceilMin = Math.ceil(min);
     const floorMax = Math.floor(max);
-    return Math.floor(Math.random() * (floorMax - ceilMin + 1)) + ceilMin;
+    return Math.floor(draw(source) * (floorMax - ceilMin + 1)) + ceilMin;
 }
 
 export const BrioMath = {
@@ -201,4 +235,3 @@ export const BrioMath = {
 };
 
 export default BrioMath;
-

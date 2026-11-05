@@ -73,49 +73,67 @@ export class BrioQuat implements Quat {
         this.#w = w;
         this.#onChange = onChange;
 
-        Object.defineProperties(this, {
-            x: {
-                enumerable: true,
-                configurable: true,
-                get: (): number => (this.#buffer ? this.#buffer[this.#offset] : this.#x),
-                set: (value: number): void => {
-                    this.#x = value;
-                    if (this.#buffer) this.#buffer[this.#offset] = value;
-                    if (this.#onChange) this.#onChange(this.x, this.y, this.z, this.w);
-                },
-            },
-            y: {
-                enumerable: true,
-                configurable: true,
-                get: (): number => (this.#buffer ? this.#buffer[this.#offset + 1] : this.#y),
-                set: (value: number): void => {
-                    this.#y = value;
-                    if (this.#buffer) this.#buffer[this.#offset + 1] = value;
-                    if (this.#onChange) this.#onChange(this.x, this.y, this.z, this.w);
-                },
-            },
-            z: {
-                enumerable: true,
-                configurable: true,
-                get: (): number => (this.#buffer ? this.#buffer[this.#offset + 2] : this.#z),
-                set: (value: number): void => {
-                    this.#z = value;
-                    if (this.#buffer) this.#buffer[this.#offset + 2] = value;
-                    if (this.#onChange) this.#onChange(this.x, this.y, this.z, this.w);
-                },
-            },
-            w: {
-                enumerable: true,
-                configurable: true,
-                get: (): number => (this.#buffer ? this.#buffer[this.#offset + 3] : this.#w),
-                set: (value: number): void => {
-                    this.#w = value;
-                    if (this.#buffer) this.#buffer[this.#offset + 3] = value;
-                    if (this.#onChange) this.#onChange(this.x, this.y, this.z, this.w);
-                },
-            },
-        });
+        // Own enumerable accessors keep `{ ...q }`, `JSON.stringify` and deep equality working like
+        // a plain `Quat`, while the descriptor functions are shared by every instance (no closures).
+        Object.defineProperties(this, BrioQuat.#ACCESSORS);
     }
+
+    /** Fires the change listener with the current components. */
+    #notify(): void {
+        if (this.#onChange) this.#onChange(this.x, this.y, this.z, this.w);
+    }
+
+    /** Accessor descriptors shared by all instances; created once per class, not per instance. */
+    static readonly #ACCESSORS: PropertyDescriptorMap = {
+        x: {
+            enumerable: true,
+            configurable: true,
+            get(this: BrioQuat): number {
+                return this.#buffer ? this.#buffer[this.#offset] : this.#x;
+            },
+            set(this: BrioQuat, value: number): void {
+                this.#x = value;
+                if (this.#buffer) this.#buffer[this.#offset] = value;
+                this.#notify();
+            },
+        },
+        y: {
+            enumerable: true,
+            configurable: true,
+            get(this: BrioQuat): number {
+                return this.#buffer ? this.#buffer[this.#offset + 1] : this.#y;
+            },
+            set(this: BrioQuat, value: number): void {
+                this.#y = value;
+                if (this.#buffer) this.#buffer[this.#offset + 1] = value;
+                this.#notify();
+            },
+        },
+        z: {
+            enumerable: true,
+            configurable: true,
+            get(this: BrioQuat): number {
+                return this.#buffer ? this.#buffer[this.#offset + 2] : this.#z;
+            },
+            set(this: BrioQuat, value: number): void {
+                this.#z = value;
+                if (this.#buffer) this.#buffer[this.#offset + 2] = value;
+                this.#notify();
+            },
+        },
+        w: {
+            enumerable: true,
+            configurable: true,
+            get(this: BrioQuat): number {
+                return this.#buffer ? this.#buffer[this.#offset + 3] : this.#w;
+            },
+            set(this: BrioQuat, value: number): void {
+                this.#w = value;
+                if (this.#buffer) this.#buffer[this.#offset + 3] = value;
+                this.#notify();
+            },
+        },
+    };
 
     /**
      * Binds this quaternion directly to a 4-float slot in an ECS `Float32Array` buffer.
@@ -294,7 +312,12 @@ export function fromAxisAngle(out: Quat, axis: Vec3, angleRad: number): Quat {
 }
 
 /**
- * Sets `out` from intrinsic XYZ Euler angles (pitch `x`, yaw `y`, roll `z`) in radians.
+ * Sets `out` from Euler angles in radians, composed as `q = qz(z) * qy(y) * qx(x)`.
+ *
+ * The rotation is applied about the X axis first, then Y, then Z, all around the fixed world
+ * axes (extrinsic X-Y-Z). This is the same rotation as the intrinsic Z-Y'-X'' sequence (yaw `z`,
+ * then pitch `y`, then roll `x` about the rotated axes). `toEuler` uses the matching extraction,
+ * so the pair round-trips while `y` stays inside `(-PI/2, PI/2)`.
  *
  * @param out Destination quaternion
  * @param x Rotation around X-axis in radians
@@ -323,7 +346,9 @@ export function fromEuler(out: Quat, x: number, y: number, z: number): Quat {
 }
 
 /**
- * Extracts Euler angles (in radians, XYZ order) from quaternion `q` into `out`.
+ * Extracts Euler angles in radians from quaternion `q` into `out`, using the convention of
+ * `fromEuler` (`q = qz(z) * qy(y) * qx(x)`, extrinsic X-Y-Z). At the gimbal-lock singularity
+ * `out.y` is clamped to `+-PI/2`.
  *
  * @param out Destination `Vec3` receiving `{ x, y, z }` in radians
  * @param q Source unit quaternion

@@ -83,39 +83,55 @@ export class BrioVec3 implements Vec3 {
         this.#z = z;
         this.#onChange = onChange;
 
-        Object.defineProperties(this, {
-            x: {
-                enumerable: true,
-                configurable: true,
-                get: (): number => (this.#buffer ? this.#buffer[this.#offset] : this.#x),
-                set: (value: number): void => {
-                    this.#x = value;
-                    if (this.#buffer) this.#buffer[this.#offset] = value;
-                    if (this.#onChange) this.#onChange(this.x, this.y, this.z);
-                },
-            },
-            y: {
-                enumerable: true,
-                configurable: true,
-                get: (): number => (this.#buffer ? this.#buffer[this.#offset + 1] : this.#y),
-                set: (value: number): void => {
-                    this.#y = value;
-                    if (this.#buffer) this.#buffer[this.#offset + 1] = value;
-                    if (this.#onChange) this.#onChange(this.x, this.y, this.z);
-                },
-            },
-            z: {
-                enumerable: true,
-                configurable: true,
-                get: (): number => (this.#buffer ? this.#buffer[this.#offset + 2] : this.#z),
-                set: (value: number): void => {
-                    this.#z = value;
-                    if (this.#buffer) this.#buffer[this.#offset + 2] = value;
-                    if (this.#onChange) this.#onChange(this.x, this.y, this.z);
-                },
-            },
-        });
+        // Own enumerable accessors keep `{ ...v }`, `JSON.stringify` and deep equality working like
+        // a plain `Vec3`, while the descriptor functions are shared by every instance (no closures).
+        Object.defineProperties(this, BrioVec3.#ACCESSORS);
     }
+
+    /** Fires the change listener with the current components. */
+    #notify(): void {
+        if (this.#onChange) this.#onChange(this.x, this.y, this.z);
+    }
+
+    /** Accessor descriptors shared by all instances; created once per class, not per instance. */
+    static readonly #ACCESSORS: PropertyDescriptorMap = {
+        x: {
+            enumerable: true,
+            configurable: true,
+            get(this: BrioVec3): number {
+                return this.#buffer ? this.#buffer[this.#offset] : this.#x;
+            },
+            set(this: BrioVec3, value: number): void {
+                this.#x = value;
+                if (this.#buffer) this.#buffer[this.#offset] = value;
+                this.#notify();
+            },
+        },
+        y: {
+            enumerable: true,
+            configurable: true,
+            get(this: BrioVec3): number {
+                return this.#buffer ? this.#buffer[this.#offset + 1] : this.#y;
+            },
+            set(this: BrioVec3, value: number): void {
+                this.#y = value;
+                if (this.#buffer) this.#buffer[this.#offset + 1] = value;
+                this.#notify();
+            },
+        },
+        z: {
+            enumerable: true,
+            configurable: true,
+            get(this: BrioVec3): number {
+                return this.#buffer ? this.#buffer[this.#offset + 2] : this.#z;
+            },
+            set(this: BrioVec3, value: number): void {
+                this.#z = value;
+                if (this.#buffer) this.#buffer[this.#offset + 2] = value;
+                this.#notify();
+            },
+        },
+    };
 
     /**
      * Binds this vector directly to a 3-float slot in an ECS `Float32Array` buffer.
@@ -385,12 +401,17 @@ export function normalize(out: Vec3, v: Vec3): Vec3 {
  * @param min Minimum component bounds
  * @param max Maximum component bounds
  * @returns `out`
+ * @throws {Error} When a component of `min` is strictly greater than the same component of `max`
+ * (same contract as `BrioMath.clamp`); `out` is left untouched in that case
  * @example
  * ```ts
  * Vector3.clamp(pos, { x: -10, y: 0, z: -10 }, { x: 10, y: 50, z: 10 });
  * ```
  */
-export function clamp(out: Vec3, min: Vec3, max: Vec3): Vec3 {
+export function clamp(out: Vec3, min: Readonly<Vec3>, max: Readonly<Vec3>): Vec3 {
+    if (min.x > max.x || min.y > max.y || min.z > max.z) {
+        throw new Error("clamp.min was set to higher than clamp.max");
+    }
     out.x = Math.max(min.x, Math.min(max.x, out.x));
     out.y = Math.max(min.y, Math.min(max.y, out.y));
     out.z = Math.max(min.z, Math.min(max.z, out.z));

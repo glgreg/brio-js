@@ -107,6 +107,14 @@ void main() {
 }`;
 
 /** GPU-resident buffers of one `BrioMesh`, uploaded once and reused every frame. */
+/** Removes `item` from `list` (swap with the last element; order is irrelevant for owned-resource lists). */
+function removeItem<T>(list: T[], item: T): void {
+    const index = list.indexOf(item);
+    if (index < 0) return;
+    list[index] = list[list.length - 1];
+    list.pop();
+}
+
 interface GpuGeometry {
     vao: WebGLVertexArrayObject;
     buffers: WebGLBuffer[];
@@ -114,6 +122,7 @@ interface GpuGeometry {
     indexCount: number;
     /** Line-list edge buffer, built on the first wireframe draw. */
     wireVao?: WebGLVertexArrayObject;
+    wireBuffer?: WebGLBuffer;
     wireCount: number;
 }
 
@@ -228,7 +237,9 @@ export class WebGL2Backend implements RenderBackend {
     #trianglesRendered = 0;
 
     constructor() {
-        this.setLights(buildLightingEnvironment(BrioLight.createDefaultRig(), createLightingEnvironment()));
+        this.setLights(
+            buildLightingEnvironment(BrioLight.createDefaultRig(), createLightingEnvironment()),
+        );
     }
 
     /**
@@ -247,7 +258,10 @@ export class WebGL2Backend implements RenderBackend {
         data[12] = environment.directionalCount;
         for (let i = 0; i < environment.directionalCount; i++) {
             data.set(environment.directions.subarray(i * 3, i * 3 + 3), 16 + i * 4);
-            data.set(environment.colors.subarray(i * 3, i * 3 + 3), 16 + MAX_DIRECTIONAL_LIGHTS * 4 + i * 4);
+            data.set(
+                environment.colors.subarray(i * 3, i * 3 + 3),
+                16 + MAX_DIRECTIONAL_LIGHTS * 4 + i * 4,
+            );
         }
         this.#lightsDirty = true;
     }
@@ -445,6 +459,43 @@ export class WebGL2Backend implements RenderBackend {
         this.#opaque.length = 0;
         this.#transparent.length = 0;
         this.#composite();
+    }
+
+    /**
+     * Frees the GPU buffers uploaded for `mesh` (they are uploaded again if the mesh is drawn later).
+     *
+     * @param mesh Mesh whose geometry is released
+     */
+    public releaseMesh(mesh: BrioMesh): void {
+        const geometry = this.#geometries.get(mesh);
+        if (!geometry) return;
+        this.#geometries.delete(mesh);
+        const gl = this.#gl;
+        const buffers = geometry.wireBuffer
+            ? [...geometry.buffers, geometry.wireBuffer]
+            : geometry.buffers;
+        const vaos = geometry.wireVao ? [geometry.vao, geometry.wireVao] : [geometry.vao];
+        for (const buffer of buffers) {
+            removeItem(this.#ownedBuffers, buffer);
+            if (gl && !this.#contextLost) gl.deleteBuffer(buffer);
+        }
+        for (const vao of vaos) {
+            removeItem(this.#ownedVaos, vao);
+            if (gl && !this.#contextLost) gl.deleteVertexArray(vao);
+        }
+    }
+
+    /**
+     * Frees the GPU texture uploaded for `texture`.
+     *
+     * @param texture Texture whose GPU copy is released
+     */
+    public releaseTexture(texture: BrioTexture): void {
+        const handle = this.#textures.get(texture);
+        if (!handle) return;
+        this.#textures.delete(texture);
+        removeItem(this.#ownedTextures, handle);
+        if (this.#gl && !this.#contextLost) this.#gl.deleteTexture(handle);
     }
 
     /**
@@ -684,6 +735,7 @@ export class WebGL2Backend implements RenderBackend {
         this.#ownedBuffers.push(lineBuffer);
 
         geometry.wireVao = vao;
+        geometry.wireBuffer = lineBuffer;
         geometry.wireCount = lines.length;
         return vao;
     }
