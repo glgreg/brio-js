@@ -75,7 +75,7 @@ describe("BrioCompositor integration in BrioGame", () => {
         expect(sortSpy).not.toHaveBeenCalled();
 
         // Changing a depth is detected without any notification and triggers exactly one re-sort
-        game.gameObjects.get("obj_0")!.transform.layer = 0;
+        game.gameObjects.get("obj_0")!.transform.depth = 0;
         game.renderFrame();
         expect(sortSpy).toHaveBeenCalledTimes(1);
     });

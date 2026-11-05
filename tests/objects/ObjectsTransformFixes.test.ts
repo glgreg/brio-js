@@ -6,23 +6,23 @@ import { BrioTransform3D } from "../../src/objects/BrioTransform3D";
 import { BrioSerializer } from "../../src/storage/BrioSerializer";
 
 describe("BrioTransform3D reads the ECS slot when bound", () => {
-    it("opacity and layer getters follow direct buffer writes", () => {
+    it("opacity and depth getters follow direct buffer writes", () => {
         const world = new ECSWorld(4);
         const id = world.createEntity(ComponentMask.TRANSFORM_3D);
         const t = new BrioTransform3D();
         t.opacity = 0.5;
-        t.layer = 3;
+        t.depth = 3;
         t.bindECS(world.storage, id);
 
         const base = world.storage.getTransform3DOffset(id);
         world.storage.transform3D[base + 13] = 0.25;
         world.storage.transform3D[base + 14] = 9;
         expect(t.opacity).toBe(0.25);
-        expect(t.layer).toBe(9);
+        expect(t.depth).toBe(9);
 
         t.unbindECS();
         expect(t.opacity).toBe(0.25);
-        expect(t.layer).toBe(9);
+        expect(t.depth).toBe(9);
     });
 
     it("invalidates the cached local and world matrices on direct buffer writes", () => {

@@ -136,25 +136,17 @@ export class BrioCollision {
 
             return dx * dx + dy * dy <= radiusSum * radiusSum;
         } else {
-            const rect1 = {
-                x: one.transform.position.x + one.collision.pos.x,
-                y: one.transform.position.y + one.collision.pos.y,
-                w: one.collision.size.x,
-                h: one.collision.size.y,
-            };
-
-            const rect2 = {
-                x: two.transform.position.x + two.collision.pos.x,
-                y: two.transform.position.y + two.collision.pos.y,
-                w: two.collision.size.x,
-                h: two.collision.size.y,
-            };
+            // Scalars instead of rectangle literals: this runs for every candidate pair, every frame
+            const ax = one.transform.position.x + one.collision.pos.x;
+            const ay = one.transform.position.y + one.collision.pos.y;
+            const bx = two.transform.position.x + two.collision.pos.x;
+            const by = two.transform.position.y + two.collision.pos.y;
 
             return !(
-                rect1.x + rect1.w <= rect2.x ||
-                rect2.x + rect2.w <= rect1.x ||
-                rect1.y + rect1.h <= rect2.y ||
-                rect2.y + rect2.h <= rect1.y
+                ax + one.collision.size.x <= bx ||
+                bx + two.collision.size.x <= ax ||
+                ay + one.collision.size.y <= by ||
+                by + two.collision.size.y <= ay
             );
         }
     }

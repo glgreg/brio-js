@@ -14,6 +14,7 @@ import { Mat4 } from "../math/index";
 import { BrioLight } from "../objects/BrioLight";
 import { RenderBackend } from "./contracts/RenderBackend";
 import { buildLightingEnvironment, createLightingEnvironment } from "./lighting";
+import { drawTileMaps } from "./BrioTileMapRenderer";
 
 type Context2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -63,6 +64,20 @@ export interface CompositorStats {
     staticRedraws: number;
     /** `"static"` layer caches re-rasterized since the compositor was created. */
     staticRedrawsTotal: number;
+    /** Tile map chunk images drawn in the last frame (`BrioTileMap` on a layer). */
+    tileChunksDrawn: number;
+    /** `BrioObject3D` meshes submitted to the 3D backend in the last frame. */
+    objects3DDrawn: number;
+    /** `BrioObject3D` meshes skipped by per-object frustum culling in the last frame. */
+    objects3DCulled: number;
+}
+
+/** Local bounding sphere of a mesh (center and radius in mesh space). */
+interface MeshBounds {
+    x: number;
+    y: number;
+    z: number;
+    radius: number;
 }
 
 /** Cached raster of a `"static"` layer for one camera, valid while the camera state below is unchanged. */
@@ -77,6 +92,7 @@ interface StaticLayerCache {
     width: number;
     height: number;
     scale: number;
+    pixelRatio: number;
 }
 
 function compareLayerOrder(a: BrioLayer, b: BrioLayer): number {
@@ -92,7 +108,9 @@ function compareLayerOrder(a: BrioLayer, b: BrioLayer): number {
  *    - `"static"`: rasterized into an offscreen cache per camera and only re-rasterized when the layer, one of its objects,
  *      the camera, or `game.scale` changes;
  * 2. one **3D pass per `BrioCamera3D`** through the active `RenderBackend`;
- * 3. every **`"ui"` layer** once in canvas (screen) space, on top of all viewports.
+ *
+ * and then, once every source's world content is drawn, every **`"ui"` layer** of every source in canvas (screen)
+ * space, on top of all viewports (so a game-level HUD stays above the active scene).
  *
  * @example
  * ```ts
@@ -118,7 +136,16 @@ export class BrioCompositor {
         objectsCulled: 0,
         staticRedraws: 0,
         staticRedrawsTotal: 0,
+        tileChunksDrawn: 0,
+        objects3DDrawn: 0,
+        objects3DCulled: 0,
     };
+    /** Bounding spheres of meshes, computed once per mesh (positions are treated as immutable). */
+    readonly #meshBounds = new WeakMap<BrioMesh, MeshBounds>();
+    /** World-space sphere center reused by the culling test. */
+    readonly #cullCenter = { x: 0, y: 0, z: 0 };
+    /** Canvas pixels per logical pixel of the frame being rendered. */
+    #pixelRatio: number = 1;
 
     /**
      * Creates a new `BrioCompositor`.
@@ -160,6 +187,8 @@ export class BrioCompositor {
      * @param gameScale Global `game.scale` multiplier
      * @param sources Sources rendered back-to-front (e.g. the game, then its active scene)
      * @param debug Debug overlays drawn inside 2D camera passes
+     * @param pixelRatio Canvas pixels per logical pixel (`ctx` already maps logical pixels; `"static"` layer caches
+     * are rasterized at this resolution)
      */
     public renderFrame(
         ctx: Context2D,
@@ -168,6 +197,7 @@ export class BrioCompositor {
         gameScale: number,
         sources: readonly CompositorSource[],
         debug: CompositorDebugOptions,
+        pixelRatio: number = 1,
     ): void {
         const stats = this.#stats;
         stats.passes2D = 0;
@@ -175,6 +205,10 @@ export class BrioCompositor {
         stats.objectsDrawn = 0;
         stats.objectsCulled = 0;
         stats.staticRedraws = 0;
+        stats.tileChunksDrawn = 0;
+        stats.objects3DDrawn = 0;
+        stats.objects3DCulled = 0;
+        this.#pixelRatio = pixelRatio > 0 ? pixelRatio : 1;
 
         for (let s = 0; s < sources.length; s++) {
             const source = sources[s];
@@ -196,10 +230,26 @@ export class BrioCompositor {
             }
 
             this.#render3DPasses(source, width, height);
+        }
 
+        // Screen-space "ui" layers of every source go on top of all world content (a game-level HUD stays
+        // visible over the active scene)
+        for (let s = 0; s < sources.length; s++) {
+            const layers = sources[s].layers.sortIfNeeded(compareLayerOrder);
             for (let l = 0; l < layers.length; l++) {
                 const layer = layers[l];
                 if (!layer.visible || layer.policy !== "ui") continue;
+                if (layer.tileMaps.length > 0) {
+                    stats.tileChunksDrawn += drawTileMaps(
+                        ctx,
+                        layer.tileMaps,
+                        0,
+                        0,
+                        width / gameScale,
+                        height / gameScale,
+                        gameScale,
+                    );
+                }
                 const objects = layer.getSortedObjects();
                 for (let i = 0; i < objects.length; i++) {
                     this.#sprites.renderObject(objects[i], ctx);
@@ -256,6 +306,7 @@ export class BrioCompositor {
                 ctx.save();
                 ctx.translate(vx, vy);
                 this.#applyCameraTransform(ctx, camera, layer, vw, vh, gameScale);
+                this.#drawLayerTileMaps(ctx, layer, camera, vw, vh, gameScale);
                 const cull = layer.policy === "dynamic" && camera.rotation === 0 && gameScale === 1;
                 this.#drawObjects(ctx, layer.getSortedObjects(), cull ? camera : undefined);
                 ctx.restore();
@@ -300,6 +351,43 @@ export class BrioCompositor {
         ctx.translate(-camera.renderX * sf.x * gameScale, -camera.renderY * sf.y * gameScale);
     }
 
+    /** Draws the visible chunks of the layer's tile maps (world rectangle seen by `camera`, rotation-safe). */
+    #drawLayerTileMaps(
+        ctx: Context2D,
+        layer: BrioLayer,
+        camera: BrioCamera2D,
+        vw: number,
+        vh: number,
+        gameScale: number,
+    ): void {
+        if (layer.tileMaps.length === 0) return;
+        const sf = layer.scrollFactor;
+        const k = 1 / (camera.zoom * gameScale);
+        let left = camera.renderX * sf.x;
+        let top = camera.renderY * sf.y;
+        let right = left + vw * k;
+        let bottom = top + vh * k;
+        if (camera.rotation !== 0) {
+            // A rotated view fits in the circle around its center
+            const cx = (left + right) * 0.5;
+            const cy = (top + bottom) * 0.5;
+            const half = Math.hypot(vw, vh) * 0.5 * k;
+            left = cx - half;
+            right = cx + half;
+            top = cy - half;
+            bottom = cy + half;
+        }
+        this.#stats.tileChunksDrawn += drawTileMaps(
+            ctx,
+            layer.tileMaps,
+            left,
+            top,
+            right,
+            bottom,
+            gameScale,
+        );
+    }
+
     #drawObjects(
         ctx: Context2D,
         objects: readonly BrioObject2D[],
@@ -333,6 +421,7 @@ export class BrioCompositor {
             ctx.save();
             ctx.translate(vx, vy);
             this.#applyCameraTransform(ctx, camera, layer, vw, vh, gameScale);
+            this.#drawLayerTileMaps(ctx, layer, camera, vw, vh, gameScale);
             this.#drawObjects(ctx, layer.getSortedObjects());
             ctx.restore();
             return;
@@ -352,15 +441,20 @@ export class BrioCompositor {
             cache.width !== vw ||
             cache.height !== vh ||
             cache.scale !== gameScale ||
+            cache.pixelRatio !== this.#pixelRatio ||
             this.#hasDirtyObject(source.world, objects);
 
         if (stale) {
             const cctx = cache.ctx;
+            const ratio = this.#pixelRatio;
             cctx.setTransform(1, 0, 0, 1, 0, 0);
-            cctx.clearRect(0, 0, vw, vh);
+            cctx.clearRect(0, 0, cache.surface.width, cache.surface.height);
+            // The cache is rasterized at the canvas resolution, in logical pixels like the main context
+            cctx.setTransform(ratio, 0, 0, ratio, 0, 0);
             this.#sprites.applySmoothingTo(cctx);
             cctx.save();
             this.#applyCameraTransform(cctx, camera, layer, vw, vh, gameScale);
+            this.#drawLayerTileMaps(cctx, layer, camera, vw, vh, gameScale);
             this.#drawObjects(cctx, objects);
             cctx.restore();
 
@@ -374,9 +468,10 @@ export class BrioCompositor {
             cache.width = vw;
             cache.height = vh;
             cache.scale = gameScale;
+            cache.pixelRatio = this.#pixelRatio;
         }
 
-        ctx.drawImage(cache.surface as CanvasImageSource, vx, vy);
+        ctx.drawImage(cache.surface as CanvasImageSource, vx, vy, vw, vh);
     }
 
     #hasDirtyObject(world: ECSWorld, objects: readonly BrioObject2D[]): boolean {
@@ -413,12 +508,15 @@ export class BrioCompositor {
                 width: 0,
                 height: 0,
                 scale: 1,
+                pixelRatio: 1,
             };
             perCamera.set(camera, cache);
         }
-        if (cache.surface.width !== vw || cache.surface.height !== vh) {
-            cache.surface.width = vw;
-            cache.surface.height = vh;
+        const pw = Math.max(1, Math.round(vw * this.#pixelRatio));
+        const ph = Math.max(1, Math.round(vh * this.#pixelRatio));
+        if (cache.surface.width !== pw || cache.surface.height !== ph) {
+            cache.surface.width = pw;
+            cache.surface.height = ph;
             cache.valid = false;
         }
         return cache;
@@ -438,7 +536,8 @@ export class BrioCompositor {
         const backend = this.#backend3D;
         if (!backend || source.cameras3D.length === 0 || source.objects3D.length === 0) return;
         if (backend.setLights) {
-            const lights = source.lights && source.lights.length > 0 ? source.lights : this.#defaultLights;
+            const lights =
+                source.lights && source.lights.length > 0 ? source.lights : this.#defaultLights;
             backend.setLights(buildLightingEnvironment(lights, this.#lightEnvironment));
         }
 
@@ -456,24 +555,87 @@ export class BrioCompositor {
             const viewProj = camera.viewProjectionMatrix;
             for (let i = 0; i < source.objects3D.length; i++) {
                 const obj = source.objects3D[i];
-                if (!obj.parent) this.#renderObject3D(backend, obj, viewProj);
+                if (!obj.parent) this.#renderObject3D(backend, obj, viewProj, camera);
             }
             backend.endFrame();
         }
     }
 
-    #renderObject3D(backend: RenderBackend, obj: BrioObject3D, viewProj: Mat4): void {
+    #renderObject3D(
+        backend: RenderBackend,
+        obj: BrioObject3D,
+        viewProj: Mat4,
+        camera: BrioCamera3D,
+    ): void {
         if (!obj.transform.visibility) return;
         if (obj.mesh) {
             const mesh = this.#meshes.get(obj.mesh);
             if (mesh) {
-                const material = this.#materials.get(obj.material) ?? this.#defaultMaterial;
-                backend.renderMesh3D(mesh, material, obj.transform.worldMatrix, viewProj);
+                const world = obj.transform.worldMatrix;
+                if (this.#isMeshVisible(mesh, world, camera)) {
+                    const material = this.#materials.get(obj.material) ?? this.#defaultMaterial;
+                    backend.renderMesh3D(mesh, material, world, viewProj);
+                    this.#stats.objects3DDrawn++;
+                } else {
+                    this.#stats.objects3DCulled++;
+                }
             }
         }
         const children = obj.children;
         for (let i = 0; i < children.length; i++) {
-            this.#renderObject3D(backend, children[i], viewProj);
+            this.#renderObject3D(backend, children[i], viewProj, camera);
         }
+    }
+
+    /** Tests the world-space bounding sphere of `mesh` (placed by `world`) against the camera frustum. */
+    #isMeshVisible(mesh: BrioMesh, world: Mat4, camera: BrioCamera3D): boolean {
+        let bounds = this.#meshBounds.get(mesh);
+        if (!bounds) {
+            bounds = BrioCompositor.#computeMeshBounds(mesh);
+            this.#meshBounds.set(mesh, bounds);
+        }
+        if (bounds.radius < 0) return true;
+        const c = this.#cullCenter;
+        c.x = world[0] * bounds.x + world[4] * bounds.y + world[8] * bounds.z + world[12];
+        c.y = world[1] * bounds.x + world[5] * bounds.y + world[9] * bounds.z + world[13];
+        c.z = world[2] * bounds.x + world[6] * bounds.y + world[10] * bounds.z + world[14];
+        // The largest axis scale bounds the stretched sphere
+        const sx = world[0] * world[0] + world[1] * world[1] + world[2] * world[2];
+        const sy = world[4] * world[4] + world[5] * world[5] + world[6] * world[6];
+        const sz = world[8] * world[8] + world[9] * world[9] + world[10] * world[10];
+        const radius = bounds.radius * Math.sqrt(Math.max(sx, sy, sz));
+        return camera.isSphereInFrustum(c, radius);
+    }
+
+    /** Bounding sphere around the box center of `mesh` (`radius < 0` for meshes without vertices: never culled). */
+    static #computeMeshBounds(mesh: BrioMesh): MeshBounds {
+        const p = mesh.positions;
+        if (p.length < 3) return { x: 0, y: 0, z: 0, radius: -1 };
+        let minX = Infinity;
+        let minY = Infinity;
+        let minZ = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        let maxZ = -Infinity;
+        for (let i = 0; i + 2 < p.length; i += 3) {
+            if (p[i] < minX) minX = p[i];
+            if (p[i] > maxX) maxX = p[i];
+            if (p[i + 1] < minY) minY = p[i + 1];
+            if (p[i + 1] > maxY) maxY = p[i + 1];
+            if (p[i + 2] < minZ) minZ = p[i + 2];
+            if (p[i + 2] > maxZ) maxZ = p[i + 2];
+        }
+        const x = (minX + maxX) * 0.5;
+        const y = (minY + maxY) * 0.5;
+        const z = (minZ + maxZ) * 0.5;
+        let r2 = 0;
+        for (let i = 0; i + 2 < p.length; i += 3) {
+            const dx = p[i] - x;
+            const dy = p[i + 1] - y;
+            const dz = p[i + 2] - z;
+            const d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 > r2) r2 = d2;
+        }
+        return { x, y, z, radius: Math.sqrt(r2) };
     }
 }

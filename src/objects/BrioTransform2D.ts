@@ -29,8 +29,8 @@ export interface Transform2D {
     visibility: boolean;
     /** Opacity factor clamped to `[0, 1]`. */
     opacity: number;
-    /** Non-negative rendering depth order (z-index). */
-    layer: number;
+    /** Non-negative drawing order inside the object's `BrioLayer` (higher draws on top). */
+    depth: number;
     /** Optional parent `BrioTransform2D` in the scene hierarchy. */
     parent?: BrioTransform2D;
     /** Read-only list of child `BrioTransform2D` nodes attached to this transform. */
@@ -61,7 +61,7 @@ export class BrioTransform2D implements Transform2D {
     #flip: Vec2Bool = { x: false, y: false };
     #visibility: boolean = true;
     #opacity: number = 1;
-    #layer: number = 1;
+    #depth: number = 1;
 
     #parent?: BrioTransform2D;
     #children: BrioTransform2D[] = [];
@@ -141,12 +141,12 @@ export class BrioTransform2D implements Transform2D {
         if (adopt) {
             this.#rotation = buf[base + 12];
             this.#opacity = buf[base + 13];
-            this.#layer = buf[base + 14];
+            this.#depth = buf[base + 14];
             this.#visibility = storage.visual[vis] !== 0;
         } else {
             buf[base + 12] = this.#rotation;
             buf[base + 13] = this.#opacity;
-            buf[base + 14] = this.#layer;
+            buf[base + 14] = this.#depth;
             storage.visual[vis] = this.#visibility ? 1 : 0;
         }
         return this;
@@ -168,7 +168,7 @@ export class BrioTransform2D implements Transform2D {
         const buf = this.#ecsStorage.transform2D;
         this.#rotation = buf[base + 12];
         this.#opacity = buf[base + 13];
-        this.#layer = buf[base + 14];
+        this.#depth = buf[base + 14];
         this.#visibility =
             this.#ecsStorage.visual[
                 this.#ecsStorage.getVisualOffset(this.#entityId) + VISUAL_VISIBILITY_OFFSET
@@ -404,22 +404,30 @@ export class BrioTransform2D implements Transform2D {
     }
 
     /**
-     * Rendering depth layer (z-index). Negative values are converted to their absolute value.
+     * Drawing order inside the object's `BrioLayer` (higher values draw on top). Not to be confused with the
+     * `BrioLayer` itself, which groups objects into composition planes. Negative values are converted to their
+     * absolute value.
+     *
+     * @example
+     * ```ts
+     * shadow.transform.depth = 0;
+     * player.transform.depth = 1; // drawn over the shadow in the same layer
+     * ```
      */
-    public set layer(layer: number) {
-        this.#layer = Math.abs(layer);
+    public set depth(depth: number) {
+        this.#depth = Math.abs(depth);
         if (this.#ecsStorage && this.#entityId >= 0) {
             const base = this.#ecsStorage.getTransform2DOffset(this.#entityId);
-            this.#ecsStorage.transform2D[base + 14] = this.#layer;
+            this.#ecsStorage.transform2D[base + 14] = this.#depth;
         }
         this.#markDirty();
     }
-    public get layer(): number {
+    public get depth(): number {
         if (this.#ecsStorage && this.#entityId >= 0) {
             const base = this.#ecsStorage.getTransform2DOffset(this.#entityId);
             return this.#ecsStorage.transform2D[base + 14];
         }
-        return this.#layer;
+        return this.#depth;
     }
 
     /**

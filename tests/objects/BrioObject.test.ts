@@ -7,7 +7,7 @@ describe("BrioObject2D", () => {
         const obj = new BrioObject2D("player", "spr_player", -3.2);
         expect(obj.name).toBe("player");
         expect(obj.sprite).toBe("spr_player");
-        expect(obj.transform.layer).toBe(3);
+        expect(obj.transform.depth).toBe(3);
         expect(obj.instanceId).toBe(0);
     });
 
@@ -40,7 +40,7 @@ describe("BrioObject2D", () => {
         expect(cloned).not.toBe(original);
         expect(cloned.name).toBe("orc");
         expect(cloned.sprite).toBe("spr_orc");
-        expect(cloned.transform.layer).toBe(2);
+        expect(cloned.transform.depth).toBe(2);
         expect(cloned.transform.position).toEqual({ x: 12, y: 24 });
         expect(cloned.transform.size).toEqual({ x: 48, y: 64 });
         expect(cloned.transform.rotation).toBeCloseTo(Math.PI / 4);

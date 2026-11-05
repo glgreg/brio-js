@@ -1,6 +1,7 @@
 import { BrioSprite } from "../assets/BrioSprite";
 import { BrioGame } from "./BrioGame";
 import { BrioObject2D } from "../objects/BrioObject2D";
+import { BrioText } from "../objects/BrioText";
 import { Vec2 } from "../math/index";
 import { BrioAssetManager } from "./BrioAssetManager";
 
@@ -104,7 +105,9 @@ export class BrioSpriteRenderer {
      *
      * @param ctx Target 2D context
      */
-    public applySmoothingTo(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D): void {
+    public applySmoothingTo(
+        ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    ): void {
         const mode = this.#game.rendering.mode;
         ctx.imageSmoothingEnabled = mode === "smooth";
         if (mode === "smooth") {
@@ -189,12 +192,26 @@ export class BrioSpriteRenderer {
 
         // Sprite opacity
         ctx.globalAlpha = object.transform.opacity;
+        const dx = translated ? -renderWidth * object.transform.pivot.x : 0;
+        const dy = translated ? -renderHeight * object.transform.pivot.y : 0;
+
+        if (object instanceof BrioText) {
+            const size = object.transform.size;
+            object.drawText(
+                ctx,
+                dx,
+                dy,
+                size.x > 0 ? renderWidth / size.x : 1,
+                size.y > 0 ? renderHeight / size.y : 1,
+            );
+            ctx.restore();
+            return;
+        }
+
         const sprite = this.#assets.sprites.get(object.sprite) ?? BrioSprite.getEmptyInstance();
 
         // Sprite rendering: a sprite with a source rectangle (spritesheet cell, atlas region) draws only
         // that part of its image
-        const dx = translated ? -renderWidth * object.transform.pivot.x : 0;
-        const dy = translated ? -renderHeight * object.transform.pivot.y : 0;
         const source = sprite.sourceRect;
         if (source) {
             ctx.drawImage(
@@ -494,4 +511,3 @@ export class BrioSpriteRenderer {
         this.#ctx.fillText(this.gameLastFPS.toFixed(1), pos.x + size / 2, pos.y + size * 1.1);
     }
 }
-

@@ -18,8 +18,8 @@ export interface Transform3D {
     visibility: boolean;
     /** Opacity factor clamped to `[0, 1]`. */
     opacity: number;
-    /** Rendering layer index. */
-    layer: number;
+    /** Non-negative drawing order (depth) of the object. */
+    depth: number;
     /** Optional parent `BrioTransform3D` in the 3D scene graph. */
     parent?: BrioTransform3D;
     /** Read-only array of child `BrioTransform3D` nodes. */
@@ -49,7 +49,7 @@ export class BrioTransform3D implements Transform3D {
     #quaternion: BrioQuat;
     #visibility: boolean = true;
     #opacity: number = 1;
-    #layer: number = 1;
+    #depth: number = 1;
 
     #parent?: BrioTransform3D;
     #children: BrioTransform3D[] = [];
@@ -147,12 +147,12 @@ export class BrioTransform3D implements Transform3D {
         const vis = storage.getVisualOffset(entityId) + VISUAL_VISIBILITY_OFFSET;
         if (adopt) {
             this.#opacity = buf[base + 13];
-            this.#layer = buf[base + 14];
+            this.#depth = buf[base + 14];
             this.#visibility = storage.visual[vis] !== 0;
             this.#markLocalDirty();
         } else {
             buf[base + 13] = this.#opacity;
-            buf[base + 14] = this.#layer;
+            buf[base + 14] = this.#depth;
             storage.visual[vis] = this.#visibility ? 1 : 0;
         }
         return this;
@@ -169,7 +169,7 @@ export class BrioTransform3D implements Transform3D {
         const base = this.#ecsStorage.getTransform3DOffset(this.#entityId);
         const buf = this.#ecsStorage.transform3D;
         this.#opacity = buf[base + 13];
-        this.#layer = buf[base + 14];
+        this.#depth = buf[base + 14];
         this.#visibility =
             this.#ecsStorage.visual[
                 this.#ecsStorage.getVisualOffset(this.#entityId) + VISUAL_VISIBILITY_OFFSET
@@ -282,20 +282,20 @@ export class BrioTransform3D implements Transform3D {
         this.#markWorldDirty();
     }
 
-    /** Rendering layer index (depth inside a `BrioLayer`); read from the ECS slot when bound. */
-    public get layer(): number {
+    /** Non-negative drawing order (depth) of the object; read from the ECS slot when bound. */
+    public get depth(): number {
         if (this.#ecsStorage && this.#entityId >= 0) {
             return this.#ecsStorage.transform3D[
                 this.#ecsStorage.getTransform3DOffset(this.#entityId) + 14
             ];
         }
-        return this.#layer;
+        return this.#depth;
     }
-    public set layer(value: number) {
-        this.#layer = Math.abs(value);
+    public set depth(value: number) {
+        this.#depth = Math.abs(value);
         if (this.#ecsStorage && this.#entityId >= 0) {
             const base = this.#ecsStorage.getTransform3DOffset(this.#entityId);
-            this.#ecsStorage.transform3D[base + 14] = this.#layer;
+            this.#ecsStorage.transform3D[base + 14] = this.#depth;
         }
         this.#markWorldDirty();
     }
