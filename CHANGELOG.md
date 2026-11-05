@@ -17,6 +17,8 @@ While the major version is `0`, minor releases may include breaking changes.
   `BrioCamera2D.worldToScreen` / `screenToWorld`.
 - `BrioAudioMixer.resume()` and `isSuspended`; `AsyncDatabaseStorage.isPersistent()` and `persistent`.
 - `BrioScene` `layout` constructor argument and `useLayout()`; `game.addScene()` narrows scenes to the game preset.
+- `THIRD_PARTY_NOTICES.md` in the npm package, with the three.js and Godot notices; ADR 0007 records the policy for
+  adapting third-party code.
 
 ### Fixed
 
