@@ -2,6 +2,7 @@ import { BrioAudio } from "../assets/BrioAudio";
 import { BrioSprite } from "../assets/BrioSprite";
 import { BrioAtlas } from "../assets/BrioAtlas";
 import { BrioSpriteSheet } from "../assets/BrioSpriteSheet";
+import { BrioShader } from "../assets/BrioShader";
 import { BrioModel } from "../assets/BrioModel";
 import { BrioMesh } from "../assets/BrioMesh";
 import { BrioMaterial } from "../assets/BrioMaterial";
@@ -64,6 +65,7 @@ export class BrioAssetManager implements BrioAssets {
     readonly #cameras3D = new BrioRegistry<BrioCamera3D>();
     readonly #atlases = new Map<string, BrioAtlas>();
     readonly #spriteSheets = new Map<string, BrioSpriteSheet>();
+    readonly #shaders = new Map<string, BrioShader>();
 
     /** Map of active `BrioObject2D` entities keyed by `name`. */
     public get objects(): Map<string, BrioObject2D> {
@@ -116,6 +118,11 @@ export class BrioAssetManager implements BrioAssets {
     }
 
     /** Map of preloaded `BrioAtlas` texture atlases keyed by `name`. */
+    /** Preloaded `BrioShader` assets keyed by name. */
+    public get shaders(): Map<string, BrioShader> {
+        return this.#shaders;
+    }
+
     /** Preloaded `BrioSpriteSheet` assets keyed by name. */
     public get spriteSheets(): Map<string, BrioSpriteSheet> {
         return this.#spriteSheets;

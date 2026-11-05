@@ -1,6 +1,13 @@
 import { clamp } from "../math/BrioMath";
 import { CSSColor } from "../tools/base_types";
 import { BrioTexture } from "./BrioTexture";
+import type { BrioShader } from "./BrioShader";
+
+/**
+ * Value of a custom shader parameter: a number (`float`), an array of 2 to 4 numbers (`vec2` to `vec4`), or a CSS
+ * color (linear `vec3`).
+ */
+export type ShaderParameterValue = number | readonly number[] | CSSColor;
 
 /**
  * Shading model applied when rendering a `BrioMaterial`:
@@ -41,6 +48,10 @@ export interface BrioMaterialOptions {
     emissive?: CSSColor;
     /** Multiplier of `emissive` (defaults to `1`); values above `1` glow brighter with tone mapping. */
     emissiveIntensity?: number;
+    /** Custom GLSL hooks (`BrioShader`, or the name of a preloaded one). WebGL2 only. */
+    shader?: BrioShader | string;
+    /** Values of the custom shader's uniforms, by uniform name. */
+    parameters?: Record<string, ShaderParameterValue>;
 }
 
 /**
@@ -72,6 +83,13 @@ export class BrioMaterial {
     public emissive: CSSColor;
     /** Multiplier of `emissive`. */
     public emissiveIntensity: number;
+    /**
+     * Custom GLSL hooks of this material, or the name of a `BrioShader` that `preload()` resolves (see
+     * `BrioShader`). `undefined` uses the built-in shader only.
+     */
+    public shader?: BrioShader | string;
+    /** Values uploaded to the custom shader's uniforms every draw, by uniform name (see `set()`). */
+    public readonly parameters: Record<string, ShaderParameterValue>;
 
     /**
      * Creates a new `BrioMaterial`.
@@ -92,6 +110,24 @@ export class BrioMaterial {
         this.#metalness = clamp(options.metalness ?? 0, 0, 1);
         this.emissive = options.emissive ?? "#000000";
         this.emissiveIntensity = Math.max(0, options.emissiveIntensity ?? 1);
+        this.shader = options.shader;
+        this.parameters = { ...options.parameters };
+    }
+
+    /**
+     * Sets a custom shader parameter (the uniform of the same name).
+     *
+     * @param name Uniform name
+     * @param value Number, 2-4 component array, or CSS color
+     * @returns This material
+     * @example
+     * ```ts
+     * mat.set("uDissolve", Math.min(1, timeSinceHit));
+     * ```
+     */
+    public set(name: string, value: ShaderParameterValue): this {
+        this.parameters[name] = value;
+        return this;
     }
 
     /**

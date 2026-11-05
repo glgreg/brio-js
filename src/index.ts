@@ -11,6 +11,7 @@ import { BrioSpriteSheet as SpriteSheet } from "./assets/BrioSpriteSheet";
 import { BrioAnimation as Animation } from "./assets/BrioAnimation";
 import { BrioMesh as Mesh } from "./assets/BrioMesh";
 import { BrioMaterial as Material } from "./assets/BrioMaterial";
+import { BrioShader as Shader } from "./assets/BrioShader";
 import { BrioModel as Model } from "./assets/BrioModel";
 import { OBJLoader } from "./assets/loaders/OBJLoader";
 import { GLBLoader } from "./assets/loaders/GLBLoader";
@@ -85,7 +86,9 @@ export type {
     FlatTileGrid,
     TiledImportOptions,
 } from "./assets/BrioTileMap";
-export type { BrioMaterialOptions } from "./assets/BrioMaterial";
+export type { BrioMaterialOptions, ShaderParameterValue } from "./assets/BrioMaterial";
+export type { BrioShaderOptions } from "./assets/BrioShader";
+export type { BrioShadowOptions } from "./objects/BrioLight";
 export type { BrioModelOptions, ModelFormat, ModelBoundingBox } from "./assets/BrioModel";
 export type { ParsedModelData, OBJLoaderOptions } from "./assets/loaders/OBJLoader";
 export type {
@@ -214,6 +217,7 @@ export {
     Animation as BrioAnimation,
     Mesh as BrioMesh,
     Material as BrioMaterial,
+    Shader as BrioShader,
     Model as BrioModel,
     OBJLoader,
     GLBLoader,
@@ -288,6 +292,7 @@ const Brio = {
     Animation,
     Mesh,
     Material,
+    Shader,
     Model,
     OBJLoader,
     GLBLoader,

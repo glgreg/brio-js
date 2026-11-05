@@ -35,6 +35,7 @@ import { BrioVec2, create } from "../math/vec2";
 import { BrioRandom, BrioRandomSeed } from "../math/BrioRandom";
 import { BrioAtlas } from "../assets/BrioAtlas";
 import { BrioSpriteSheet } from "../assets/BrioSpriteSheet";
+import { BrioShader } from "../assets/BrioShader";
 import type { BrioTexture } from "../assets/BrioTexture";
 import { ECSWorld } from "../ecs/ECSWorld";
 import { ComponentMask } from "../ecs/ComponentStorage";
@@ -164,6 +165,7 @@ export type LoaderCallbackFunction = (
  */
 export type PreloadAsset =
     | BrioSprite
+    | BrioShader
     | BrioSpriteSheet
     | BrioAudio
     | BrioAtlas
@@ -506,6 +508,8 @@ export class BrioGame {
         this.#interpolateObject(object);
     };
     #random: BrioRandom = new BrioRandom();
+    /** Game time in seconds (`game.time`). */
+    #time: number = 0;
     /** Contact trackers behind `onCollisionEnter` / `onCollisionStay` / `onCollisionExit`. */
     readonly #collisions2D = new CollisionEventSystem<BrioObject2D>(
         isColliding2D,
@@ -783,6 +787,19 @@ export class BrioGame {
      * game.timer.after(2.0, () => console.log("2 seconds of gameplay elapsed!"));
      * ```
      */
+    /**
+     * Seconds of game time simulated so far (the sum of the clamped `deltaTime` of every frame step). It stops while
+     * the game is paused and is exposed to custom shaders as `TIME`, so animated materials freeze with the game.
+     *
+     * @example
+     * ```ts
+     * const bob = Math.sin(game.time * 2) * 0.1;
+     * ```
+     */
+    public get time(): number {
+        return this.#time;
+    }
+
     public get timer(): BrioTimer {
         return this.#timer;
     }
@@ -1007,6 +1024,11 @@ export class BrioGame {
      */
     public get loadedSpriteSheets(): Map<string, BrioSpriteSheet> {
         return this.#assets.spriteSheets;
+    }
+
+    /** Map of preloaded `BrioShader` assets keyed by name. */
+    public get loadedShaders(): Map<string, BrioShader> {
+        return this.#assets.shaders;
     }
 
     /**
@@ -1300,6 +1322,12 @@ export class BrioGame {
         const sheets = assets.filter(
             (asset): asset is BrioSpriteSheet => asset instanceof BrioSpriteSheet,
         );
+        const shaders = assets.filter((asset): asset is BrioShader => asset instanceof BrioShader);
+        const shaderPromises = shaders.map(async (shader) => {
+            await shader.load();
+            this.#assets.shaders.set(shader.name, shader);
+            progress(shader.name);
+        });
 
         for (const asset of assets) {
             if (asset instanceof BrioMesh) {
@@ -1378,11 +1406,27 @@ export class BrioGame {
             progress(sheet.name);
         });
 
+        await Promise.all(shaderPromises);
         await Promise.all(sheetPromises);
         await Promise.all(spriteLoadPromises);
         await Promise.all(spriteAtlasPromises);
         await Promise.all(audioLoadPromises);
         await Promise.all(modelLoadPromises);
+
+        // Materials may name their shader: resolve the names against every shader loaded so far
+        for (const asset of assets) {
+            if (asset instanceof BrioMaterial && typeof asset.shader === "string") {
+                const shader = this.#assets.shaders.get(asset.shader);
+                if (shader) {
+                    asset.shader = shader;
+                } else {
+                    this.#console.out(
+                        "warn",
+                        `Material '${asset.name}' names the shader '${asset.shader}', which was not preloaded.`,
+                    );
+                }
+            }
+        }
     }
 
     /**
@@ -1768,6 +1812,8 @@ export class BrioGame {
         // Poll gamepads and advance frame-synchronized timers
         this.#gamepadInstance?.poll();
         this.#timer.update(deltaTime);
+        this.#time += deltaTime;
+        this.#compositor.time = this.#time;
 
         this.#renderDebuggingGrid();
 
@@ -2353,6 +2399,9 @@ export class BrioGame {
         if (asset instanceof BrioSprite) {
             if (a.sprites.get(asset.name) !== asset) return false;
             a.sprites.delete(asset.name);
+        } else if (asset instanceof BrioShader) {
+            if (a.shaders.get(asset.name) !== asset) return false;
+            a.shaders.delete(asset.name);
         } else if (asset instanceof BrioSpriteSheet) {
             if (a.spriteSheets.get(asset.name) !== asset) return false;
             a.spriteSheets.delete(asset.name);
@@ -2383,6 +2432,7 @@ export class BrioGame {
         const a = this.#assets;
         return (
             a.sprites.get(name) ??
+            a.shaders.get(name) ??
             a.spriteSheets.get(name) ??
             a.atlases.get(name) ??
             a.audios.get(name) ??
@@ -2841,6 +2891,7 @@ export class BrioGame {
         this.#assets.sprites.clear();
         this.#assets.atlases.clear();
         this.#assets.spriteSheets.clear();
+        this.#assets.shaders.clear();
         this.#assetOwners.clear();
         this.#layers.clear();
         this.#layers.add(new BrioLayer({ name: DEFAULT_LAYER_NAME, order: 0, policy: "dynamic" }));
