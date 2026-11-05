@@ -73,9 +73,15 @@ Measure on the presentation machine, with the browser's own GPU (not SwiftShader
 
 ### P-3: golden screenshots after visual changes
 
-The 3D work in progress (lights, tone mapping, shadows, custom shaders) changes the pixels of
-`e2e/orbit-gallery.spec.ts`. Regenerate the goldens on the desktop machine with `npm run test:e2e:update`,
-review the new images in the pull request, and check that CI (Ubuntu image) agrees.
+The 3D work changes pixels in some cases. Regenerate the goldens on the desktop machine with
+`npm run test:e2e:update`, review the new images in the pull request, and check that CI (Ubuntu image) agrees.
+
+- `feat/3d-lighting`: WebGL2 output is unchanged with the defaults (no tone mapping, exposure 1, no fog, no emissive),
+  so the WebGL2 goldens should still match. The **Canvas2D** golden of `e2e/orbit-gallery.spec.ts` can change: the
+  fallback now lights triangles with world-space normals (rotated objects used to keep the lighting of their rest
+  pose).
+- Later 3D branches (shadows, custom shaders, the 3D demo) add new goldens that must be generated on the desktop
+  machine; their specs are written to fail clearly when a golden is missing.
 
 ## Fixed without a new measurement
 

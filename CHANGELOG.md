@@ -8,6 +8,17 @@ While the major version is `0`, minor releases may include breaking changes.
 
 ### Added
 
+- `"point"` and `"spot"` `BrioLight`s with `position`, `range`, `decay`, `angle` and `penumbra` (up to 8 per pass,
+  `KHR_lights_punctual` attenuation), on WebGL2 and on the Canvas2D fallback.
+- `shading: "standard"` on `BrioMaterial`: metallic-roughness shading with GGX highlights, Fresnel and reflections
+  of the hemisphere sky (`roughness`, `metalness`); `emissive` and `emissiveIntensity` on every material.
+- `BrioCamera3D` `toneMapping` (`"none"`, `"reinhard"`, `"aces"`, `"agx"`, `"neutral"`), `exposure` and distance `fog`
+  (`"linear"`, `"exponential"`, `"exponential2"`), applied per camera pass; `RenderBackend.setPassParameters?()`.
+- A shader program that fails to compile or link is logged once and its draws are skipped, instead of throwing
+  inside the frame (D-07).
+- `tests/rendering/ShaderSources.test.ts` compiles every WebGL2 program variant offline with `glslangValidator`
+  when it is installed.
+
 - `scene.onFixedUpdate()`: scene simulation at the game's fixed rate (`1 / 60` when the game has no
   `fixedUpdate()`), smoothed by `interpolate` like game objects.
 - `game.onError()` and an error boundary in the frame loop: an exception in `update()`, `fixedUpdate()`, a scene
@@ -31,6 +42,7 @@ While the major version is `0`, minor releases may include breaking changes.
 - Render interpolation covers rotation and scale (2D angle, 3D quaternion along the shortest arc), not only
   position (D-19).
 - The canvas claims touch gestures (`touch-action: none`), so dragging on a game no longer scrolls or zooms the page.
+- The Canvas2D fallback lights triangles with world-space normals (rotated objects used to keep their lighting).
 
 ### Fixed
 

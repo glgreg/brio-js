@@ -119,7 +119,7 @@ game.preload(() => [
 ]);
 ```
 
-- [ ] D-07: program failure never throws from a draw. It logs once with file and line, then uses the last good program or a visible error material. Use `KHR_parallel_shader_compile` when present (WP-15).
+- [~] D-07: program failure never throws from a draw. It logs once with file and line, then uses the last good program or a visible error material. Use `KHR_parallel_shader_compile` when present (WP-15).
 - [ ] Rewrite the built-in fragment shader on the same hooks, so `inject()` and `standard` share one path.
 - [ ] `BrioShader` from a `.glsl` file or inline, accepted by `game.preload()` and `scene.preload()`.
 - [ ] `surface` domain with `vertex()`, `fragment()` and `light()` hooks and built-ins. `TIME` comes from game time.
@@ -135,11 +135,11 @@ game.preload(() => [
 - [ ] Canvas2D: warns once and uses the `fallback`.
 - [ ] Global parameters: `game.shaderGlobals` (WP-22).
 
-### S4 Lights and standard material `[ ]`
+### S4 Lights and standard material `[~]`
 
-- [ ] `point` and `spot` in `BrioLight` and the `BrioLights` UBO, fixed capacity, attenuation from `KHR_lights_punctual`. No recompile when the count changes (WP-16). Lights stay JS objects in this sprint.
-- [ ] Canvas2D: point lights through luminance per triangle.
-- [ ] `shading: "standard"`, with GGX, metallic and roughness, ported from `three: ShaderChunk`, built on the hooks of S3.
+- [x] `point` and `spot` in `BrioLight` and the `BrioLights` UBO, fixed capacity, attenuation from `KHR_lights_punctual`. No recompile when the count changes (WP-16). Lights stay JS objects in this sprint.
+- [x] Canvas2D: point lights through luminance per triangle.
+- [~] `shading: "standard"`, with GGX, metallic and roughness, ported from `three: ShaderChunk`, built on the hooks of S3. Done with scalar `roughness` / `metalness`, written directly in the built-in shader (the S3 hooks do not exist yet).
 - [ ] Normal, metallic-roughness, occlusion and emissive maps; `TANGENT` or derivative frame; `COLOR_0`; glTF import with `KHR_materials_unlit`, `KHR_materials_emissive_strength`, `KHR_texture_transform`, `KHR_lights_punctual` (WP-17).
 - [ ] Per-texel alpha blend, object-level sort.
 - [ ] `"toon"` shading.
@@ -273,4 +273,5 @@ Add one line per merged item: date, item, pull request, and anything the maintai
 | 2026-10-31 | Planning | Sprint created; planning documents not yet committed |
 | 2026-10-31 | S0 | PR #13. Node and npm not installed; Bun sequence accepted as the equivalent for now |
 | 2026-11-05 | v0.2.0 | PR #14, released as 0.2.0. S1 rig, D-20, 3D frustum culling, scene camera random, text, tile maps, input map, DPR and fit |
+| 2026-11-05 | S4 | `feat/3d-lighting`: point and spot lights, `"standard"` shading, emissive, tone mapping, exposure and fog per camera, D-07 logging (no fallback material yet). Shaders validated offline with `glslangValidator`; browser goldens pending on a desktop machine |
 | 2026-11-05 | S2 | `fix/s2-repairs`: D-01, D-04, D-06, D-12, D-14, D-18, D-19, empty 3D pass clear, loop error boundary, pause when hidden, touch-action, heap budget test. D-02 (glTF accessors) stays open. Browser and performance runs moved to a desktop machine: [`PERFORMANCE_FOLLOWUPS.md`](./PERFORMANCE_FOLLOWUPS.md) |
