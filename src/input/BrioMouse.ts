@@ -1,5 +1,6 @@
-import { BrioCamera2D } from "../cameras/BrioCamera2D";
+import { BrioCamera2D, CameraScreenSpace2D } from "../cameras/BrioCamera2D";
 import { BrioVec2, Vec2 } from "../math/vec2";
+import { InputLogicalSize, mapClientToTarget } from "./InputSpace";
 
 /**
  * Standard mouse button names mapped from `MouseEvent.button`.
@@ -14,6 +15,15 @@ const BUTTON_INDEX_MAP: Record<MouseButton, number> = {
     forward: 4,
 };
 
+/** Every `MouseButton` in `MouseEvent.button` index order (`MOUSE_BUTTON_NAMES[i]` is button `i`). */
+export const MOUSE_BUTTON_NAMES: readonly MouseButton[] = Object.freeze([
+    "left",
+    "middle",
+    "right",
+    "back",
+    "forward",
+]);
+
 /**
  * Mouse input controller (`BrioMouse`) tracking pointer position (canvas-relative and world-space),
  * movement delta, scroll wheel delta, and button states (`isDown`, `isPressed`, `isUp`).
@@ -21,6 +31,10 @@ const BUTTON_INDEX_MAP: Record<MouseButton, number> = {
  * Press and release edges are latched by the DOM events and consumed by `endFrame()`, so a click shorter than
  * one frame still reports `isPressed` and `isUp` once. Held buttons are released when the window loses focus
  * or the page is hidden.
+ *
+ * On a canvas, positions are canvas pixels: the backing store size by default, or `logicalSize` when set (HiDPI
+ * canvases whose backing store is larger than the game's logical resolution). While the pointer is locked
+ * (`requestPointerLock()`), `position` stays frozen and `delta` accumulates the raw `movementX`/`movementY`.
  *
  * @example
  * ```ts
@@ -38,8 +52,21 @@ export class BrioMouse {
     readonly #target: HTMLElement | Window;
     readonly #position: BrioVec2 = new BrioVec2(0, 0);
     readonly #delta: BrioVec2 = new BrioVec2(0, 0);
+    readonly #mapped: { x: number; y: number } = { x: 0, y: 0 };
+    /** Reused screen space for `getWorldPosition`, so the conversion does not allocate. */
+    readonly #screenSpace: CameraScreenSpace2D = {
+        canvasWidth: undefined,
+        canvasHeight: undefined,
+        scale: 1,
+    };
     #wheelDelta: number = 0;
     #attached: boolean = false;
+    #logicalSize: InputLogicalSize | undefined = undefined;
+    #pointerLocked: boolean = false;
+    /** After the lock is released the cursor reappears elsewhere: the next move re-bases without a delta jump. */
+    #resyncPosition: boolean = false;
+    #lockResolve: (() => void) | undefined = undefined;
+    #lockReject: ((reason: Error) => void) | undefined = undefined;
 
     readonly #currentButtons = new Map<number, boolean>();
     /** Buttons that went down since the last `endFrame()`. */
@@ -54,6 +81,8 @@ export class BrioMouse {
     readonly #onContextMenu: (e: MouseEvent) => void;
     readonly #onBlur: () => void;
     readonly #onVisibilityChange: () => void;
+    readonly #onPointerLockChange: () => void;
+    readonly #onPointerLockError: () => void;
     readonly #releaseHeld: (value: boolean, button: number) => void;
 
     /**
@@ -63,31 +92,36 @@ export class BrioMouse {
      *
      * @param target Target DOM element or `window` (defaults to `window`)
      * @param preventContextMenu Whether to suppress the right-click context menu on `target` (defaults to `true`)
+     * @param logicalSize Optional logical coordinate space for canvas positions (see `logicalSize`)
      */
-    constructor(target: HTMLElement | Window = window, preventContextMenu: boolean = true) {
+    constructor(
+        target: HTMLElement | Window = window,
+        preventContextMenu: boolean = true,
+        logicalSize?: InputLogicalSize,
+    ) {
         this.#target = target;
+        this.#logicalSize = logicalSize;
 
         this.#onMouseMove = (e: MouseEvent) => {
-            let nextX = e.clientX;
-            let nextY = e.clientY;
-            if (this.#target instanceof HTMLElement) {
-                const rect = this.#target.getBoundingClientRect();
-                const scaleX =
-                    this.#target instanceof HTMLCanvasElement && rect.width > 0
-                        ? this.#target.width / rect.width
-                        : 1;
-                const scaleY =
-                    this.#target instanceof HTMLCanvasElement && rect.height > 0
-                        ? this.#target.height / rect.height
-                        : 1;
-                nextX = (e.clientX - rect.left) * scaleX;
-                nextY = (e.clientY - rect.top) * scaleY;
+            if (this.#pointerLocked) {
+                // Locked: the cursor is hidden and clientX/Y are frozen, only relative motion is meaningful
+                this.#delta.set(
+                    this.#delta.x + (e.movementX || 0),
+                    this.#delta.y + (e.movementY || 0),
+                );
+                return;
             }
-            this.#delta.set(
-                this.#delta.x + (nextX - this.#position.x),
-                this.#delta.y + (nextY - this.#position.y),
-            );
-            this.#position.set(nextX, nextY);
+            const mapped = this.#mapped;
+            mapClientToTarget(this.#target, this.#logicalSize, e.clientX, e.clientY, mapped);
+            if (this.#resyncPosition) {
+                this.#resyncPosition = false;
+            } else {
+                this.#delta.set(
+                    this.#delta.x + (mapped.x - this.#position.x),
+                    this.#delta.y + (mapped.y - this.#position.y),
+                );
+            }
+            this.#position.set(mapped.x, mapped.y);
         };
 
         this.#onMouseDown = (e: MouseEvent) => {
@@ -124,6 +158,21 @@ export class BrioMouse {
             }
         };
 
+        this.#onPointerLockChange = () => {
+            const locked =
+                typeof document !== "undefined" && document.pointerLockElement === this.#target;
+            if (this.#pointerLocked && !locked) this.#resyncPosition = true;
+            this.#pointerLocked = locked;
+            if (locked) this.#settleLock(undefined);
+            else if (this.#lockResolve) {
+                this.#settleLock(new Error("Pointer lock was taken by another element."));
+            }
+        };
+
+        this.#onPointerLockError = () => {
+            this.#settleLock(new Error("Pointer lock request was denied by the browser."));
+        };
+
         this.#releaseHeld = (value: boolean, button: number) => {
             if (value) {
                 this.#currentButtons.set(button, false);
@@ -139,7 +188,11 @@ export class BrioMouse {
         return this.#position;
     }
 
-    /** Pointer movement delta `{ x, y }` accumulated during the current frame. */
+    /**
+     * Pointer movement delta `{ x, y }` accumulated during the current frame. Unlocked, it is the change of
+     * `position` (canvas pixels); while the pointer is locked, it is the sum of raw `movementX`/`movementY`
+     * (device-dependent CSS pixels, not scaled to the canvas), the input for mouse-look.
+     */
     public get delta(): Vec2 {
         return this.#delta;
     }
@@ -155,9 +208,121 @@ export class BrioMouse {
     }
 
     /**
+     * Logical coordinate space for canvas positions. When set, client coordinates are scaled by
+     * `logicalSize.width / rect.width` (and height) instead of the canvas backing store size, so a HiDPI
+     * canvas still reports positions in game pixels; `getWorldPosition` uses the same size. It is read on
+     * every event, so pass a live object (such as the game) rather than a copy of its numbers.
+     *
+     * @default undefined (backing store `canvas.width` / `canvas.height`)
+     * @example
+     * ```ts
+     * game.mouse.logicalSize = game;
+     * ```
+     */
+    public get logicalSize(): InputLogicalSize | undefined {
+        return this.#logicalSize;
+    }
+    public set logicalSize(value: InputLogicalSize | undefined) {
+        this.#logicalSize = value;
+    }
+
+    /**
+     * Whether the pointer is currently locked to this controller's target (`document.pointerLockElement`), as
+     * reported by the latest `pointerlockchange` event.
+     *
+     * @example
+     * ```ts
+     * if (game.mouse.isPointerLocked) camera.yaw -= game.mouse.delta.x * 0.002;
+     * ```
+     */
+    public get isPointerLocked(): boolean {
+        return this.#pointerLocked;
+    }
+
+    /**
+     * Locks the pointer to the target element (Pointer Lock API) for mouse-look: the cursor is hidden,
+     * `position` stays where it was and `delta` reports raw relative motion. Browsers only grant the lock
+     * inside a user gesture (a click or key handler), and the user can always leave it with Escape. Browsers
+     * whose `requestPointerLock()` returns nothing are handled through the `pointerlockchange` and
+     * `pointerlockerror` events.
+     *
+     * @param options Optional `PointerLockOptions` (e.g. `{ unadjustedMovement: true }` to bypass OS mouse
+     * acceleration where supported)
+     * @returns A promise that resolves once the lock is active, and rejects when the target is not an element,
+     * the API is unavailable, or the browser denies the request
+     * @example
+     * ```ts
+     * canvas.addEventListener("click", () => {
+     *     game.mouse.requestPointerLock().catch(() => {});
+     * });
+     * ```
+     */
+    public requestPointerLock(options?: PointerLockOptions): Promise<void> {
+        const target = this.#target;
+        if (!(target instanceof HTMLElement) || typeof target.requestPointerLock !== "function") {
+            return Promise.reject(
+                new Error(
+                    "Pointer lock needs an element target that supports requestPointerLock().",
+                ),
+            );
+        }
+        if (this.#pointerLocked) return Promise.resolve();
+        // A newer request supersedes an unsettled one
+        this.#settleLock(new Error("Pointer lock request was superseded."));
+        const pending = new Promise<void>((resolve, reject) => {
+            this.#lockResolve = resolve;
+            this.#lockReject = reject;
+        });
+        let result: Promise<void> | undefined;
+        try {
+            result = target.requestPointerLock(options) as Promise<void> | undefined;
+        } catch (error) {
+            this.#settleLock(error instanceof Error ? error : new Error(String(error)));
+            return pending;
+        }
+        if (result && typeof result.then === "function") {
+            result.then(
+                () => this.#settleLock(undefined),
+                (error: unknown) =>
+                    this.#settleLock(error instanceof Error ? error : new Error(String(error))),
+            );
+        }
+        return pending;
+    }
+
+    /**
+     * Releases the pointer lock if this controller's target holds it. Safe to call at any time.
+     *
+     * @example
+     * ```ts
+     * if (game.keyboard.isPressed("Escape")) game.mouse.exitPointerLock();
+     * ```
+     */
+    public exitPointerLock(): void {
+        if (typeof document === "undefined") return;
+        if (
+            document.pointerLockElement === this.#target &&
+            typeof document.exitPointerLock === "function"
+        ) {
+            document.exitPointerLock();
+        }
+    }
+
+    /** Resolves (`error` undefined) or rejects the pending lock request, if any. */
+    #settleLock(error: Error | undefined): void {
+        const resolve = this.#lockResolve;
+        const reject = this.#lockReject;
+        this.#lockResolve = undefined;
+        this.#lockReject = undefined;
+        if (error === undefined) resolve?.();
+        else reject?.(error);
+    }
+
+    /**
      * Returns the pointer coordinates converted into 2D world space through `camera`, honoring its rotation,
      * zoom, shake and viewport (split-screen, minimaps). When the target is a canvas, the position is read as
-     * canvas pixels and the camera viewport offset is applied; otherwise it is read as viewport-local pixels.
+     * canvas pixels (in the `logicalSize` space when set) and the camera viewport offset is applied; otherwise it
+     * is read as viewport-local pixels.
      *
      * @param camera Active `BrioCamera2D`
      * @param scale Global render scale (`game.scale`) (defaults to `1`)
@@ -170,14 +335,17 @@ export class BrioMouse {
      */
     public getWorldPosition(camera: BrioCamera2D, scale: number = 1, out?: Vec2): Vec2 {
         const target = this.#target;
+        const space = this.#screenSpace;
+        space.scale = scale;
         if (typeof HTMLCanvasElement !== "undefined" && target instanceof HTMLCanvasElement) {
-            return camera.screenToWorld(
-                this.#position,
-                { canvasWidth: target.width, canvasHeight: target.height, scale },
-                out,
-            );
+            const logical = this.#logicalSize;
+            space.canvasWidth = logical !== undefined ? logical.width : target.width;
+            space.canvasHeight = logical !== undefined ? logical.height : target.height;
+        } else {
+            space.canvasWidth = undefined;
+            space.canvasHeight = undefined;
         }
-        return camera.screenToWorld(this.#position, { scale }, out);
+        return camera.screenToWorld(this.#position, space, out);
     }
 
     /**
@@ -279,13 +447,17 @@ export class BrioMouse {
         window.addEventListener("blur", this.#onBlur);
         if (typeof document !== "undefined") {
             document.addEventListener("visibilitychange", this.#onVisibilityChange);
+            document.addEventListener("pointerlockchange", this.#onPointerLockChange);
+            document.addEventListener("pointerlockerror", this.#onPointerLockError);
+            this.#pointerLocked = document.pointerLockElement === this.#target;
         }
         this.#attached = true;
         BrioMouse.#activeByTarget.set(this.#target, this);
     }
 
     /**
-     * Detaches all DOM event listeners registered by this `BrioMouse` instance. Idempotent.
+     * Detaches all DOM event listeners registered by this `BrioMouse` instance and rejects a pending
+     * `requestPointerLock()`. Idempotent. An active pointer lock is left alone (`exitPointerLock()` ends it).
      *
      * @example
      * ```ts
@@ -302,7 +474,11 @@ export class BrioMouse {
         window.removeEventListener("blur", this.#onBlur);
         if (typeof document !== "undefined") {
             document.removeEventListener("visibilitychange", this.#onVisibilityChange);
+            document.removeEventListener("pointerlockchange", this.#onPointerLockChange);
+            document.removeEventListener("pointerlockerror", this.#onPointerLockError);
         }
+        // Without the listeners a pending request could never settle
+        this.#settleLock(new Error("Mouse controller was detached."));
         this.#attached = false;
         if (BrioMouse.#activeByTarget.get(this.#target) === this) {
             BrioMouse.#activeByTarget.delete(this.#target);
