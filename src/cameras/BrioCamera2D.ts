@@ -74,6 +74,10 @@ const SCREEN_SPACE = {
  * camera.shake(8, 0.3);
  * ```
  */
+/** Scratch vectors for world positions read every frame (follow target, culling). */
+const FOLLOW_TARGET = { x: 0, y: 0 };
+const CULL_POSITION = { x: 0, y: 0 };
+
 export class BrioCamera2D {
     readonly #name: string;
     readonly #pos: BrioVec2;
@@ -266,10 +270,10 @@ export class BrioCamera2D {
             const viewW = this.#size.x / this.#zoom;
             const viewH = this.#size.y / this.#zoom;
 
-            const targetCenterX =
-                this.#target.transform.position.x + this.#target.transform.renderSize.x * 0.5;
-            const targetCenterY =
-                this.#target.transform.position.y + this.#target.transform.renderSize.y * 0.5;
+            // World position, so a target inside a hierarchy is followed where it is drawn (D-01)
+            const targetPos = this.#target.transform.getWorldPosition(FOLLOW_TARGET);
+            const targetCenterX = targetPos.x + this.#target.transform.renderSize.x * 0.5;
+            const targetCenterY = targetPos.y + this.#target.transform.renderSize.y * 0.5;
 
             const camCenterX = this.#pos.x + viewW * 0.5;
             const camCenterY = this.#pos.y + viewH * 0.5;
@@ -419,9 +423,13 @@ export class BrioCamera2D {
     }
 
     /**
-     * Performs 2D Frustum Culling to test whether `object` overlaps the visible camera rectangle.
+     * Performs 2D Frustum Culling to test whether `object` overlaps the visible camera rectangle. Conservative for
+     * rotated cameras, rotated or skewed objects and objects inside a hierarchy (their bounds are widened), so it
+     * never hides an object that would be on screen.
      *
      * @param object 2D `BrioObject2D` to test
+     * @param gameScale Global `game.scale` the layer is drawn with (defaults to `1`)
+     * @param scrollFactor Layer scroll factor (parallax), defaults to `{ x: 1, y: 1 }`
      * @returns `true` if `object` is visible and inside the camera frustum
      * @example
      * ```ts
@@ -430,21 +438,62 @@ export class BrioCamera2D {
      * }
      * ```
      */
-    public isVisible(object: BrioObject2D): boolean {
+    public isVisible(
+        object: BrioObject2D,
+        gameScale: number = 1,
+        scrollFactor?: { readonly x: number; readonly y: number },
+    ): boolean {
         if (!object.transform.visibility || object.transform.opacity <= 0) return false;
+        const transform = object.transform;
 
         // Reads the shake-adjusted position directly so per-object culling does not allocate
-        const rpX = this.#pos.x + this.#shakeOffset.x;
-        const rpY = this.#pos.y + this.#shakeOffset.y;
-        const viewW = this.#size.x / this.#zoom;
-        const viewH = this.#size.y / this.#zoom;
+        const sfx = scrollFactor ? scrollFactor.x : 1;
+        const sfy = scrollFactor ? scrollFactor.y : 1;
+        const k = 1 / (this.#zoom * (gameScale > 0 ? gameScale : 1));
+        const viewW = this.#size.x * k;
+        const viewH = this.#size.y * k;
+        let left = (this.#pos.x + this.#shakeOffset.x) * sfx;
+        let top = (this.#pos.y + this.#shakeOffset.y) * sfy;
+        let right = left + viewW;
+        let bottom = top + viewH;
+        if (this.#rotation !== 0) {
+            // A rotated view fits in the circle around its center
+            const half = Math.hypot(viewW, viewH) * 0.5;
+            const cx = (left + right) * 0.5;
+            const cy = (top + bottom) * 0.5;
+            left = cx - half;
+            right = cx + half;
+            top = cy - half;
+            bottom = cy + half;
+        }
 
-        const ox = object.transform.position.x;
-        const oy = object.transform.position.y;
-        const ow = object.transform.renderSize.x;
-        const oh = object.transform.renderSize.y;
+        const pos = transform.parent
+            ? transform.getWorldPosition(CULL_POSITION)
+            : transform.position;
+        let ow = transform.renderSize.x || transform.size.x;
+        let oh = transform.renderSize.y || transform.size.y;
+        // Ancestors scale the drawn size (walked without allocating, unlike `worldScale`)
+        for (let p = transform.parent; p; p = p.parent) {
+            ow *= Math.abs(p.scale.x);
+            oh *= Math.abs(p.scale.y);
+        }
+        let ox = pos.x;
+        let oy = pos.y;
+        if (
+            transform.parent ||
+            transform.rotation !== 0 ||
+            transform.skew.x !== 0 ||
+            transform.skew.y !== 0
+        ) {
+            // Rotation or skew around a pivot inside the box keeps every corner within one diagonal of it
+            const margin = Math.hypot(ow, oh);
+            ox -= margin;
+            oy -= margin;
+            ow += margin * 2;
+            oh += margin * 2;
+        }
 
-        return !(ox + ow < rpX || ox > rpX + viewW || oy + oh < rpY || oy > rpY + viewH);
+        return !(ox + ow < left || ox > right || oy + oh < top || oy > bottom);
     }
 
     /**
