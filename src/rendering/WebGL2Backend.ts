@@ -5,21 +5,39 @@ import { ViewportRect } from "../core/BrioViewport";
 import { Mat4 } from "../math/index";
 import { BrioLight } from "../objects/BrioLight";
 import { parseCanvasColor, srgbToLinear } from "./color";
-import { RenderBackend, RenderBackendType } from "./contracts/RenderBackend";
+import { RenderBackend, RenderBackendType, RenderPassParameters } from "./contracts/RenderBackend";
 import { sortInPlace } from "../tools/sort";
 import {
     buildLightingEnvironment,
     createLightingEnvironment,
     LightingEnvironment,
     MAX_DIRECTIONAL_LIGHTS,
+    MAX_PUNCTUAL_LIGHTS,
 } from "./lighting";
 
 type Context2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 /** Uniform buffer binding point of the `BrioLights` block. */
 const LIGHTS_BINDING = 0;
-/** `BrioLights` std140 layout: ambient, sky, ground, count (vec4 each), then directions and colors (vec4 per light). */
-const LIGHTS_FLOATS = 16 + MAX_DIRECTIONAL_LIGHTS * 8;
+/** Uniform buffer binding point of the `BrioPass` block (camera position, fog, tone mapping, exposure). */
+const PASS_BINDING = 1;
+/** Offset of the punctual light arrays in `BrioLights` (after ambient, sky, ground, counts and directional lights). */
+const PUNCTUAL_OFFSET = 16 + MAX_DIRECTIONAL_LIGHTS * 8;
+/**
+ * `BrioLights` std140 layout: ambient, sky, ground, counts (vec4 each), directional directions and colors (vec4 per
+ * light), then punctual positions, colors, directions and cones (vec4 per light).
+ */
+const LIGHTS_FLOATS = PUNCTUAL_OFFSET + MAX_PUNCTUAL_LIGHTS * 16;
+/** `BrioPass` std140 layout: camera position + exposure, fog color + mode, fog near / far / density + tone mapping. */
+const PASS_FLOATS = 12;
+/** `uFogParams.w` value of each tone mapping operator. */
+const TONE_MAPPING_CODES: Readonly<Record<RenderPassParameters["toneMapping"], number>> = {
+    none: 0,
+    reinhard: 1,
+    aces: 2,
+    agx: 3,
+    neutral: 4,
+};
 /** `gl.INVALID_INDEX`: returned by `getUniformBlockIndex` when a program does not use the block. */
 const INVALID_INDEX = 0xffffffff;
 /** Upper bound of anisotropic filtering samples requested for textures. */
@@ -35,6 +53,37 @@ const FEATURE_MAP = 1;
 const FEATURE_LIT = 2;
 const FEATURE_FLAT = 4;
 const FEATURE_ALPHA_TEST = 8;
+const FEATURE_STANDARD = 16;
+
+/**
+ * GLSL sources of the program variant with feature bits `features` (`FEATURE_*`), shared by the program cache and
+ * the offline shader validation test.
+ *
+ * @internal
+ */
+export function buildShaderSources(features: number): { vertex: string; fragment: string } {
+    const defines: string[] = [];
+    if (features & FEATURE_MAP) defines.push("#define USE_MAP");
+    if (features & FEATURE_LIT) defines.push("#define USE_LIGHTING");
+    if (features & FEATURE_FLAT) defines.push("#define FLAT_SHADED");
+    if (features & FEATURE_ALPHA_TEST) defines.push("#define USE_ALPHA_TEST");
+    if (features & FEATURE_STANDARD) defines.push("#define STANDARD_SHADING");
+    return {
+        vertex: VERTEX_SHADER,
+        fragment: `#version 300 es\n${defines.join("\n")}\n${FRAGMENT_SHADER}`,
+    };
+}
+
+/** Every feature combination the backend can request (for validation tests). @internal */
+export const SHADER_FEATURE_COMBINATIONS: readonly number[] = (() => {
+    const out: number[] = [0];
+    for (let f = 1; f < 32; f++) {
+        // Flat and standard shading only exist on lit programs
+        if ((f & (FEATURE_FLAT | FEATURE_STANDARD)) !== 0 && (f & FEATURE_LIT) === 0) continue;
+        out.push(f);
+    }
+    return out;
+})();
 
 const VERTEX_SHADER = `#version 300 es
 layout(location = 0) in vec3 aPosition;
@@ -62,6 +111,13 @@ in vec2 vUv;
 uniform vec4 uColor;
 uniform sampler2D uMap;
 uniform float uAlphaCutoff;
+uniform vec3 uEmissive;
+uniform vec2 uRoughnessMetalness;
+layout(std140) uniform BrioPass {
+    vec4 uCameraPosition;
+    vec4 uFogColor;
+    vec4 uFogParams;
+};
 #ifdef USE_LIGHTING
 layout(std140) uniform BrioLights {
     vec4 uAmbient;
@@ -70,12 +126,116 @@ layout(std140) uniform BrioLights {
     vec4 uLightCount;
     vec4 uDirLightDirection[${MAX_DIRECTIONAL_LIGHTS}];
     vec4 uDirLightColor[${MAX_DIRECTIONAL_LIGHTS}];
+    vec4 uPunctualPosition[${MAX_PUNCTUAL_LIGHTS}];
+    vec4 uPunctualColor[${MAX_PUNCTUAL_LIGHTS}];
+    vec4 uPunctualDirection[${MAX_PUNCTUAL_LIGHTS}];
+    vec4 uPunctualCone[${MAX_PUNCTUAL_LIGHTS}];
 };
 #endif
 out vec4 fragColor;
 
+const float PI = 3.141592653589793;
+
 vec3 linearToSrgb(vec3 c) {
     return mix(pow(c, vec3(0.41666)) * 1.055 - vec3(0.055), c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308))));
+}
+
+#ifdef USE_LIGHTING
+// Distance falloff 1 / d^decay, windowed to zero at the range (KHR_lights_punctual), times the spot cone
+float punctualAttenuation(int i, float dist, vec3 toLight) {
+    float range = uPunctualPosition[i].w;
+    float attenuation = 1.0 / max(pow(dist, uPunctualCone[i].y), 1e-4);
+    if (range > 0.0) {
+        float ratio = dist / range;
+        float window = clamp(1.0 - ratio * ratio * ratio * ratio, 0.0, 1.0);
+        attenuation *= window * window;
+    }
+    if (uPunctualColor[i].w > 1.5) {
+        float cosAngle = dot(-toLight, uPunctualDirection[i].xyz);
+        float cosOuter = uPunctualDirection[i].w;
+        float t = clamp((cosAngle - cosOuter) / max(uPunctualCone[i].x - cosOuter, 1e-4), 0.0, 1.0);
+        attenuation *= t * t;
+    }
+    return attenuation;
+}
+
+#ifdef STANDARD_SHADING
+float distributionGGX(float NoH, float alpha) {
+    float a2 = alpha * alpha;
+    float d = NoH * NoH * (a2 - 1.0) + 1.0;
+    return a2 / (PI * d * d);
+}
+
+float visibilitySmithGGXCorrelated(float NoV, float NoL, float alpha) {
+    float a2 = alpha * alpha;
+    float gv = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
+    float gl = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
+    return 0.5 / max(gv + gl, 1e-5);
+}
+
+vec3 fresnelSchlick(vec3 f0, float VoH) {
+    return f0 + (1.0 - f0) * pow(1.0 - VoH, 5.0);
+}
+
+// Light of one source with radiance \`radiance\` from direction \`L\`: Lambert diffuse plus GGX specular. Light
+// intensities keep the Lambert convention of the other shading models (intensity 1 lights a white surface fully),
+// so both terms are scaled by PI.
+vec3 shadeStandard(vec3 N, vec3 V, vec3 L, vec3 radiance, vec3 diffuseColor, vec3 f0, float alpha) {
+    float NoL = max(dot(N, L), 0.0);
+    if (NoL <= 0.0) return vec3(0.0);
+    vec3 H = normalize(L + V);
+    float NoV = max(dot(N, V), 1e-4);
+    float NoH = max(dot(N, H), 0.0);
+    float VoH = max(dot(V, H), 0.0);
+    vec3 F = fresnelSchlick(f0, VoH);
+    vec3 specular = F * (distributionGGX(NoH, alpha) * visibilitySmithGGXCorrelated(NoV, NoL, alpha) * PI);
+    return radiance * NoL * ((1.0 - F) * diffuseColor + specular);
+}
+
+// Split-sum environment BRDF approximation (Karis, "Physically Based Shading on Mobile")
+vec3 environmentBRDF(vec3 f0, float roughness, float NoV) {
+    const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+    const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+    vec4 r = roughness * c0 + c1;
+    float a004 = min(r.x * r.x, exp2(-9.28 * NoV)) * r.x + r.y;
+    vec2 ab = vec2(-1.04, 1.04) * a004 + r.zw;
+    return f0 * ab.x + ab.y;
+}
+#endif
+#endif
+
+vec3 toneMap(vec3 color, float mode) {
+    if (mode < 0.5) return color;
+    if (mode < 1.5) return color / (1.0 + color);
+    if (mode < 2.5) {
+        // ACES filmic fitted curve (Narkowicz)
+        color *= 0.6;
+        return clamp((color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14), 0.0, 1.0);
+    }
+    if (mode < 3.5) {
+        // AgX base contrast approximation (sigmoid fit of the AgX transform)
+        const mat3 agxIn = mat3(0.842479, 0.0423304, 0.0423738, 0.0784336, 0.878468, 0.0784336, 0.0792237, 0.0791661, 0.879142);
+        const mat3 agxOut = mat3(1.19688, -0.0528969, -0.0529716, -0.0980209, 1.15190, -0.0980435, -0.0990297, -0.0989612, 1.15107);
+        vec3 x = agxIn * max(color, vec3(1e-10));
+        x = clamp((log2(x) + 12.47393) / 16.5, 0.0, 1.0);
+        vec3 x2 = x * x;
+        vec3 x4 = x2 * x2;
+        x = 15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232;
+        return clamp(pow(max(agxOut * x, vec3(0.0)), vec3(2.2)), 0.0, 1.0);
+    }
+    // Khronos PBR Neutral
+    const float startCompression = 0.8 - 0.04;
+    const float desaturation = 0.15;
+    float x = min(color.r, min(color.g, color.b));
+    float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+    color -= offset;
+    float peak = max(color.r, max(color.g, color.b));
+    if (peak < startCompression) return color;
+    float d = 1.0 - startCompression;
+    float newPeak = 1.0 - d * d / (peak + d - startCompression);
+    color *= newPeak / peak;
+    float g = 1.0 - 1.0 / (desaturation * (peak - newPeak) + 1.0);
+    return mix(color, vec3(newPeak), g);
 }
 
 void main() {
@@ -96,13 +256,62 @@ void main() {
     normal = gl_FrontFacing ? normal : -normal;
 #endif
     float hemisphere = normal.y * 0.5 + 0.5;
-    vec3 irradiance = uAmbient.rgb + mix(uGroundColor.rgb, uSkyColor.rgb, hemisphere);
+    vec3 ambient = uAmbient.rgb + mix(uGroundColor.rgb, uSkyColor.rgb, hemisphere);
+    int directionalCount = int(uLightCount.x);
+    int punctualCount = int(uLightCount.y);
+#ifdef STANDARD_SHADING
+    vec3 V = normalize(uCameraPosition.xyz - vWorldPosition);
+    float roughness = clamp(uRoughnessMetalness.x, 0.03, 1.0);
+    float metalness = uRoughnessMetalness.y;
+    float alpha = roughness * roughness;
+    vec3 diffuseColor = base.rgb * (1.0 - metalness);
+    vec3 f0 = mix(vec3(0.04), base.rgb, metalness);
+    float NoV = max(dot(normal, V), 1e-4);
+    vec3 reflected = reflect(-V, normal);
+    vec3 skyReflection = mix(uGroundColor.rgb, uSkyColor.rgb, reflected.y * 0.5 + 0.5) + uAmbient.rgb;
+    vec3 lit = ambient * diffuseColor + skyReflection * environmentBRDF(f0, roughness, NoV);
     for (int i = 0; i < ${MAX_DIRECTIONAL_LIGHTS}; i++) {
-        if (float(i) >= uLightCount.x) break;
+        if (i >= directionalCount) break;
+        lit += shadeStandard(normal, V, uDirLightDirection[i].xyz, uDirLightColor[i].rgb, diffuseColor, f0, alpha);
+    }
+    for (int i = 0; i < ${MAX_PUNCTUAL_LIGHTS}; i++) {
+        if (i >= punctualCount) break;
+        vec3 toLight = uPunctualPosition[i].xyz - vWorldPosition;
+        float dist = max(length(toLight), 1e-4);
+        toLight /= dist;
+        vec3 radiance = uPunctualColor[i].rgb * punctualAttenuation(i, dist, toLight);
+        lit += shadeStandard(normal, V, toLight, radiance, diffuseColor, f0, alpha);
+    }
+    color = lit;
+#else
+    vec3 irradiance = ambient;
+    for (int i = 0; i < ${MAX_DIRECTIONAL_LIGHTS}; i++) {
+        if (i >= directionalCount) break;
         irradiance += uDirLightColor[i].rgb * max(dot(normal, uDirLightDirection[i].xyz), 0.0);
+    }
+    for (int i = 0; i < ${MAX_PUNCTUAL_LIGHTS}; i++) {
+        if (i >= punctualCount) break;
+        vec3 toLight = uPunctualPosition[i].xyz - vWorldPosition;
+        float dist = max(length(toLight), 1e-4);
+        toLight /= dist;
+        float lambert = max(dot(normal, toLight), 0.0);
+        irradiance += uPunctualColor[i].rgb * (lambert * punctualAttenuation(i, dist, toLight));
     }
     color *= irradiance;
 #endif
+#endif
+    color += uEmissive;
+    // Fog blends toward its color with the distance to the camera (mode in uFogColor.w)
+    float fogMode = uFogColor.w;
+    if (fogMode > 0.5) {
+        float dist = length(uCameraPosition.xyz - vWorldPosition);
+        float fog;
+        if (fogMode < 1.5) fog = clamp((dist - uFogParams.x) / max(uFogParams.y - uFogParams.x, 1e-4), 0.0, 1.0);
+        else if (fogMode < 2.5) fog = 1.0 - exp(-uFogParams.z * dist);
+        else fog = 1.0 - exp(-(uFogParams.z * dist) * (uFogParams.z * dist));
+        color = mix(color, uFogColor.rgb, fog);
+    }
+    color = toneMap(color * uCameraPosition.w, uFogParams.w);
     // Premultiplied output, matching the canvas compositor and the ONE / ONE_MINUS_SRC_ALPHA blend
     fragColor = vec4(linearToSrgb(color) * base.a, base.a);
 }`;
@@ -135,6 +344,8 @@ interface ProgramInfo {
     uColor: WebGLUniformLocation | null;
     uMap: WebGLUniformLocation | null;
     uAlphaCutoff: WebGLUniformLocation | null;
+    uEmissive: WebGLUniformLocation | null;
+    uRoughnessMetalness: WebGLUniformLocation | null;
 }
 
 /** One queued `renderMesh3D()` call, sorted and drawn by `endFrame()`. */
@@ -232,6 +443,13 @@ export class WebGL2Backend implements RenderBackend {
     /** `BrioLights` uniform buffer and its CPU copy (std140). */
     #lightsUbo: WebGLBuffer | null = null;
     readonly #lightData = new Float32Array(LIGHTS_FLOATS);
+    /** `BrioPass` uniform buffer and its CPU copy (std140), rewritten by `setPassParameters()`. */
+    #passUbo: WebGLBuffer | null = null;
+    readonly #passData = new Float32Array(PASS_FLOATS);
+    #passDirty = true;
+    /** Programs that failed to compile or link: logged once, then their draws are skipped (D-07). */
+    readonly #failedPrograms = new Set<number>();
+    readonly #emissiveScratch = new Float32Array(3);
     #lightsVersion = -1;
     #lightsDirty = true;
 
@@ -241,6 +459,8 @@ export class WebGL2Backend implements RenderBackend {
     #trianglesRendered = 0;
 
     constructor() {
+        // Exposure 1 until a pass sets its parameters
+        this.#passData[3] = 1;
         this.setLights(
             buildLightingEnvironment(BrioLight.createDefaultRig(), createLightingEnvironment()),
         );
@@ -260,6 +480,7 @@ export class WebGL2Backend implements RenderBackend {
         data.set(environment.sky, 4);
         data.set(environment.ground, 8);
         data[12] = environment.directionalCount;
+        data[13] = environment.punctualCount;
         for (let i = 0; i < environment.directionalCount; i++) {
             data.set(environment.directions.subarray(i * 3, i * 3 + 3), 16 + i * 4);
             data.set(
@@ -267,7 +488,43 @@ export class WebGL2Backend implements RenderBackend {
                 16 + MAX_DIRECTIONAL_LIGHTS * 4 + i * 4,
             );
         }
+        const count = environment.punctualCount * 4;
+        const stride = MAX_PUNCTUAL_LIGHTS * 4;
+        data.set(environment.punctualPositions.subarray(0, count), PUNCTUAL_OFFSET);
+        data.set(environment.punctualColors.subarray(0, count), PUNCTUAL_OFFSET + stride);
+        data.set(environment.punctualDirections.subarray(0, count), PUNCTUAL_OFFSET + stride * 2);
+        data.set(environment.punctualCones.subarray(0, count), PUNCTUAL_OFFSET + stride * 3);
         this.#lightsDirty = true;
+    }
+
+    /**
+     * Sets the camera position, fog, tone mapping and exposure of the current pass (`BrioPass` block).
+     *
+     * @param parameters Values of the pass
+     */
+    public setPassParameters(parameters: Readonly<RenderPassParameters>): void {
+        const data = this.#passData;
+        data[0] = parameters.cameraX;
+        data[1] = parameters.cameraY;
+        data[2] = parameters.cameraZ;
+        data[3] = parameters.exposure;
+        if (parameters.fogMode > 0) {
+            const fog = this.#linearColor(parameters.fogColor);
+            data[4] = fog[0];
+            data[5] = fog[1];
+            data[6] = fog[2];
+        }
+        data[7] = parameters.fogMode;
+        data[8] = parameters.fogNear;
+        data[9] = parameters.fogFar;
+        data[10] = parameters.fogDensity;
+        data[11] = TONE_MAPPING_CODES[parameters.toneMapping] ?? 0;
+        this.#passDirty = true;
+    }
+
+    /** Values currently uploaded (or pending upload) to the `BrioPass` block (std140 layout). */
+    public get passData(): Readonly<Float32Array> {
+        return this.#passData;
     }
 
     /** Light values currently uploaded (or pending upload) to the `BrioLights` block (std140 layout). */
@@ -450,6 +707,11 @@ export class WebGL2Backend implements RenderBackend {
             gl.bufferSubData(gl.UNIFORM_BUFFER, 0, this.#lightData);
             this.#lightsDirty = false;
         }
+        if (this.#passDirty && this.#passUbo) {
+            gl.bindBuffer(gl.UNIFORM_BUFFER, this.#passUbo);
+            gl.bufferSubData(gl.UNIFORM_BUFFER, 0, this.#passData);
+            this.#passDirty = false;
+        }
         // Unlike Array.prototype.sort, allocates no work buffer per frame
         sortInPlace(this.#opaque, this.#opaque.length, compareOpaque, this.#sortScratch);
         sortInPlace(
@@ -523,6 +785,7 @@ export class WebGL2Backend implements RenderBackend {
             for (const texture of this.#ownedTextures) gl.deleteTexture(texture);
             for (const info of this.#programs.values()) gl.deleteProgram(info.program);
             if (this.#lightsUbo) gl.deleteBuffer(this.#lightsUbo);
+            if (this.#passUbo) gl.deleteBuffer(this.#passUbo);
         }
         this.#resetResources();
         this.#gl = null;
@@ -546,6 +809,11 @@ export class WebGL2Backend implements RenderBackend {
         gl.bufferData(gl.UNIFORM_BUFFER, this.#lightData, gl.DYNAMIC_DRAW);
         gl.bindBufferBase(gl.UNIFORM_BUFFER, LIGHTS_BINDING, this.#lightsUbo);
         this.#lightsDirty = false;
+        this.#passUbo = gl.createBuffer();
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.#passUbo);
+        gl.bufferData(gl.UNIFORM_BUFFER, this.#passData, gl.DYNAMIC_DRAW);
+        gl.bindBufferBase(gl.UNIFORM_BUFFER, PASS_BINDING, this.#passUbo);
+        this.#passDirty = false;
         const ext =
             gl.getExtension("EXT_texture_filter_anisotropic") ??
             gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
@@ -569,6 +837,9 @@ export class WebGL2Backend implements RenderBackend {
         this.#programs.clear();
         this.#lightsUbo = null;
         this.#lightsDirty = true;
+        this.#passUbo = null;
+        this.#passDirty = true;
+        this.#failedPrograms.clear();
         this.#currentProgram = null;
         this.#currentVao = null;
         this.#cullEnabled = null;
@@ -583,6 +854,7 @@ export class WebGL2Backend implements RenderBackend {
         if (material.texture && this.#textureFor(material.texture)) features |= FEATURE_MAP;
         if (material.shading !== "unlit") features |= FEATURE_LIT;
         if (material.shading === "flat") features |= FEATURE_FLAT;
+        if (material.shading === "standard") features |= FEATURE_STANDARD;
         if (material.alphaCutoff > 0) features |= FEATURE_ALPHA_TEST;
         return features;
     }
@@ -627,6 +899,22 @@ export class WebGL2Backend implements RenderBackend {
         }
         if ((item.features & FEATURE_ALPHA_TEST) !== 0) {
             gl.uniform1f(info.uAlphaCutoff, material.alphaCutoff);
+        }
+        const emissive = this.#emissiveScratch;
+        if (material.emissive !== "#000000" && material.emissiveIntensity > 0) {
+            const e = this.#linearColor(material.emissive);
+            const k = material.emissiveIntensity * e[3];
+            emissive[0] = e[0] * k;
+            emissive[1] = e[1] * k;
+            emissive[2] = e[2] * k;
+        } else {
+            emissive[0] = 0;
+            emissive[1] = 0;
+            emissive[2] = 0;
+        }
+        gl.uniform3fv(info.uEmissive, emissive);
+        if ((item.features & FEATURE_STANDARD) !== 0) {
+            gl.uniform2f(info.uRoughnessMetalness, material.roughness, material.metalness);
         }
 
         this.#setCull(!material.doubleSided && !material.wireframe);
@@ -796,16 +1084,57 @@ export class WebGL2Backend implements RenderBackend {
     #programFor(gl: WebGL2RenderingContext, features: number): ProgramInfo | undefined {
         const cached = this.#programs.get(features);
         if (cached) return cached;
+        if (this.#failedPrograms.has(features)) return undefined;
 
-        const defines: string[] = [];
-        if (features & FEATURE_MAP) defines.push("#define USE_MAP");
-        if (features & FEATURE_LIT) defines.push("#define USE_LIGHTING");
-        if (features & FEATURE_FLAT) defines.push("#define FLAT_SHADED");
-        if (features & FEATURE_ALPHA_TEST) defines.push("#define USE_ALPHA_TEST");
-        const fragmentSource = `#version 300 es\n${defines.join("\n")}\n${FRAGMENT_SHADER}`;
+        // A shader error must never throw from a draw (D-07): log it once with the driver's message and skip the
+        // draws of that variant, so the rest of the frame still renders
+        let program: WebGLProgram | undefined;
+        try {
+            program = this.#linkProgram(gl, features);
+        } catch (err) {
+            this.#failedPrograms.add(features);
+            console.error(
+                `BrioJS WebGL2Backend: shader program (features ${features}) failed; its meshes are not drawn.`,
+                err,
+            );
+            return undefined;
+        }
 
-        const vs = this.#compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-        const fs = this.#compile(gl, gl.FRAGMENT_SHADER, fragmentSource);
+        const info: ProgramInfo = {
+            program,
+            uViewProj: gl.getUniformLocation(program, "uViewProj"),
+            uWorld: gl.getUniformLocation(program, "uWorld"),
+            uNormalMatrix: gl.getUniformLocation(program, "uNormalMatrix"),
+            uColor: gl.getUniformLocation(program, "uColor"),
+            uMap: gl.getUniformLocation(program, "uMap"),
+            uAlphaCutoff: gl.getUniformLocation(program, "uAlphaCutoff"),
+            uEmissive: gl.getUniformLocation(program, "uEmissive"),
+            uRoughnessMetalness: gl.getUniformLocation(program, "uRoughnessMetalness"),
+        };
+        // Programs read the shared BrioLights (lit variants) and BrioPass uniform buffers
+        const lightsIndex = gl.getUniformBlockIndex(program, "BrioLights");
+        if (typeof lightsIndex === "number" && lightsIndex !== INVALID_INDEX) {
+            gl.uniformBlockBinding(program, lightsIndex, LIGHTS_BINDING);
+        }
+        const passIndex = gl.getUniformBlockIndex(program, "BrioPass");
+        if (typeof passIndex === "number" && passIndex !== INVALID_INDEX) {
+            gl.uniformBlockBinding(program, passIndex, PASS_BINDING);
+        }
+        this.#programs.set(features, info);
+        return info;
+    }
+
+    /** Compiles and links the program of `features`; throws with the info log when it fails. */
+    #linkProgram(gl: WebGL2RenderingContext, features: number): WebGLProgram {
+        const sources = buildShaderSources(features);
+        const vs = this.#compile(gl, gl.VERTEX_SHADER, sources.vertex);
+        let fs: WebGLShader;
+        try {
+            fs = this.#compile(gl, gl.FRAGMENT_SHADER, sources.fragment);
+        } catch (err) {
+            gl.deleteShader(vs);
+            throw err;
+        }
         const program = gl.createProgram()!;
         gl.attachShader(program, vs);
         gl.attachShader(program, fs);
@@ -817,23 +1146,7 @@ export class WebGL2Backend implements RenderBackend {
             gl.deleteProgram(program);
             throw new Error(`WebGL2Backend: program link failed (features ${features}): ${log}`);
         }
-
-        const info: ProgramInfo = {
-            program,
-            uViewProj: gl.getUniformLocation(program, "uViewProj"),
-            uWorld: gl.getUniformLocation(program, "uWorld"),
-            uNormalMatrix: gl.getUniformLocation(program, "uNormalMatrix"),
-            uColor: gl.getUniformLocation(program, "uColor"),
-            uMap: gl.getUniformLocation(program, "uMap"),
-            uAlphaCutoff: gl.getUniformLocation(program, "uAlphaCutoff"),
-        };
-        // Lit programs read the shared BrioLights uniform buffer
-        const blockIndex = gl.getUniformBlockIndex(program, "BrioLights");
-        if (typeof blockIndex === "number" && blockIndex !== INVALID_INDEX) {
-            gl.uniformBlockBinding(program, blockIndex, LIGHTS_BINDING);
-        }
-        this.#programs.set(features, info);
-        return info;
+        return program;
     }
 
     #compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
