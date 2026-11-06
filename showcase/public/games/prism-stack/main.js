@@ -22,6 +22,8 @@ const RANGE = 4.6; // how far the moving slab slides
 const PERFECT = 0.09; // tolerance for a perfect drop
 const POOL = 46; // slabs kept in the scene (older ones are recycled from the bottom)
 const BEST_KEY = "prism-stack.best";
+// ?demo=1 stacks by itself (attract mode)
+const DEMO = new URLSearchParams(location.search).has("demo");
 
 const game = new BrioGame({
     width: innerWidth,
@@ -217,6 +219,8 @@ function reset() {
         d.life = 0;
         d.object.transform.position.y = -100;
     }
+    ringT = 0;
+    for (const r of rings) r.transform.position.y = -100;
     // The first slab rests on the base
     placeSlab(slabFor(0), 0, 0, 0, START, START);
     level = 1;
@@ -329,7 +333,15 @@ function start() {
 game.update((_updater, rawDt) => {
     const dt = Math.min(rawDt, 1 / 30);
     const input = game.input;
-    const pressed = input.isPressed("drop") || ui.consumeTap();
+    let pressed = input.isPressed("drop") || ui.consumeTap();
+    if (DEMO) {
+        // Attract mode: drop close to the slab below, missing a little now and then
+        if (state !== "play") pressed = state === "title" || overT > 3;
+        else {
+            const delta = (axis === "x" ? current.x - top.x : current.z - top.z) + Math.sin(level * 12.9898) * 0.25;
+            pressed = Math.abs(delta) < 0.06;
+        }
+    }
 
     if (state === "title") {
         if (pressed) start();

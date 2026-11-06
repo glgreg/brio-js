@@ -24,7 +24,8 @@ const MAX_ENEMIES = 340;
 const MAX_SHARDS = 260;
 const MAX_FX = 110;
 const MAX_SHOTS = 40;
-// ?t=150 starts the night 150 seconds in (handy for demos)
+// ?demo=1 plays by itself (attract mode); ?t=150 starts the night 150 seconds in (handy for demos)
+const DEMO = new URLSearchParams(location.search).has("demo");
 const START_TIME = Math.max(0, Math.min(NIGHT - 5, Number(new URLSearchParams(location.search).get("t")) || 0));
 
 const game = new BrioGame({
@@ -200,6 +201,7 @@ let shake = 0;
 let haloAngle = 0;
 let alive = 0;
 let soundBudget = 0;
+let demoWait = 0;
 
 function resetRun() {
     for (let i = 0; i < MAX_ENEMIES; i++) killEnemy(i, false);
@@ -589,13 +591,13 @@ game.update((_updater, rawDt) => {
     camera.orthoSize = VIEW_H / 2;
 
     if (state === "title") {
-        if (ui.consumeStart() || input.isPressed("restart")) startRun();
+        if (ui.consumeStart() || input.isPressed("restart") || DEMO) startRun();
         animateKnight(dt, false);
         updateCamera(dt);
         return;
     }
     if (state === "over" || state === "dawn") {
-        if (input.isPressed("restart") || ui.consumeStart()) startRun();
+        if (input.isPressed("restart") || ui.consumeStart() || (DEMO && (demoWait += dt) > 4)) startRun();
         animateKnight(dt, false);
         updateFx(dt);
         updateCamera(dt);
@@ -603,6 +605,7 @@ game.update((_updater, rawDt) => {
     }
     if (state === "choose") {
         for (let k = 0; k < 3; k++) if (input.isPressed(`pick${k + 1}`)) ui.pickChoice(k);
+        if (DEMO) ui.pickChoice(0);
         return;
     }
     if (input.isPressed("pause")) {
@@ -619,7 +622,11 @@ game.update((_updater, rawDt) => {
     let mx = input.axis("left", "right");
     let my = input.axis("down", "up");
     const touch = ui.touchVector();
-    if (touch) {
+    if (DEMO) {
+        // Attract mode: wander in wide loops around the shrine
+        mx = Math.cos(time * 0.55) + Math.sin(time * 0.21) * 0.4;
+        my = Math.sin(time * 0.55);
+    } else if (touch) {
         mx = touch.x;
         my = touch.y;
     }
@@ -650,6 +657,7 @@ game.update((_updater, rawDt) => {
 });
 
 function startRun() {
+    demoWait = 0;
     resetRun();
     state = "play";
     ui.hideScreens();

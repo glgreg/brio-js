@@ -24,6 +24,8 @@ const SEGMENT = 24; // ground tile length
 const SEGMENTS = 7;
 const VIEW = 95; // spawn obstacles this far ahead
 const SUN_DIR = { x: 0.55, y: -0.42, z: 0.72 };
+// ?demo=1 runs by itself (attract mode)
+const DEMO = new URLSearchParams(location.search).has("demo");
 
 const game = new BrioGame({
     width: innerWidth,
@@ -374,23 +376,26 @@ game.update((_updater, rawDt) => {
         updateCamera(dt, true);
         updatePuffs(dt);
         if (state === "over") player.crashT += dt;
-        if ((input.isPressed("start") || input.isPressed("jump") || action === "tap" || ui.consumeStart()) && (state === "title" || player.crashT > 0.8)) {
+        if ((input.isPressed("start") || input.isPressed("jump") || action === "tap" || ui.consumeStart() || DEMO) && (state === "title" || player.crashT > (DEMO ? 2.5 : 0.8))) {
             start();
         }
         return;
     }
 
+    const auto = DEMO ? autopilot() : "";
     // Lanes, jump, roll
+    if (auto === "left") moveLane(-1);
+    if (auto === "right") moveLane(1);
     if (input.isPressed("left") || action === "left") moveLane(-1);
     if (input.isPressed("right") || action === "right") moveLane(1);
     const grounded = player.y <= 0.001;
-    if ((input.isPressed("jump") || action === "jump" || action === "tap") && grounded) {
+    if ((input.isPressed("jump") || action === "jump" || action === "tap" || auto === "jump") && grounded) {
         player.vy = 7.6;
         player.roll = 0;
         sounds.jump.play();
         dust(4);
     }
-    if ((input.isPressed("roll") || action === "roll") && player.roll <= 0) {
+    if ((input.isPressed("roll") || action === "roll" || auto === "roll") && player.roll <= 0) {
         player.roll = 0.75;
         if (!grounded) player.vy = Math.min(player.vy, -9);
     }
@@ -495,6 +500,19 @@ game.update((_updater, rawDt) => {
     updateCamera(dt, false);
     ui.hud(score, fruit, best);
 });
+
+/** Attract mode: look a little ahead in each lane and pick the move a player would make. */
+function autopilot() {
+    const ahead = (lane, kind) => obstacles.some((o) => o.active && o.lane === lane && (!kind || o.kind === kind) && o.z < player.z && o.z > player.z - 7);
+    const danger = (lane) => obstacles.some((o) => o.active && o.lane === lane && o.kind === "rock" && o.z < player.z + 1 && o.z > player.z - 9);
+    if (danger(player.lane)) {
+        for (const lane of [player.lane - 1, player.lane + 1]) if (lane >= -1 && lane <= 1 && !danger(lane)) return lane < player.lane ? "left" : "right";
+    }
+    const near = (kind) => obstacles.some((o) => o.active && o.lane === player.lane && o.kind === kind && o.z < player.z && o.z > player.z - player.speed * 0.32);
+    if (near("log")) return "jump";
+    if (ahead(player.lane, "gate") && near("gate")) return "roll";
+    return "";
+}
 
 function moveLane(dir) {
     const next = Math.max(-1, Math.min(1, player.lane + dir));
