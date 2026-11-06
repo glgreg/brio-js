@@ -103,6 +103,9 @@ body {
     pointer-events: none;
     text-align: center;
 }
+#screen:not([data-screen=""]) {
+    background: radial-gradient(ellipse 60% 55% at 50% 50%, rgba(5, 2, 16, 0.72), rgba(5, 2, 16, 0) 75%);
+}
 #screen section {
     display: none;
     padding: 24px;

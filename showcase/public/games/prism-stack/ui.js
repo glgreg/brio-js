@@ -49,6 +49,7 @@ export function over(score, best, record) {
     $("over-best").textContent = `${t("best")} · ${best}`;
     $("over-record").hidden = !record;
     $("screen").dataset.screen = "over";
+    $("hud").hidden = true;
     tapped = false;
 }
 export function noWebGL() {
