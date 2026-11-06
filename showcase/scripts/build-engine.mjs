@@ -43,6 +43,8 @@ execFileSync(
         join(repo, "tsconfig.json"),
         "--emitDeclarationOnly",
         "--declaration",
+        // The engine is type-checked by its own CI; here only the declarations are needed
+        "--noCheck",
         "--declarationMap",
         "false",
         "--outDir",

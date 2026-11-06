@@ -1092,3 +1092,92 @@
         gap: 2px;
     }
 }
+
+/* ---------- CREDITS ---------- */
+.credits-main {
+    padding: 40px 0 80px;
+}
+.credits-head {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 30px;
+    align-items: end;
+}
+.credits-capy .capy {
+    width: 100%;
+}
+.credits-list {
+    display: grid;
+    gap: 26px;
+    margin: 30px 0;
+}
+.credits-game {
+    background: var(--card);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    box-shadow: 6px 6px 0 var(--accent);
+}
+.credits-game h2 {
+    font-size: 28px;
+    margin: 0 0 14px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.credits-game h2 a {
+    text-decoration: none;
+}
+.credits-game table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+}
+.credits-game th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+    padding: 6px 8px;
+    border-bottom: 1.5px solid var(--line);
+}
+.credits-game td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+}
+.credits-game td a {
+    color: var(--river);
+    font-weight: 600;
+}
+.credits-note {
+    color: var(--ink-2);
+    max-width: 60em;
+}
+@media (max-width: 640px) {
+    .credits-head {
+        grid-template-columns: 1fr;
+    }
+    .credits-capy {
+        width: 180px;
+    }
+    .credits-game table,
+    .credits-game tbody,
+    .credits-game tr,
+    .credits-game td {
+        display: block;
+    }
+    .credits-game thead {
+        display: none;
+    }
+    .credits-game td {
+        border: 0;
+        padding: 2px 0;
+    }
+    .credits-game tr {
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+    }
+}

@@ -5,6 +5,7 @@
     "buildCommand": "bun run build",
     "outputDirectory": "dist",
     "cleanUrls": true,
+    "trailingSlash": true,
     "headers": [
         {
             "source": "/sw.js",
