@@ -144,6 +144,7 @@ const shardObjects = [];
 const fxObjects = [];
 const shotObjects = [];
 const HIDDEN = 100000;
+const GROUND_FX = new Set(["sigil", "ward"]);
 for (let i = 0; i < MAX_ENEMIES; i++) enemyObjects.push(sprite(`enemy_${i}`, "mat_mon_0", 32, 32, -50));
 for (let i = 0; i < MAX_SHARDS; i++) shardObjects.push(sprite(`shard_${i}`, "mat_shard_0", 12, 12, -50));
 for (let i = 0; i < MAX_FX; i++) fxObjects.push(sprite(`fx_${i}`, "fx_bloom_0", 64, 64, -50));
@@ -864,7 +865,8 @@ function updateFx(dt) {
             f.y = player.y;
         }
         const o = fxObjects[i];
-        o.transform.position = { x: f.x, y: f.y, z: 5 + i * 0.001 };
+        // Ground effects (seals, thorn fields) sit under the monsters; the rest glows on top
+        o.transform.position = { x: f.x, y: f.y, z: (GROUND_FX.has(f.name) ? 0.6 : 5) + i * 0.001 };
         o.transform.scale = { x: f.size, y: f.size, z: 1 };
         o.material = `fx_${f.name}_${frame}`;
     }
