@@ -218,6 +218,9 @@ function resetRun() {
     owned.halo = 1;
     Object.assign(timers, { smite: 0.8, sun: 2.5, crescent: 0.5, ward: 3, spawn: 0, boss: 0 });
     time = START_TIME;
+    sky.color = "#5d6f9e";
+    sky.groundColor = "#1b1714";
+    moon.color = "#9fb4e8";
     timers.boss = START_TIME > 0 ? START_TIME - 1 : 0;
     alive = 0;
     // Starting later in the night (?t=) comes with the blessings a player would have earned by then
@@ -685,8 +688,14 @@ function updateNight() {
     const k = time / NIGHT;
     const dawn = Math.max(0, Math.min(1, (k - 0.72) / 0.28));
     floorMaterial.set("uDawn", dawn * dawn);
-    sky.intensity = 0.5 + dawn * 0.9;
-    moon.intensity = 0.22 + dawn * 0.6;
+    sky.intensity = 0.5 + dawn * 0.45;
+    // Sunrise: the cold moonlight turns warm
+    if (dawn > 0) {
+        sky.color = mixColor("#5d6f9e", "#f3b6a0", dawn);
+        sky.groundColor = mixColor("#1b1714", "#5a3b2a", dawn);
+        moon.color = mixColor("#9fb4e8", "#ffd9a8", dawn);
+    }
+    moon.intensity = 0.22 + dawn * 0.4;
     lantern.intensity = 110 * (1 - dawn * 0.6) * (0.95 + Math.sin(time * 9) * 0.03 + Math.sin(time * 23) * 0.02);
     camera.clearColor = dawn > 0 ? mixColor("#05080b", "#5b3a3a", dawn) : "#05080b";
 }
