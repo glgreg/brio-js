@@ -1,6 +1,6 @@
 # BrioJS showcase
 
-The project website: a landing page, three demo games and the playground, an in-browser IDE for BrioJS games.
+The project website: a landing page, four demo games and the playground, an in-browser IDE for BrioJS games.
 English is the default language and Portuguese is complete (toggle in the header, or `?lang=pt`).
 
 Live: <https://playground.briojs.gregorium.com> (Vercel project `brio-js-preview`, root directory `showcase`).
@@ -24,6 +24,7 @@ its full source. All of them render through the WebGL2 backend only.
 | `lumen-vigil` | 2D pixel art | sprites as lit GPU quads, sprite-sheet frames in a `BrioShader`, procedural floor shader, 8 point lights, pools of hundreds of monsters, uniform grid collisions |
 | `araucaria-run` | 3D low poly | KayKit glTF models, procedural capybara and araucárias, shadows following the camera, fog, AgX tone mapping, sky and ground shaders |
 | `prism-stack` | 3D neon glass | `"standard"` shading, neon edges and background as `BrioShader`s, orbiting point lights, runtime material colors, synthesized sounds |
+| `comet-garden` | 2D risograph print | one `BrioShader` draws every shape (halftone, overprinted inks, no textures), gravity physics with a trajectory preview, moving planets, pointer input in world space |
 
 Game URLs accept `?lang=pt`, `?demo=1` (attract mode) and, in Lumen Vigil, `?t=150` (start later in the night).
 
@@ -53,5 +54,5 @@ attract mode with the repository's Playwright (run the dev server first).
 Credits live in `src/games.ts` and appear on the player and credits pages. Assets that may not be redistributed
 (today the BDragon1727 holy spell sheets used by Lumen Vigil) are kept in `public/games/*/assets/vendor/`, which git
 ignores: they reach the website only through CLI deploys (`vercel deploy` from the repository root, see
-`../.vercelignore`). Without them the game uses plain glowing materials instead. The synthesized sounds of Prism Stack,
+`../.vercelignore`). Without them the game uses plain glowing materials instead. The synthesized sounds of Prism Stack and Comet Garden,
 the Capibrio illustrations and all code are original work under the repository's MIT license.

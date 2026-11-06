@@ -63,7 +63,7 @@ const en = {
     "games.eyebrow": "Made with BrioJS",
     "games.title": "Demo games",
     "games.body":
-        "Three small games, three different looks: pixel art drawn on the GPU, a low-poly forest and glowing glass. Each one opens in the playground with its full source.",
+        "Four small games, four different looks: pixel art drawn on the GPU, a low-poly forest, glowing glass and a risograph print. Each one opens in the playground with its full source.",
     "games.play": "Play",
     "games.edit": "Open source in playground",
     "games.controls": "Controls",
@@ -271,7 +271,7 @@ const pt: Strings = {
     "games.eyebrow": "Feito com BrioJS",
     "games.title": "Jogos de demonstração",
     "games.body":
-        "Três jogos pequenos, três estilos diferentes: pixel art desenhada na GPU, uma floresta low-poly e vidro brilhante. Cada um abre no playground com o código completo.",
+        "Quatro jogos pequenos, quatro estilos diferentes: pixel art desenhada na GPU, uma floresta low-poly, vidro brilhante e uma impressão em risografia. Cada um abre no playground com o código completo.",
     "games.play": "Jogar",
     "games.edit": "Abrir o código no playground",
     "games.controls": "Controles",

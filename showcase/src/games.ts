@@ -119,10 +119,38 @@ export const GAMES: GameInfo[] = [
         touch: true,
         credits: [
             {
-                what: { en: "Sounds", pt: "Sons" },
-                author: "Brackeys",
-                url: "https://brackeysgames.itch.io/brackeys-platformer-bundle",
-                license: "CC0",
+                what: { en: "Shaders, sounds (synthesized) and code", pt: "Shaders, sons (sintetizados) e código" },
+                author: "BrioJS",
+                url: "https://github.com/glgreg/brio-js",
+                license: "MIT",
+            },
+        ],
+    },
+    {
+        id: "comet-garden",
+        title: "Comet Garden",
+        kind: "2D",
+        accent: "#ff48b0",
+        tagline: {
+            en: "Pull back, let go, and let the planets bend your comet into the flower.",
+            pt: "Puxe, solte e deixe os planetas curvarem o seu cometa até a flor.",
+        },
+        description: {
+            en: "A gravity golf puzzle printed like a risograph poster: two fluorescent inks, halftone dots and misregistered outlines, all drawn by one BrioShader with no textures. Eight levels, moving planets and a trajectory preview that runs the same physics ahead of time.",
+            pt: "Um quebra-cabeça de golfe gravitacional impresso como um pôster de risografia: duas tintas fluorescentes, retícula de meio-tom e contornos desalinhados, tudo desenhado por um único BrioShader sem texturas. Oito níveis, planetas em movimento e uma prévia da trajetória que roda a mesma física antes do lançamento.",
+        },
+        controls: {
+            en: ["Drag and release: launch", "R: reset the comet", "P / N: previous / next level"],
+            pt: ["Arrastar e soltar: lançar", "R: recomeçar o cometa", "P / N: nível anterior / próximo"],
+        },
+        features: ["WebGL2", "BrioShader", "Orthographic camera", "Pointer input", "BrioStorage"],
+        touch: true,
+        credits: [
+            {
+                what: { en: "Shaders, levels, sounds (synthesized) and code", pt: "Shaders, níveis, sons (sintetizados) e código" },
+                author: "BrioJS",
+                url: "https://github.com/glgreg/brio-js",
+                license: "MIT",
             },
         ],
     },

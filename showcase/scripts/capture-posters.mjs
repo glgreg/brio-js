@@ -7,8 +7,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const base = process.env.BASE ?? "http://localhost:5173";
-const games = { "lumen-vigil": "?demo=1&t=95", "araucaria-run": "?demo=1", "prism-stack": "?demo=1" };
-const waits = { "lumen-vigil": 14000, "araucaria-run": 9000, "prism-stack": 26000 };
+const games = { "lumen-vigil": "?demo=1&t=95", "araucaria-run": "?demo=1", "prism-stack": "?demo=1", "comet-garden": "?demo=1" };
+const waits = { "lumen-vigil": 14000, "araucaria-run": 9000, "prism-stack": 26000, "comet-garden": 4000 };
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "games");
 
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });

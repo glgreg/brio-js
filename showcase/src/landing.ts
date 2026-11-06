@@ -136,7 +136,7 @@ const grid = document.getElementById("game-grid")!;
 function renderGames(): void {
     grid.innerHTML = GAMES.map(
         (game, i) => `
-      <article class="game-card" style="--accent:${game.accent}; --tilt:${[-1.2, 0.8, -0.6][i % 3]}deg">
+      <article class="game-card" style="--accent:${game.accent}; --tilt:${[-0.9, 0.7, 0.6, -0.8][i % 4]}deg">
         <a class="game-poster" href="/play?game=${game.id}" aria-label="${t("games.play")}: ${game.title}">
           <img src="/games/${game.id}/poster.webp" alt="" loading="lazy" onerror="this.style.display='none'"/>
           <span class="game-kind">${game.kind} · WebGL2</span>
