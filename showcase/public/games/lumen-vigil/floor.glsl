@@ -35,7 +35,6 @@ void surface(inout BrioSurface s) {
         float stone = step(0.3, hash(floor(p / 3.0)));
         color = mix(color, vec3(0.32, 0.31, 0.36) * (0.8 + 0.3 * hash(p)), stone);
     }
-    if (d < 6.0) color = vec3(0.45, 0.42, 0.5);
     // Fade into darkness toward the edge of the clearing
     float edge = smoothstep(560.0, 760.0, max(abs(p.x), abs(p.y)));
     color *= 1.0 - edge * 0.85;

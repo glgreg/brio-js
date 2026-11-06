@@ -1,12 +1,3 @@
-@font-face {
-    font-family: "PixelOperator8";
-    src: url("./assets/fonts/PixelOperator8.ttf") format("truetype");
-}
-@font-face {
-    font-family: "PixelOperator8";
-    font-weight: 700;
-    src: url("./assets/fonts/PixelOperator8-Bold.ttf") format("truetype");
-}
 :root {
     --ink: #0b0d14;
     --text: #f4ecdf;
@@ -22,7 +13,7 @@ body {
     overflow: hidden;
     background: #05080b;
     color: var(--text);
-    font-family: "PixelOperator8", monospace;
+    font-family: "Pixelify Sans", monospace;
     -webkit-font-smoothing: none;
     user-select: none;
     touch-action: none;
@@ -73,10 +64,10 @@ body {
 }
 .level {
     font-weight: 700;
-    font-size: 13px;
+    font-size: 15px;
     color: var(--ink);
     background: var(--gold);
-    padding: 6px 8px 5px;
+    padding: 5px 8px 4px;
     box-shadow:
         0 0 0 3px var(--ink),
         0 4px 0 3px var(--ink);
@@ -107,7 +98,7 @@ body {
     inset: 0;
     display: grid;
     place-items: center;
-    font-size: 10px;
+    font-size: 12px;
     text-shadow: 0 2px 0 var(--ink);
 }
 .clock {
@@ -119,11 +110,11 @@ body {
     box-shadow: 0 0 0 3px var(--ink);
 }
 .clock b {
-    font-size: 20px;
+    font-size: 24px;
     color: var(--gold);
 }
 .clock small {
-    font-size: 9px;
+    font-size: 12px;
     opacity: 0.75;
 }
 .moon {
@@ -137,7 +128,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 16px;
+    font-size: 20px;
     text-shadow: 0 2px 0 var(--ink);
 }
 .skull {
@@ -279,19 +270,19 @@ h2 {
     text-shadow: 0 4px 0 var(--ink);
 }
 .screen p {
-    font-size: clamp(11px, 1.6vw, 14px);
-    line-height: 1.7;
+    font-size: clamp(14px, 1.9vw, 18px);
+    line-height: 1.6;
     margin: 0 0 14px;
     text-shadow: 0 2px 0 var(--ink);
 }
 .kicker {
     color: var(--cyan);
-    font-size: 11px !important;
+    font-size: 13px !important;
     letter-spacing: 0.2em;
 }
 .small {
-    opacity: 0.7;
-    font-size: 10px !important;
+    opacity: 0.75;
+    font-size: 13px !important;
 }
 .warn {
     color: #ffb3a0;
@@ -355,15 +346,15 @@ h2 {
     background-color: rgba(255, 255, 255, 0.04);
 }
 .card strong {
-    font-size: 13px;
+    font-size: 17px;
     color: var(--gold);
 }
 .card-level {
-    font-size: 9px;
+    font-size: 12px;
     color: var(--cyan);
 }
 .card-desc {
-    font-size: 10px;
+    font-size: 13px;
     line-height: 1.6;
     opacity: 0.9;
 }
@@ -379,13 +370,13 @@ h2 {
     padding: 12px 8px;
 }
 .stats dt {
-    font-size: 9px;
+    font-size: 12px;
     opacity: 0.7;
     margin-bottom: 8px;
 }
 .stats dd {
     margin: 0;
-    font-size: 20px;
+    font-size: 26px;
     color: var(--gold);
 }
 #screens[data-won="1"] h2 {

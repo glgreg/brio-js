@@ -42,7 +42,7 @@ export const EFFECTS = {
     crescent: { sheet: "b", row: 3, frames: 9 },
     claws: { sheet: "b", row: 4, frames: 9 },
     sun: { sheet: "b", row: 5, frames: 9 },
-    halo: { sheet: "b", row: 6, frames: 9 },
+    halo: { sheet: "b", row: 6, frames: 9, loopFrames: 5 },
     gold: { sheet: "b", row: 7, frames: 10 },
     ember: { sheet: "b", row: 8, frames: 11 },
 };

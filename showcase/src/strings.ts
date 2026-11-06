@@ -146,7 +146,7 @@ const en = {
     "credits.license": "License",
     "credits.engine":
         "BrioJS, this website and the playground are original work under the MIT license. Capibrio was drawn for this site.",
-    "credits.fonts": "Fonts: Fraunces, Bricolage Grotesque and JetBrains Mono (SIL Open Font License), via Google Fonts. Editor: Monaco (MIT).",
+    "credits.fonts": "Fonts (SIL Open Font License, via Google Fonts): Fraunces, Bricolage Grotesque and JetBrains Mono on the site; Pixelify Sans, Fredoka, Outfit, Archivo Black and Space Mono in the games. Editor: Monaco (MIT).",
 
     // IDE
     "ide.run": "Run",
@@ -352,7 +352,7 @@ const pt: Strings = {
     "credits.engine":
         "A BrioJS, este site e o playground são trabalho original sob a licença MIT. A Capibrio foi desenhada para este site.",
     "credits.fonts":
-        "Fontes: Fraunces, Bricolage Grotesque e JetBrains Mono (SIL Open Font License), via Google Fonts. Editor: Monaco (MIT).",
+        "Fontes (SIL Open Font License, via Google Fonts): Fraunces, Bricolage Grotesque e JetBrains Mono no site; Pixelify Sans, Fredoka, Outfit, Archivo Black e Space Mono nos jogos. Editor: Monaco (MIT).",
 
     "ide.run": "Rodar",
     "ide.stop": "Parar",
