@@ -8,7 +8,23 @@
  * await tex.decode();
  * ```
  */
+/** Texel sampling of a `BrioTexture` on GPU backends: smooth (`"linear"`, mipmapped) or blocky (`"nearest"`). */
+export type TextureFilter = "linear" | "nearest";
+
+/** Behavior of UVs outside `[0, 1]` on GPU backends: tile the image (`"repeat"`) or stretch its edge (`"clamp"`). */
+export type TextureWrap = "repeat" | "clamp";
+
 export class BrioTexture {
+    /**
+     * Texel sampling used when a GPU backend uploads this texture: `"linear"` (default, trilinear with mipmaps) or
+     * `"nearest"` (no mipmaps, crisp pixel art). Read once at upload, so set it before the first draw.
+     */
+    public filter: TextureFilter = "linear";
+    /**
+     * UV wrapping used when a GPU backend uploads this texture: `"repeat"` (default) or `"clamp"` (sprite sheets and
+     * atlases, so neighbor frames do not bleed at the borders). Read once at upload, so set it before the first draw.
+     */
+    public wrap: TextureWrap = "repeat";
     readonly #src: string;
     readonly #element: HTMLImageElement;
     #bitmap?: ImageBitmap;

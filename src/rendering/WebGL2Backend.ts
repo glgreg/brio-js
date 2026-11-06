@@ -1299,15 +1299,24 @@ export class WebGL2Backend implements RenderBackend {
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
         gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
-        const levels = Math.floor(Math.log2(Math.max(texture.width, texture.height))) + 1;
+        // "nearest" textures (pixel art) keep a single level: mipmaps would blur them when minified
+        const nearest = texture.filter === "nearest";
+        const levels = nearest
+            ? 1
+            : Math.floor(Math.log2(Math.max(texture.width, texture.height))) + 1;
         gl.texStorage2D(gl.TEXTURE_2D, levels, gl.SRGB8_ALPHA8, texture.width, texture.height);
         gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-        if (this.#anisotropy) {
+        if (!nearest) gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(
+            gl.TEXTURE_2D,
+            gl.TEXTURE_MIN_FILTER,
+            nearest ? gl.NEAREST : gl.LINEAR_MIPMAP_LINEAR,
+        );
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, nearest ? gl.NEAREST : gl.LINEAR);
+        const wrap = texture.wrap === "clamp" ? gl.CLAMP_TO_EDGE : gl.REPEAT;
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+        if (this.#anisotropy && !nearest) {
             gl.texParameterf(
                 gl.TEXTURE_2D,
                 this.#anisotropy.ext.TEXTURE_MAX_ANISOTROPY_EXT,

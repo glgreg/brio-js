@@ -8,6 +8,9 @@ While the major version is `0`, minor releases may include breaking changes.
 
 ### Added
 
+- `BrioTexture.filter` (`"linear"` or `"nearest"`) and `BrioTexture.wrap` (`"repeat"` or `"clamp"`): a `"nearest"`
+  texture uploads to WebGL2 with one level and no mipmaps, so pixel art stays crisp on 3D quads; `"clamp"` keeps
+  sprite-sheet frames from bleeding at the borders. Both are read once at upload.
 - `BrioShader`: custom GLSL hooks for materials (`material.shader`, by reference or by preloaded name). The fragment
   hook `surface(inout BrioSurface s)` edits base color, opacity, normal, emissive, roughness and metalness before
   lighting; the vertex hook `vertex(inout vec3 position, inout vec3 normal)` moves vertices. Built-ins `TIME` and

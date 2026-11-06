@@ -87,6 +87,7 @@ export type {
     TiledImportOptions,
 } from "./assets/BrioTileMap";
 export type { BrioMaterialOptions, ShaderParameterValue } from "./assets/BrioMaterial";
+export type { TextureFilter, TextureWrap } from "./assets/BrioTexture";
 export type { BrioShaderOptions } from "./assets/BrioShader";
 export type { BrioShadowOptions } from "./objects/BrioLight";
 export type { BrioModelOptions, ModelFormat, ModelBoundingBox } from "./assets/BrioModel";
