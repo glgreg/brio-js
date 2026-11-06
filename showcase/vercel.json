@@ -1,0 +1,22 @@
+{
+    "$schema": "https://openapi.vercel.sh/vercel.json",
+    "framework": "vite",
+    "installCommand": "bun install",
+    "buildCommand": "bun run build",
+    "outputDirectory": "dist",
+    "cleanUrls": true,
+    "trailingSlash": true,
+    "headers": [
+        {
+            "source": "/sw.js",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-cache" },
+                { "key": "Service-Worker-Allowed", "value": "/" }
+            ]
+        },
+        {
+            "source": "/engine/(.*)",
+            "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }]
+        }
+    ]
+}

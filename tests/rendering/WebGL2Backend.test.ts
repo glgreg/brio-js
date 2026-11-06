@@ -266,6 +266,26 @@ describe("WebGL2Backend", () => {
         ).toBe(true);
     });
 
+    it("uploads nearest, clamped textures with a single level and no mipmaps (pixel art)", async () => {
+        const backend = await createBackend();
+        const bitmap = { width: 64, height: 32, close() {} } as unknown as ImageBitmap;
+        const texture = new BrioTexture("tex#pixel", bitmap);
+        texture.filter = "nearest";
+        texture.wrap = "clamp";
+        const mat = new BrioMaterial("mat_pixel", { texture });
+        backend.beginFrame(FULL);
+        backend.renderMesh3D(BrioMesh.createBox("m", 1, 1, 1), mat, translation(0, 0, -5), viewProj());
+        backend.endFrame();
+
+        expect(fake.callsOf("texStorage2D")).toEqual([[GL.TEXTURE_2D, 1, GL.SRGB8_ALPHA8, 64, 32]]);
+        expect(fake.count("generateMipmap")).toBe(0);
+        const params = fake.callsOf("texParameteri");
+        expect(params).toContainEqual([GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, GL.NEAREST]);
+        expect(params).toContainEqual([GL.TEXTURE_2D, GL.TEXTURE_MAG_FILTER, GL.NEAREST]);
+        expect(params).toContainEqual([GL.TEXTURE_2D, GL.TEXTURE_WRAP_S, GL.CLAMP_TO_EDGE]);
+        expect(params).toContainEqual([GL.TEXTURE_2D, GL.TEXTURE_WRAP_T, GL.CLAMP_TO_EDGE]);
+    });
+
     it("draws wireframe materials as a cached line list of triangle edges", async () => {
         const backend = await createBackend();
         const mesh = BrioMesh.createBox("m", 1, 1, 1);
