@@ -743,10 +743,11 @@
     stroke: #0e1d1c;
 }
 .mascot-bird {
+    /* Perched on Capibrio's back: the feet touch the top of the body path */
     position: absolute;
     width: 17%;
-    left: 34%;
-    top: 4%;
+    left: 35%;
+    top: 17%;
     z-index: 2;
     animation: hop 3.2s var(--ease) infinite;
 }
