@@ -232,13 +232,13 @@ const pt: Strings = {
     "hero.eyebrow": "Engine de jogos open source · TypeScript · v{version}",
     "hero.title": "Faça jogos <em>com brio</em>.",
     "hero.lead":
-        "A BrioJS é uma engine 2D e 3D para a web, sem nenhuma dependência. Amigável para a sua primeira linha de código e rápida o bastante para manter milhares de coisas se movendo a 60 fps.",
+        "O BrioJS é uma engine 2D e 3D para a web, sem nenhuma dependência. Amigável para a sua primeira linha de código e rápida o bastante para manter milhares de coisas se movendo a 60 fps.",
     "hero.play": "Jogar as demos",
     "hero.playground": "Abrir o playground",
     "hero.copy": "Copiar",
     "hero.copied": "Copiado!",
     "hero.caption":
-        "Renderizado ao vivo pela BrioJS: WebGL2, sombras suaves e um shader de água. Mexa o mouse para olhar em volta.",
+        "Renderizado ao vivo pelo BrioJS: WebGL2, sombras suaves e um shader de água. Mexa o mouse para olhar em volta.",
     "hero.fps": "{fps} fps",
     "hero.loading": "esquentando a fonte termal…",
     "hero.fallback": "Seu navegador não conseguiu iniciar o WebGL2, então a cena ao vivo está descansando.",
@@ -250,7 +250,7 @@ const pt: Strings = {
     "bridge.eyebrow": "Por que existe",
     "bridge.title": "A subida suave entre os blocos e as engines grandes.",
     "bridge.body":
-        "Ferramentas de blocos são um ótimo primeiro passo, e engines profissionais são um ótimo destino. O caminho entre elas é íngreme: instaladores, editores pesados, uma linguagem nova, um computador potente. A BrioJS fica no meio, com JavaScript e TypeScript de verdade rodando no navegador que você já tem.",
+        "Ferramentas de blocos são um ótimo primeiro passo, e engines profissionais são um ótimo destino. O caminho entre elas é íngreme: instaladores, editores pesados, uma linguagem nova, um computador potente. O BrioJS fica no meio, com JavaScript e TypeScript de verdade rodando no navegador que você já tem.",
     "bridge.blocks": "Blocos",
     "bridge.blocks.note": "Scratch, GDevelop: ótimos para lógica, mas sem código de verdade.",
     "bridge.brio": "BrioJS",
@@ -312,7 +312,7 @@ const pt: Strings = {
     "teaser.body":
         "Escreva código com autocomplete, arraste sprites, modelos e sons e aperte Rodar. Os projetos ficam salvos no seu próprio navegador: sem conta, sem instalação, sem upload.",
     "teaser.cta": "Começar a criar",
-    "teaser.point.1": "Editor Monaco com todas as definições de tipo da BrioJS",
+    "teaser.point.1": "Editor Monaco com todas as definições de tipo do BrioJS",
     "teaser.point.2": "Arraste e solte imagens, áudio, glTF e GLSL",
     "teaser.point.3": "Console, erros e preview ao vivo lado a lado",
     "teaser.point.4": "Exporte o projeto em .zip quando quiser",
@@ -320,7 +320,7 @@ const pt: Strings = {
     "tcc.eyebrow": "De onde vem",
     "tcc.title": "Nasceu como trabalho de conclusão de curso no Paraná.",
     "tcc.body":
-        "A BrioJS começou como TCC do curso de Tecnologia em Análise e Desenvolvimento de Sistemas do IFPR, Campus Colombo, estudando como ensinar desenvolvimento de jogos com código real e uma arquitetura de engine moderna.",
+        "O BrioJS começou como TCC do curso de Tecnologia em Análise e Desenvolvimento de Sistemas do IFPR, Campus Colombo, estudando como ensinar desenvolvimento de jogos com código real e uma arquitetura de engine moderna.",
     "tcc.authors": "Autores",
     "tcc.advisor": "Orientadora",
 
@@ -352,7 +352,7 @@ const pt: Strings = {
     "credits.author": "Autor",
     "credits.license": "Licença",
     "credits.engine":
-        "A BrioJS, este site e o playground são trabalho original sob a licença MIT. A Capibrio foi desenhada para este site.",
+        "O BrioJS, este site e o playground são trabalho original sob a licença MIT. A Capibrio foi desenhada para este site.",
     "credits.fonts":
         "Fontes (SIL Open Font License, via Google Fonts): Fraunces, Bricolage Grotesque e JetBrains Mono no site; Pixelify Sans, Fredoka, Outfit, Archivo Black e Space Mono nos jogos. Editor: Monaco (MIT).",
 
@@ -400,7 +400,7 @@ const pt: Strings = {
     "ide.preview.other": "Este arquivo é usado pelo seu jogo, mas não pode ser editado aqui.",
     "ide.usePath": "Use no código com este caminho:",
     "ide.copyPath": "Copiar caminho",
-    "ide.welcome": "Boas-vindas ao playground da BrioJS. Seus arquivos ficam neste navegador (IndexedDB).",
+    "ide.welcome": "Boas-vindas ao playground do BrioJS. Seus arquivos ficam neste navegador (IndexedDB).",
     "ide.started": "Jogo iniciado",
     "ide.stopped": "Jogo parado",
     "ide.uncaught": "Erro não tratado",
