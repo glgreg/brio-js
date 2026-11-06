@@ -1,0 +1,20 @@
+{
+    "name": "brio-showcase",
+    "private": true,
+    "version": "1.0.0",
+    "type": "module",
+    "description": "BrioJS showcase: landing page, demo games and the in-browser playground IDE.",
+    "scripts": {
+        "engine": "node scripts/build-engine.mjs",
+        "dev": "node scripts/build-engine.mjs && vite",
+        "build": "node scripts/build-engine.mjs && node scripts/build-manifests.mjs && vite build",
+        "preview": "vite preview"
+    },
+    "devDependencies": {
+        "typescript": "~5.9.3",
+        "vite": "^8.3.6"
+    },
+    "dependencies": {
+        "monaco-editor": "^0.57.0"
+    }
+}

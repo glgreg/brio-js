@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Playground · BrioJS</title>
+        <meta name="description" content="Write, run and save BrioJS games in your browser." />
+        <meta name="theme-color" content="#16120e" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    </head>
+    <body class="ide">
+        <header class="ide-top">
+            <a class="ide-brand" href="/" data-i18n-attr="title:ide.home" id="ide-brand"></a>
+            <button class="ide-project" id="project-button" type="button" aria-haspopup="dialog">
+                <span class="ide-project-name" id="project-name">…</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            <span class="ide-status" id="save-status" aria-live="polite"></span>
+            <div class="ide-top-spacer"></div>
+            <label class="ide-toggle" data-i18n-attr="title:ide.autoRun">
+                <input type="checkbox" id="autorun" />
+                <span data-i18n="ide.autoRun">Run on save</span>
+            </label>
+            <button class="ide-btn run" id="run" type="button" data-i18n-attr="title:ide.runHint">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z" /></svg>
+                <span data-i18n="ide.run">Run</span>
+            </button>
+            <button class="ide-btn" id="stop" type="button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                <span data-i18n="ide.stop">Stop</span>
+            </button>
+            <div class="ide-menu-wrap">
+                <button class="ide-btn icon" id="more" type="button" aria-haspopup="menu" aria-label="More">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
+                </button>
+                <div class="ide-menu" id="more-menu" role="menu" hidden>
+                    <button role="menuitem" type="button" data-action="export" data-i18n="ide.export">Export .zip</button>
+                    <button role="menuitem" type="button" data-action="import" data-i18n="ide.import">Import .zip</button>
+                    <button role="menuitem" type="button" data-action="reset" data-i18n="ide.reset">Reset to template</button>
+                    <hr />
+                    <a role="menuitem" href="https://github.com/glgreg/brio-js#readme" target="_blank" rel="noopener" data-i18n="ide.docs">Docs</a>
+                    <a role="menuitem" href="/" data-i18n="ide.home">Home</a>
+                </div>
+            </div>
+            <span class="lang-switch dark" role="group" data-i18n-attr="aria-label:lang.label">
+                <button type="button" data-lang-option="en">EN</button>
+                <button type="button" data-lang-option="pt">PT</button>
+            </span>
+        </header>
+
+        <div class="ide-main" id="ide-main">
+            <aside class="ide-files" id="files-panel">
+                <div class="panel-head">
+                    <span data-i18n="ide.explorer">Files</span>
+                    <div class="panel-actions">
+                        <button type="button" class="icon-btn" id="new-file" data-i18n-attr="title:ide.newFile;aria-label:ide.newFile">
+                            <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M12 12v6M9 15h6" /></svg>
+                        </button>
+                        <button type="button" class="icon-btn" id="new-folder" data-i18n-attr="title:ide.newFolder;aria-label:ide.newFolder">
+                            <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M12 10v6M9 13h6" /></svg>
+                        </button>
+                        <button type="button" class="icon-btn" id="upload" data-i18n-attr="title:ide.upload;aria-label:ide.upload">
+                            <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14" /></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="tree" id="tree" role="tree"></div>
+                <div class="files-foot" id="files-foot"></div>
+                <input type="file" id="file-input" multiple hidden />
+                <input type="file" id="zip-input" accept=".zip,application/zip" hidden />
+            </aside>
+            <div class="gutter v" data-resize="left" aria-hidden="true"></div>
+            <section class="ide-editor">
+                <div class="tabs" id="tabs" role="tablist"></div>
+                <div class="editor-host" id="editor-host"></div>
+                <div class="asset-view" id="asset-view" hidden></div>
+                <div class="editor-loading" id="editor-loading"><span class="spinner"></span></div>
+            </section>
+            <div class="gutter v" data-resize="right" aria-hidden="true"></div>
+            <section class="ide-right" id="right-panel">
+                <div class="ide-preview">
+                    <div class="panel-head">
+                        <span data-i18n="ide.preview">Game</span>
+                        <span class="run-dot" id="run-dot" aria-hidden="true"></span>
+                        <div class="panel-actions">
+                            <button type="button" class="icon-btn" id="reload" data-i18n-attr="title:ide.reload;aria-label:ide.reload">
+                                <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5" /></svg>
+                            </button>
+                            <button type="button" class="icon-btn" id="popout" data-i18n-attr="title:ide.popout;aria-label:ide.popout">
+                                <svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
+                            </button>
+                            <button type="button" class="icon-btn" id="fullscreen" data-i18n-attr="title:play.fullscreen;aria-label:play.fullscreen">
+                                <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="frame-host" id="frame-host">
+                        <div class="frame-empty" id="frame-empty">
+                            <div class="frame-capy" id="frame-capy"></div>
+                            <p data-i18n="ide.emptyPreview"></p>
+                            <span class="kbds"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="gutter h" data-resize="console" aria-hidden="true"></div>
+                <div class="ide-console">
+                    <div class="panel-head">
+                        <span data-i18n="ide.console">Console</span>
+                        <span class="console-count" id="console-count"></span>
+                        <div class="panel-actions">
+                            <button type="button" class="text-btn" id="clear-console" data-i18n="ide.clear">Clear</button>
+                        </div>
+                    </div>
+                    <div class="console-list" id="console" role="log" aria-live="polite"></div>
+                </div>
+            </section>
+        </div>
+
+        <div class="drop-overlay" id="drop-overlay" hidden><div><span data-i18n="ide.dropHere"></span></div></div>
+
+        <dialog class="modal projects-modal" id="projects-modal">
+            <form method="dialog" class="modal-close-form"><button class="icon-btn modal-x" aria-label="Close">✕</button></form>
+            <h2 class="modal-title" data-i18n="ide.projects">Projects</h2>
+            <h3 class="modal-sub" data-i18n="ide.myProjects">My projects</h3>
+            <div class="project-list" id="project-list"></div>
+            <h3 class="modal-sub" data-i18n="ide.templates">Start from</h3>
+            <div class="template-list" id="template-list"></div>
+        </dialog>
+
+        <dialog class="modal ask-modal" id="ask-modal">
+            <form method="dialog" id="ask-form">
+                <label class="ask-label" id="ask-label" for="ask-input"></label>
+                <input class="ask-input" id="ask-input" autocomplete="off" spellcheck="false" />
+                <p class="ask-text" id="ask-text"></p>
+                <div class="ask-actions">
+                    <button type="button" class="ide-btn ghost" id="ask-cancel">Cancel</button>
+                    <button type="submit" class="ide-btn run" id="ask-ok" value="ok">OK</button>
+                </div>
+            </form>
+        </dialog>
+
+        <div class="ctx-menu" id="ctx-menu" role="menu" hidden></div>
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+        <script type="module" src="/src/playground.ts"></script>
+    </body>
+</html>

@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>BrioJS · Make games with brio</title>
+        <meta
+            name="description"
+            content="BrioJS is a zero-dependency 2D and 3D game engine for the web, with demo games and an in-browser playground."
+        />
+        <meta name="theme-color" content="#f5eddf" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <meta property="og:title" content="BrioJS · Make games with brio" />
+        <meta property="og:description" content="A zero-dependency 2D and 3D game engine for the web." />
+        <meta property="og:image" content="/og.png" />
+        <script type="importmap">
+            { "imports": { "@brio-js/core": "/engine/brio.js" } }
+        </script>
+    </head>
+    <body class="grain">
+        <header id="site-header"></header>
+
+        <main>
+            <!-- HERO -->
+            <section class="hero">
+                <div class="wrap hero-grid">
+                    <div class="hero-copy">
+                        <p class="eyebrow" data-i18n="hero.eyebrow" data-version>Open-source game engine</p>
+                        <h1 class="display hero-title" data-i18n-html="hero.title">Make games <em>with brio</em>.</h1>
+                        <p class="hero-lead" data-i18n="hero.lead"></p>
+                        <div class="hero-actions">
+                            <a class="btn yuzu" href="#games"
+                                ><span data-i18n="hero.play">Play the demos</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5l11 7-11 7z" /></svg
+                            ></a>
+                            <a class="btn ghost" href="/playground"><span data-i18n="hero.playground">Open the playground</span></a>
+                        </div>
+                        <button class="install" type="button" id="install">
+                            <span class="install-prompt">$</span>
+                            <code>npm i @brio-js/core</code>
+                            <span class="install-copy" data-i18n="hero.copy">Copy</span>
+                        </button>
+                    </div>
+                    <figure class="hero-art">
+                        <div class="hero-stage" id="hero-stage">
+                            <div class="hero-sun" aria-hidden="true"></div>
+                            <div class="hero-fallback" id="hero-fallback"></div>
+                            <div class="hero-loading" id="hero-loading"><span data-i18n="hero.loading">warming up…</span></div>
+                        </div>
+                        <figcaption class="hero-caption">
+                            <span class="live-dot" aria-hidden="true"></span>
+                            <span data-i18n="hero.caption"></span>
+                            <span class="fps mono" id="hero-fps"></span>
+                        </figcaption>
+                    </figure>
+                </div>
+                <div class="wrap">
+                    <div class="definition">
+                        <span class="definition-word display" data-i18n="brio.word">brio</span>
+                        <span class="definition-phon mono" data-i18n="brio.phonetic"></span>
+                        <span class="definition-text" data-i18n="brio.def"></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- BRIDGE -->
+            <section class="section bridge" id="how">
+                <div class="wrap">
+                    <p class="eyebrow" data-i18n="bridge.eyebrow"></p>
+                    <h2 class="display section-title" data-i18n="bridge.title"></h2>
+                    <p class="section-lead" data-i18n="bridge.body"></p>
+                    <div class="bridge-path" aria-hidden="false">
+                        <svg class="bridge-curve" viewBox="0 0 1000 240" preserveAspectRatio="none" aria-hidden="true">
+                            <path d="M20 210 C 260 210 300 120 500 120 C 700 120 740 30 980 30" />
+                        </svg>
+                        <div class="bridge-step step-blocks">
+                            <div class="blocks-art" aria-hidden="true"><i></i><i></i><i></i></div>
+                            <h3 data-i18n="bridge.blocks"></h3>
+                            <p data-i18n="bridge.blocks.note"></p>
+                        </div>
+                        <div class="bridge-step step-brio">
+                            <div class="brio-art" aria-hidden="true" id="bridge-capy"></div>
+                            <h3 data-i18n="bridge.brio"></h3>
+                            <p data-i18n="bridge.brio.note"></p>
+                        </div>
+                        <div class="bridge-step step-pro">
+                            <div class="pro-art" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+                            <h3 data-i18n="bridge.pro"></h3>
+                            <p data-i18n="bridge.pro.note"></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CODE -->
+            <section class="section code-section">
+                <div class="wrap code-grid">
+                    <div>
+                        <p class="eyebrow" data-i18n="code.eyebrow"></p>
+                        <h2 class="display section-title" data-i18n="code.title"></h2>
+                        <p class="section-lead" data-i18n-html="code.body"></p>
+                        <ul class="ticks">
+                            <li data-i18n-html="code.point.1"></li>
+                            <li data-i18n-html="code.point.2"></li>
+                            <li data-i18n-html="code.point.3"></li>
+                        </ul>
+                        <a class="btn" href="/playground?template=hello-brio"><span data-i18n="code.try"></span></a>
+                    </div>
+                    <div class="code-card">
+                        <div class="code-tabs"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="mono">main.js</span></div>
+                        <pre class="code" id="code-sample"></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- GAMES -->
+            <section class="section games" id="games">
+                <div class="wrap">
+                    <div class="games-head">
+                        <div>
+                            <p class="eyebrow" data-i18n="games.eyebrow"></p>
+                            <h2 class="display section-title" data-i18n="games.title"></h2>
+                        </div>
+                        <p class="section-lead" data-i18n="games.body"></p>
+                    </div>
+                    <div class="game-grid" id="game-grid"></div>
+                </div>
+            </section>
+
+            <!-- MASCOT -->
+            <section class="section mascot">
+                <div class="wrap mascot-grid">
+                    <div class="mascot-art" id="mascot-art"></div>
+                    <div>
+                        <p class="eyebrow" data-i18n="mascot.eyebrow"></p>
+                        <h2 class="display section-title" data-i18n="mascot.title"></h2>
+                        <p class="section-lead" data-i18n="mascot.body"></p>
+                        <p class="mascot-note" data-i18n="mascot.note"></p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- FEATURES -->
+            <section class="section features">
+                <div class="wrap">
+                    <p class="eyebrow" data-i18n="features.eyebrow"></p>
+                    <h2 class="display section-title" data-i18n="features.title"></h2>
+                    <div class="stats" id="stats">
+                        <div><strong class="display">0</strong><span data-i18n="stats.deps"></span></div>
+                        <div><strong class="display">390+</strong><span data-i18n="stats.tests"></span></div>
+                        <div><strong class="display" id="stat-size">~85 KB</strong><span data-i18n="stats.size"></span></div>
+                        <div><strong class="display">2D + 3D</strong><span data-i18n="stats.dims"></span></div>
+                    </div>
+                    <div class="feature-grid">
+                        <article class="feature f-ecs">
+                            <div class="feature-icon" aria-hidden="true">
+                                <svg viewBox="0 0 64 64"><rect x="6" y="10" width="52" height="10" rx="3" /><rect x="6" y="27" width="52" height="10" rx="3" /><rect x="6" y="44" width="52" height="10" rx="3" /><path d="M20 10v44M34 10v44M48 10v44" /></svg>
+                            </div>
+                            <h3 data-i18n="features.ecs.title"></h3>
+                            <p data-i18n-html="features.ecs.body"></p>
+                        </article>
+                        <article class="feature f-render">
+                            <div class="feature-icon" aria-hidden="true">
+                                <svg viewBox="0 0 64 64"><path d="M32 6l24 14v24L32 58 8 44V20z" /><path d="M32 6v52M8 20l24 14 24-14" /></svg>
+                            </div>
+                            <h3 data-i18n="features.render.title"></h3>
+                            <p data-i18n="features.render.body"></p>
+                        </article>
+                        <article class="feature f-light">
+                            <div class="feature-icon" aria-hidden="true">
+                                <svg viewBox="0 0 64 64"><circle cx="32" cy="26" r="11" /><path d="M32 4v6M32 42v4M10 26h6M48 26h6M16 10l4 4M48 10l-4 4M14 56c6-6 30-6 36 0" /></svg>
+                            </div>
+                            <h3 data-i18n="features.light.title"></h3>
+                            <p data-i18n="features.light.body"></p>
+                        </article>
+                        <article class="feature f-save">
+                            <div class="feature-icon" aria-hidden="true">
+                                <svg viewBox="0 0 64 64"><path d="M12 8h32l8 8v40H12z" /><rect x="20" y="8" width="20" height="14" /><rect x="20" y="34" width="24" height="16" rx="2" /></svg>
+                            </div>
+                            <h3 data-i18n="features.save.title"></h3>
+                            <p data-i18n="features.save.body"></p>
+                        </article>
+                        <article class="feature f-zero">
+                            <div class="feature-icon" aria-hidden="true">
+                                <svg viewBox="0 0 64 64"><ellipse cx="32" cy="32" rx="16" ry="24" /><path d="M14 50L50 14" /></svg>
+                            </div>
+                            <h3 data-i18n="features.zero.title"></h3>
+                            <p data-i18n="features.zero.body"></p>
+                        </article>
+                        <article class="feature f-docs">
+                            <div class="feature-icon" aria-hidden="true">
+                                <svg viewBox="0 0 64 64"><path d="M10 12c8-4 16-4 22 2 6-6 14-6 22-2v40c-8-4-16-4-22 2-6-6-14-6-22-2z" /><path d="M32 14v40" /></svg>
+                            </div>
+                            <h3 data-i18n="features.docs.title"></h3>
+                            <p data-i18n="features.docs.body"></p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PLAYGROUND TEASER -->
+            <section class="section teaser">
+                <div class="wrap teaser-grid">
+                    <div>
+                        <p class="eyebrow" data-i18n="teaser.eyebrow"></p>
+                        <h2 class="display section-title" data-i18n="teaser.title"></h2>
+                        <p class="section-lead" data-i18n="teaser.body"></p>
+                        <ul class="ticks">
+                            <li data-i18n="teaser.point.1"></li>
+                            <li data-i18n="teaser.point.2"></li>
+                            <li data-i18n="teaser.point.3"></li>
+                            <li data-i18n="teaser.point.4"></li>
+                        </ul>
+                        <a class="btn yuzu" href="/playground"><span data-i18n="teaser.cta"></span></a>
+                    </div>
+                    <div class="ide-mock" aria-hidden="true">
+                        <div class="ide-mock-bar"><span></span><span></span><span></span><b>Playground</b><i class="run">▶ Run</i></div>
+                        <div class="ide-mock-body">
+                            <div class="ide-mock-files"><i class="on">main.js</i><i>player.js</i><i>assets/</i><i class="sub">hero.png</i><i class="sub">jump.wav</i></div>
+                            <div class="ide-mock-code">
+                                <i style="--w: 70%"></i><i style="--w: 45%" class="k"></i><i style="--w: 80%"></i><i style="--w: 55%" class="s"></i><i style="--w: 62%"></i><i style="--w: 30%" class="k"></i><i style="--w: 75%"></i><i style="--w: 40%" class="s"></i>
+                            </div>
+                            <div class="ide-mock-game" id="teaser-capy"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TCC -->
+            <section class="section tcc">
+                <div class="wrap tcc-card">
+                    <div class="tcc-pines" aria-hidden="true" id="tcc-pines"></div>
+                    <div class="tcc-copy">
+                        <p class="eyebrow" data-i18n="tcc.eyebrow"></p>
+                        <h2 class="display section-title" data-i18n="tcc.title"></h2>
+                        <p class="section-lead" data-i18n="tcc.body"></p>
+                        <dl class="tcc-people">
+                            <div><dt data-i18n="tcc.authors"></dt><dd>Gustavo Luiz Gregorio · Lucas Bigliardi Vicente</dd></div>
+                            <div><dt data-i18n="tcc.advisor"></dt><dd>Carine Azevedo Dantas</dd></div>
+                            <div><dt>IFPR</dt><dd>Campus Colombo · TADS · 2026</dd></div>
+                        </dl>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer id="site-footer"></footer>
+        <script type="module" src="/src/landing.ts"></script>
+    </body>
+</html>
