@@ -10,7 +10,7 @@ export const LEVELS = [
     },
     {
         start: { x: -380, y: 0 },
-        goal: { x: 380, y: 0 },
+        goal: { x: 370, y: 90 },
         planets: [{ x: 0, y: 0, r: 95, mass: 1.2 }],
         stars: [{ x: -150, y: 150 }, { x: 0, y: 170 }, { x: 150, y: 150 }],
         hint: "hint2",
@@ -53,9 +53,9 @@ export const LEVELS = [
     },
     {
         start: { x: -380, y: 160 },
-        goal: { x: -380, y: -160 },
+        goal: { x: -260, y: -160 },
         planets: [{ x: 80, y: 0, r: 40, mass: 2.6, ink: "dark" }],
-        rocks: [{ x: -380, y: 10, r: 40 }, { x: -300, y: 0, r: 30 }],
+        rocks: [{ x: -380, y: 10, r: 40 }],
         stars: [{ x: 80, y: 150 }, { x: 260, y: 0 }, { x: 80, y: -150 }],
         hint: "hint7",
     },

@@ -116,7 +116,7 @@ function quad(name, material, size, z) {
 }
 const paper = quad("paper", "mat_paper", 1, 0);
 const comet = quad("comet", "mat_comet", COMET_R * 3, 6);
-const flower = quad("flower", "mat_flower", 70, 3);
+const flower = quad("flower", "mat_flower", 84, 3);
 const planets = Array.from({ length: 6 }, (_, i) => ({ object: quad(`planet_${i}`, `mat_planet_${i}`, 1, 2), ring: quad(`ring_${i}`, `mat_ring_${i}`, 1, 1) }));
 const rocks = Array.from({ length: 6 }, (_, i) => quad(`rock_${i}`, "mat_rock", 1, 2.5));
 const stars = Array.from({ length: 3 }, (_, i) => quad(`star_${i}`, "mat_star", 34, 4));
@@ -326,10 +326,18 @@ function drawPreview() {
     const sim = { x: cx, y: cy, vx: pullX * LAUNCH, vy: pullY * LAUNCH };
     let k = 0;
     const strength = Math.hypot(pullX, pullY) / MAX_PULL;
-    for (let i = 0; i < 150 && k < dots.length; i++) {
+    // One dot every ~26 units of path, so slow and fast shots both show where they curve
+    let travelled = 0;
+    let lx = sim.x;
+    let ly = sim.y;
+    for (let i = 0; i < 600 && k < dots.length; i++) {
         const hit = step(sim, 1 / 120, game.time + i / 120);
         if (hit) break;
-        if (i % 5 === 4) {
+        travelled += Math.hypot(sim.x - lx, sim.y - ly);
+        lx = sim.x;
+        ly = sim.y;
+        if (travelled >= 26) {
+            travelled = 0;
             const d = dots[k++];
             d.transform.position = { x: sim.x, y: sim.y, z: 5 };
             const s = 7 * (1 - k / dots.length) * (0.5 + strength * 0.5) + 2;
@@ -392,7 +400,7 @@ game.update((_u, rawDt) => {
             }
         }
         // Goal
-        if (Math.hypot(level.goal.x - cx, level.goal.y - cy) < 30) win();
+        if (Math.hypot(level.goal.x - cx, level.goal.y - cy) < 50) win();
         else if (hit) crash(hit);
         else if (game.time - flightTime > 12) crash("out");
     } else if (state === "crash") {
@@ -422,7 +430,7 @@ game.update((_u, rawDt) => {
     }
     const flowerMat = game.loadedMaterials.get("mat_flower");
     if (flowerMat) flowerMat.parameters.uOpen = state === "won" || state === "done" ? bloom : 0.15 + Math.sin(game.time * 2) * 0.08;
-    const fs = 70 * (1 + bloom * 0.9);
+    const fs = 84 * (1 + bloom * 0.8);
     flower.transform.scale = { x: fs, y: fs, z: 1 };
     for (const d of debris) {
         if (d.life <= 0) continue;
