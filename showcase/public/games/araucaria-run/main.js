@@ -255,7 +255,8 @@ function reset() {
     fruit = 0;
     combo = 0;
     distance = 0;
-    nextRowZ = -34;
+    // About five seconds of open trail before the first obstacle, to settle into the run
+    nextRowZ = -55;
     for (const o of obstacles) hide(o);
     for (const y of yuzus) hideYuzu(y);
     segments.forEach((g, s) => placeSegment(s, -s * SEGMENT + SEGMENT));
