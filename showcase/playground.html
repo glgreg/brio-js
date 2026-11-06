@@ -71,7 +71,13 @@
             </aside>
             <div class="gutter v" data-resize="left" aria-hidden="true"></div>
             <section class="ide-editor">
-                <div class="tabs" id="tabs" role="tablist"></div>
+                <div class="editor-bar">
+                    <div class="tabs" id="tabs" role="tablist"></div>
+                    <div class="snippets-wrap">
+                        <button class="text-btn snippets-btn" id="snippets-btn" type="button" aria-haspopup="menu"><span data-i18n="ide.snippets">Snippets</span> ▾</button>
+                        <div class="ide-menu snippets-menu" id="snippets-menu" role="menu" hidden></div>
+                    </div>
+                </div>
                 <div class="editor-host" id="editor-host"></div>
                 <div class="asset-view" id="asset-view" hidden></div>
                 <div class="editor-loading" id="editor-loading"><span class="spinner"></span></div>

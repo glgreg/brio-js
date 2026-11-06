@@ -21,6 +21,7 @@ import {
     replaceAllFiles,
 } from "./ide/db";
 import { readZip, writeZip } from "./ide/zip";
+import { SNIPPETS } from "./ide/snippets";
 
 type Monaco = typeof import("./ide/editor");
 
@@ -961,6 +962,33 @@ async function resetProject(): Promise<void> {
     project.active = "main.js";
     await openProject(project);
 }
+
+// ------------------------------------------------------------------ Snippets
+const snippetsMenu = $("snippets-menu");
+function renderSnippets(): void {
+    snippetsMenu.innerHTML = SNIPPETS.map((s) => `<button type="button" role="menuitem" data-snippet="${s.id}">${escapeHtml(pick(s.label))}</button>`).join("");
+}
+renderSnippets();
+onLangChange(renderSnippets);
+$("snippets-btn").addEventListener("click", () => (snippetsMenu.hidden = !snippetsMenu.hidden));
+snippetsMenu.addEventListener("click", (event) => {
+    const id = (event.target as HTMLElement).closest<HTMLElement>("[data-snippet]")?.dataset.snippet;
+    const snippet = SNIPPETS.find((s) => s.id === id);
+    snippetsMenu.hidden = true;
+    if (!snippet || !editor || !mon) return;
+    const model = editor.getModel();
+    if (!model) return;
+    const position = editor.getPosition() ?? { lineNumber: model.getLineCount(), column: 1 };
+    const line = position.lineNumber;
+    const range = new mon.monaco.Range(line, 1, line, 1);
+    editor.executeEdits("snippet", [{ range, text: snippet.code, forceMoveMarkers: true }]);
+    editor.revealLineInCenter(line);
+    editor.focus();
+    toast(t("ide.snippetHint"));
+});
+document.addEventListener("pointerdown", (e) => {
+    if (!snippetsMenu.hidden && !snippetsMenu.contains(e.target as Node) && !$("snippets-btn").contains(e.target as Node)) snippetsMenu.hidden = true;
+});
 
 // ------------------------------------------------------------------ Uploads and drag and drop
 $("new-file").addEventListener("click", () => void newFile());

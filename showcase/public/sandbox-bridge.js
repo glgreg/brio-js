@@ -55,7 +55,7 @@
         "error",
         (event) => {
             const el = event.target;
-            if (el && el.tagName === "SCRIPT") post("uncaught", [`Could not load ${short(el.src || "inline module")}`]);
+            if (el && el.tagName === "SCRIPT") post("uncaught", [`Could not load ${short(el.src || "inline module")} or one of the modules it imports (check the paths and the browser console)`]);
         },
         true,
     );

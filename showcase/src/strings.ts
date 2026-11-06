@@ -214,6 +214,8 @@ const en = {
     "ide.reset": "Reset to template",
     "ide.confirmReset": "Replace every file of this project with the original template?",
     "ide.size": "Size",
+    "ide.snippets": "Snippets",
+    "ide.snippetHint": "Inserted at the cursor",
 } as const;
 
 type Strings = { [K in keyof typeof en]: string };
@@ -419,6 +421,8 @@ const pt: Strings = {
     "ide.reset": "Restaurar modelo",
     "ide.confirmReset": "Substituir todos os arquivos deste projeto pelo modelo original?",
     "ide.size": "Tamanho",
+    "ide.snippets": "Trechos",
+    "ide.snippetHint": "Inserido no cursor",
 };
 
 export const strings = { en: en as Strings, pt };
