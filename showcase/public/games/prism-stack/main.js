@@ -163,7 +163,8 @@ function hsl(h, s, l) {
 const linear = (rgb) => rgb.map((v) => Math.pow(Math.max(0, v), 2.2));
 const hex = (rgb) => `#${rgb.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, "0")).join("")}`;
 let hueBase = 200;
-const hueOf = (level) => (hueBase + level * 9) % 360;
+// 22 degrees per floor: neighbor slabs must differ enough to judge the overlap at a glance
+const hueOf = (level) => (hueBase + level * 22) % 360;
 
 // ------------------------------------------------------------------ State
 let state = "title";
