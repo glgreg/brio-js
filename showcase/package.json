@@ -8,7 +8,8 @@
         "engine": "node scripts/build-engine.mjs",
         "dev": "node scripts/build-engine.mjs && vite",
         "build": "node scripts/build-engine.mjs && node scripts/build-manifests.mjs && vite build",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "test": "playwright test -c playwright.config.ts"
     },
     "devDependencies": {
         "typescript": "~5.9.3",

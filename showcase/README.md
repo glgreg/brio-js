@@ -44,6 +44,10 @@ bun run dev            # builds the engine from ../src into public/engine/, then
 bun run build          # engine + manifests + vite build into dist/ (what Vercel runs)
 ```
 
+Smoke tests (Playwright from the repository root, Chromium with SwiftShader): `bun run test` here, or
+`npx playwright test -c showcase/playwright.config.ts` from the root. They load every game in attract mode on WebGL2,
+the landing page in both languages, the player, and a playground run with error reporting.
+
 `scripts/build-engine.mjs` bundles the engine of this repository (so the site always shows the current commit) and
 writes its type declarations for the editor. `scripts/build-manifests.mjs` writes the `project.json` file lists the
 playground uses to copy a game or template. `scripts/capture-posters.mjs` renders the gallery posters from each game's

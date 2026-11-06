@@ -202,7 +202,9 @@ async function setupServiceWorker(): Promise<void> {
 
 // ------------------------------------------------------------------ Templates
 async function fetchManifest(id: string): Promise<{ group: string; files: { path: string }[] } | undefined> {
-    for (const group of ["games", "templates"]) {
+    // Demo games are listed in the catalog; everything else is a template
+    const groups = findGame(id) ? ["games", "templates"] : ["templates", "games"];
+    for (const group of groups) {
         try {
             const res = await fetch(`/${group}/${id}/project.json`);
             if (res.ok) return await res.json();
