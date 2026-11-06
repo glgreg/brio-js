@@ -213,7 +213,7 @@ function resetRun() {
     wards.length = 0;
     freeEnemies.length = 0;
     for (let i = MAX_ENEMIES - 1; i >= 0; i--) freeEnemies.push(i);
-    Object.assign(player, { x: 0, y: 0, hp: 100, maxHp: 100, speed: 92, magnet: 46, xp: 0, need: 6, level: 1, invuln: 0, kills: 0 });
+    Object.assign(player, { x: 0, y: 0, hp: 100, maxHp: 100, speed: 92, magnet: 46, xp: 0, need: 4, level: 1, invuln: 0, kills: 0 });
     for (const k of Object.keys(owned)) delete owned[k];
     owned.halo = 1;
     Object.assign(timers, { smite: 0.8, sun: 2.5, crescent: 0.5, ward: 3, spawn: 0, boss: 0 });
@@ -234,7 +234,7 @@ function resetRun() {
     player.speed = 92 * Math.pow(1.18, owned.swift ?? 0);
     player.maxHp = player.hp = 100 + 25 * (owned.vigor ?? 0);
     player.magnet = 46 * Math.pow(1.7, owned.lure ?? 0);
-    player.need = Math.round(6 + player.level * 4.5 + player.level * player.level * 0.35);
+    player.need = Math.round(3 + player.level * 3.5 + player.level * player.level * 0.3);
     ui.updateSpells(owned);
 }
 
@@ -295,7 +295,7 @@ function spawnEnemy(type) {
     ex[i] = player.x + Math.cos(angle) * radius;
     ey[i] = player.y + Math.sin(angle) * radius;
     // Monsters get tougher as the night goes on
-    ehp[i] = m.hp * (1 + time / 210);
+    ehp[i] = m.hp * (1 + time / 125 + (time / 240) ** 2);
     etype[i] = type;
     ealive[i] = 1;
     eflash[i] = 0;
@@ -323,7 +323,7 @@ function killEnemy(i, reward = true) {
     const m = MONSTERS[etype[i]];
     player.kills++;
     playFx("bloom", ex[i], ey[i], 44 * m.scale, 34);
-    dropShards(ex[i], ey[i], m.xp);
+    dropShards(ex[i], ey[i], Math.round(m.xp * (1 + time / 200)));
     if (m.boss) {
         shake = 10;
         sounds.boom.play();
@@ -628,9 +628,15 @@ game.update((_updater, rawDt) => {
     let my = input.axis("down", "up");
     const touch = ui.touchVector();
     if (DEMO) {
-        // Attract mode: wander in wide loops around the shrine
+        // Attract mode: wander in wide loops, steering away from monsters that get close
         mx = Math.cos(time * 0.55) + Math.sin(time * 0.21) * 0.4;
         my = Math.sin(time * 0.55);
+        buildGrid();
+        query(player.x, player.y, 70, (i, d2) => {
+            const w = 2600 / Math.max(d2, 100);
+            mx += ((player.x - ex[i]) / Math.sqrt(d2 || 1)) * w;
+            my += ((player.y - ey[i]) / Math.sqrt(d2 || 1)) * w;
+        });
     } else if (touch) {
         mx = touch.x;
         my = touch.y;
@@ -709,7 +715,7 @@ function mixColor(a, b, k) {
 function spawnMonsters(dt) {
     const minute = Math.min(WAVES.length - 1, Math.floor(time / 60));
     const wave = WAVES[minute];
-    const rate = 1 + time * 0.034; // monsters per second
+    const rate = 0.6 + time * 0.03 + (time / 240) ** 2 * 6; // monsters per second
     timers.spawn -= dt;
     while (timers.spawn <= 0) {
         timers.spawn += 1 / rate;
@@ -769,8 +775,17 @@ function moveMonsters(dt) {
 
         // Touching the knight hurts
         if (d < size + 10 && player.invuln <= 0) {
-            player.hp -= m.damage;
-            player.invuln = 0.6;
+            // Touches hurt more as the night goes on, so the first minute is for learning
+            player.hp -= m.damage * (0.45 + Math.min(1, time / NIGHT) * 0.75);
+            player.invuln = 0.85;
+            // Shove the monsters around the knight back so a crowd cannot lock it in place
+            query(player.x, player.y, 46, (j) => {
+                const kx = ex[j] - player.x;
+                const ky = ey[j] - player.y;
+                const kl = Math.hypot(kx, ky) || 1;
+                ekx[j] += (kx / kl) * 220;
+                eky[j] += (ky / kl) * 220;
+            });
             player.hurtT = 0.3;
             shake = Math.max(shake, 4);
             sounds.hurt.play();
@@ -844,7 +859,7 @@ function updateShards(dt) {
                 if (player.xp >= player.need) {
                     player.xp -= player.need;
                     player.level++;
-                    player.need = Math.round(6 + player.level * 4.5 + player.level * player.level * 0.35);
+                    player.need = Math.round(3 + player.level * 3.5 + player.level * player.level * 0.3);
                     player.hp = Math.min(player.maxHp, player.hp + player.maxHp * 0.15);
                     if (offerUpgrades()) return;
                 }
