@@ -157,6 +157,7 @@ body.resizing-v {
 .ide-btn svg {
     width: 15px;
     height: 15px;
+    flex: none;
     fill: currentColor;
 }
 .ide-btn.run {
@@ -1052,9 +1053,24 @@ kbd {
     .ide-right {
         grid-template-rows: 56vh 5px 200px;
     }
-    .ide-toggle span,
+    .ide-toggle,
     .ide-btn span,
-    .ide-status {
+    .ide-status,
+    .ide-brand span {
         display: none;
+    }
+    .ide-top {
+        gap: 6px;
+        padding: 0 8px;
+    }
+    .ide-brand {
+        padding-right: 6px;
+    }
+    .ide-project {
+        max-width: 34vw;
+        font-size: 14px;
+    }
+    .ide-btn {
+        padding: 0 11px;
     }
 }

@@ -30,8 +30,8 @@ export const GAMES: GameInfo[] = [
         kind: "2D",
         accent: "#7b6cf0",
         tagline: {
-            en: "Hold the shrine until dawn. Spells cast themselves; you just have to survive.",
-            pt: "Defenda o santuário até o amanhecer. Os feitiços se lançam sozinhos; você só precisa sobreviver.",
+            en: "Survive the night against the horde. Your spells cast themselves; you just keep moving.",
+            pt: "Sobreviva à noite contra a horda. Os feitiços se lançam sozinhos; você só precisa continuar se mexendo.",
         },
         description: {
             en: "A pixel-art arena survivor drawn entirely on the GPU: hundreds of monsters, sprite-sheet animation in a custom shader, holy spell effects and a level-up draft every minute.",
