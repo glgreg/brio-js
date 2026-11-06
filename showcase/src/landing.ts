@@ -1,7 +1,7 @@
 import "./styles/base.css";
 import "./styles/landing.css";
 import { mountChrome } from "./chrome";
-import { applyI18n, onLangChange, pick, t } from "./i18n";
+import { applyI18n, getLang, onLangChange, pick, t } from "./i18n";
 import { capySVG } from "./mascot";
 import { GAMES } from "./games";
 import { highlightJS } from "./highlight";
@@ -149,7 +149,7 @@ function renderGames(): void {
     grid.innerHTML = GAMES.map(
         (game, i) => `
       <article class="game-card" style="--accent:${game.accent}; --tilt:${[-0.9, 0.7, 0.6, -0.8][i % 4]}deg">
-        <a class="game-poster" href="/play?game=${game.id}" aria-label="${t("games.play")}: ${game.title}">
+        <a class="game-poster" href="/play?game=${game.id}" data-game="${game.id}" aria-label="${t("games.play")}: ${game.title}">
           <img src="/games/${game.id}/poster.webp" alt="" loading="lazy" onerror="this.style.display='none'"/>
           <span class="game-kind">${game.kind} · WebGL2</span>
           <span class="game-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg></span>
@@ -168,6 +168,37 @@ function renderGames(): void {
 }
 renderGames();
 onLangChange(renderGames);
+
+// Hovering a card (with a mouse) swaps the poster for the game itself, running its attract mode without sound.
+// Only one preview exists at a time, and it is removed on leave so WebGL contexts never pile up.
+let preview: { poster: HTMLElement; frame: HTMLIFrameElement; timer: number } | undefined;
+function stopPreview(): void {
+    if (!preview) return;
+    clearTimeout(preview.timer);
+    preview.frame.remove();
+    preview.poster.classList.remove("previewing");
+    preview = undefined;
+}
+grid.addEventListener("pointerover", (event) => {
+    if ((event as PointerEvent).pointerType !== "mouse") return;
+    const poster = (event.target as HTMLElement).closest<HTMLElement>(".game-poster");
+    if (!poster || preview?.poster === poster) return;
+    stopPreview();
+    const frame = document.createElement("iframe");
+    frame.className = "game-preview";
+    frame.tabIndex = -1;
+    frame.setAttribute("aria-hidden", "true");
+    const timer = window.setTimeout(() => {
+        frame.src = `/games/${poster.dataset.game}/index.html?demo=1&mute=1&lang=${getLang()}`;
+        frame.addEventListener("load", () => setTimeout(() => poster.classList.add("previewing"), 600));
+        poster.appendChild(frame);
+    }, 280);
+    preview = { poster, frame, timer };
+});
+grid.addEventListener("pointerout", (event) => {
+    const to = (event as PointerEvent).relatedTarget as Node | null;
+    if (preview && !preview.poster.contains(to)) stopPreview();
+});
 
 // ---- Reveal on scroll ----
 const reveal = new IntersectionObserver(

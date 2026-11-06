@@ -608,7 +608,21 @@
 .game-card:hover .game-poster img {
     transform: scale(1.04);
 }
+.game-preview {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s var(--ease);
+}
+.game-poster.previewing .game-preview {
+    opacity: 1;
+}
 .game-kind {
+    z-index: 2;
     position: absolute;
     left: 12px;
     top: 12px;
@@ -622,6 +636,7 @@
     border-radius: 999px;
 }
 .game-play {
+    z-index: 2;
     position: absolute;
     right: 14px;
     bottom: 14px;

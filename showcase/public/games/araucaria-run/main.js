@@ -5,6 +5,7 @@
 import {
     BrioGame,
     BrioAudio,
+    BrioAudioMixer,
     BrioCamera3D,
     BrioInputMap,
     BrioLight,
@@ -606,5 +607,8 @@ game.ready().then(() => {
     ui.title(best);
     if (game.renderBackend?.backendType !== "webgl2") ui.noWebGL();
 });
+
+// ?mute=1 silences the game (used by the live previews of the gallery)
+if (new URLSearchParams(location.search).has("mute")) BrioAudioMixer.mute("master", true);
 
 window.brioGame = game;

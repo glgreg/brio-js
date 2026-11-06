@@ -3,7 +3,7 @@
 // Shows: a flat 2D look built from one BrioShader (no textures at all), an orthographic BrioCamera3D that fits a
 // fixed design size to any window, pointer input mapped to world space, a trajectory preview that runs the same
 // physics ahead of time, pooled objects and BrioStorage for progress.
-import { BrioGame, BrioAudio, BrioCamera3D, BrioMaterial, BrioMesh, BrioObject3D, BrioShader, BrioStorage } from "@brio-js/core";
+import { BrioGame, BrioAudio, BrioAudioMixer, BrioCamera3D, BrioMaterial, BrioMesh, BrioObject3D, BrioShader, BrioStorage } from "@brio-js/core";
 import { LEVELS } from "./levels.js";
 import { t } from "./strings.js";
 import * as ui from "./ui.js";
@@ -489,5 +489,8 @@ game.ready().then(() => {
     }
     if (game.renderBackend?.backendType !== "webgl2") ui.noWebGL();
 });
+
+// ?mute=1 silences the game (used by the live previews of the gallery)
+if (new URLSearchParams(location.search).has("mute")) BrioAudioMixer.mute("master", true);
 
 window.brioGame = game;
