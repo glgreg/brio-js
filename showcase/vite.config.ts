@@ -14,6 +14,7 @@ export default defineConfig({
                 play: resolve(__dirname, "play.html"),
                 playground: resolve(__dirname, "playground.html"),
                 credits: resolve(__dirname, "credits.html"),
+                notfound: resolve(__dirname, "404.html"),
             },
             // The engine is served from /engine/brio.js; pages import it by URL, never bundle it
             external: ["/engine/brio.js"],

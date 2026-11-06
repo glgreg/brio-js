@@ -55,6 +55,7 @@ const en = {
     "code.body":
         "Load assets in <code>preload()</code>, build the world in <code>load()</code>, change it every frame in <code>update()</code>. Objects are plain classes with documented properties, and the editor autocompletes all of them.",
     "code.try": "Run this in the playground",
+    "code.result": "This exact code, running",
     "code.point.1": "One entry point: <code>BrioGame</code> with a 2d, 3d or hybrid preset.",
     "code.point.2": "Input as named actions, so keyboard, gamepad and touch share one line.",
     "code.point.3": "WebGL2 first, with a Canvas2D fallback that keeps the game running.",
@@ -132,6 +133,8 @@ const en = {
     "play.notfound": "This game wandered off. Pick another one?",
     "play.clickToStart": "Click to start",
     "play.loading": "Loading…",
+    "notfound.title": "Capibrio could not find this page.",
+    "notfound.body": "It is probably napping somewhere else. These paths still work:",
 
     // credits page
     "credits.title": "Credits",
@@ -264,6 +267,7 @@ const pt: Strings = {
     "code.body":
         "Carregue os assets em <code>preload()</code>, monte o mundo em <code>load()</code> e altere-o a cada quadro em <code>update()</code>. Objetos são classes simples com propriedades documentadas, e o editor autocompleta todas elas.",
     "code.try": "Rodar isto no playground",
+    "code.result": "Este mesmo código, rodando",
     "code.point.1": "Um ponto de entrada: <code>BrioGame</code> com os presets 2d, 3d ou hybrid.",
     "code.point.2": "Entrada como ações nomeadas: teclado, gamepad e toque na mesma linha.",
     "code.point.3": "WebGL2 primeiro, com um fallback em Canvas2D que mantém o jogo rodando.",
@@ -335,6 +339,8 @@ const pt: Strings = {
     "play.notfound": "Esse jogo se perdeu por aí. Que tal escolher outro?",
     "play.clickToStart": "Clique para começar",
     "play.loading": "Carregando…",
+    "notfound.title": "A Capibrio não encontrou esta página.",
+    "notfound.body": "Ela deve estar cochilando em outro lugar. Estes caminhos continuam funcionando:",
 
     "credits.title": "Créditos",
     "credits.body":

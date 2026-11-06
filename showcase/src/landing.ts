@@ -123,6 +123,18 @@ fetch("/templates/hello-brio/main.js")
     })
     .catch(() => undefined);
 
+// ---- Live result of the code sample, loaded only when the section comes into view ----
+const result = document.getElementById("code-result")!;
+new IntersectionObserver((entries, observer) => {
+    if (!entries[0].isIntersecting) return;
+    observer.disconnect();
+    const frame = document.createElement("iframe");
+    frame.title = "Hello Brio";
+    frame.loading = "lazy";
+    frame.src = "/templates/hello-brio/index.html";
+    result.appendChild(frame);
+}, { rootMargin: "200px" }).observe(result);
+
 // ---- Engine size stat (gzip size measured at build time) ----
 fetch("/engine/version.json")
     .then((r) => r.json())
