@@ -1,24 +1,53 @@
 import { BrioMaterial } from "../assets/BrioMaterial";
 import { BrioMesh } from "../assets/BrioMesh";
 import { BrioTexture } from "../assets/BrioTexture";
+import type { BrioShader } from "../assets/BrioShader";
 import { ViewportRect } from "../core/BrioViewport";
-import { Mat4 } from "../math/index";
+import { Mat4, Matrix4 } from "../math/index";
 import { BrioLight } from "../objects/BrioLight";
 import { parseCanvasColor, srgbToLinear } from "./color";
-import { RenderBackend, RenderBackendType } from "./contracts/RenderBackend";
+import {
+    RenderBackend,
+    RenderBackendType,
+    RenderPassParameters,
+    SHADOW_CAST,
+    SHADOW_RECEIVE,
+} from "./contracts/RenderBackend";
+import { sortInPlace } from "../tools/sort";
 import {
     buildLightingEnvironment,
     createLightingEnvironment,
     LightingEnvironment,
     MAX_DIRECTIONAL_LIGHTS,
+    MAX_PUNCTUAL_LIGHTS,
 } from "./lighting";
 
 type Context2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 /** Uniform buffer binding point of the `BrioLights` block. */
 const LIGHTS_BINDING = 0;
-/** `BrioLights` std140 layout: ambient, sky, ground, count (vec4 each), then directions and colors (vec4 per light). */
-const LIGHTS_FLOATS = 16 + MAX_DIRECTIONAL_LIGHTS * 8;
+/** Uniform buffer binding point of the `BrioPass` block (camera position, fog, tone mapping, exposure). */
+const PASS_BINDING = 1;
+/** Offset of the punctual light arrays in `BrioLights` (after ambient, sky, ground, counts and directional lights). */
+const PUNCTUAL_OFFSET = 16 + MAX_DIRECTIONAL_LIGHTS * 8;
+/**
+ * `BrioLights` std140 layout: ambient, sky, ground, counts (vec4 each), directional directions and colors (vec4 per
+ * light), then punctual positions, colors, directions and cones (vec4 per light).
+ */
+const LIGHTS_FLOATS = PUNCTUAL_OFFSET + MAX_PUNCTUAL_LIGHTS * 16;
+/**
+ * `BrioPass` std140 layout: camera position + exposure, fog color + mode, fog near / far / density + tone mapping,
+ * game time (`TIME`).
+ */
+const PASS_FLOATS = 16;
+/** `uFogParams.w` value of each tone mapping operator. */
+const TONE_MAPPING_CODES: Readonly<Record<RenderPassParameters["toneMapping"], number>> = {
+    none: 0,
+    reinhard: 1,
+    aces: 2,
+    agx: 3,
+    neutral: 4,
+};
 /** `gl.INVALID_INDEX`: returned by `getUniformBlockIndex` when a program does not use the block. */
 const INVALID_INDEX = 0xffffffff;
 /** Upper bound of anisotropic filtering samples requested for textures. */
@@ -34,8 +63,84 @@ const FEATURE_MAP = 1;
 const FEATURE_LIT = 2;
 const FEATURE_FLAT = 4;
 const FEATURE_ALPHA_TEST = 8;
+const FEATURE_STANDARD = 16;
+const FEATURE_SHADOW = 32;
+/** Program cache key span per custom shader: `features + FEATURE_KEY_SPAN * shader.id`. */
+const FEATURE_KEY_SPAN = 64;
 
-const VERTEX_SHADER = `#version 300 es
+/**
+ * GLSL sources of the program variant with feature bits `features` (`FEATURE_*`), shared by the program cache and
+ * the offline shader validation test.
+ *
+ * @internal
+ */
+export function buildShaderSources(
+    features: number,
+    hooks?: { readonly fragment?: string; readonly vertex?: string },
+): { vertex: string; fragment: string } {
+    const defines: string[] = [];
+    if (features & FEATURE_MAP) defines.push("#define USE_MAP");
+    if (features & FEATURE_LIT) defines.push("#define USE_LIGHTING");
+    if (features & FEATURE_FLAT) defines.push("#define FLAT_SHADED");
+    if (features & FEATURE_ALPHA_TEST) defines.push("#define USE_ALPHA_TEST");
+    if (features & FEATURE_STANDARD) defines.push("#define STANDARD_SHADING");
+    if (features & FEATURE_SHADOW) defines.push("#define USE_SHADOW");
+    let vertex = VERTEX_SHADER;
+    let fragment = FRAGMENT_SHADER;
+    const vertexDefines: string[] = [];
+    if (hooks?.vertex) {
+        vertexDefines.push("#define USE_VERTEX_HOOK");
+        vertex = vertex.replace(VERTEX_HOOK_MARKER, () => `#line 1 1\n${hooks.vertex}\n#line 0 0`);
+    }
+    if (hooks?.fragment) {
+        defines.push("#define USE_SURFACE_HOOK");
+        // Source string 1 holds the hook, so driver errors report lines of the user's code
+        fragment = fragment.replace(
+            SURFACE_HOOK_MARKER,
+            () => `#line 1 1\n${hooks.fragment}\n#line 0 0`,
+        );
+    }
+    return {
+        vertex: `#version 300 es\n${vertexDefines.join("\n")}\n${vertex}`,
+        fragment: `#version 300 es\n${defines.join("\n")}\n${fragment}`,
+    };
+}
+
+/** Depth-only program of the shadow pass (positions transformed into the light's clip space). @internal */
+export const SHADOW_DEPTH_SHADERS = {
+    vertex: `#version 300 es
+layout(location = 0) in vec3 aPosition;
+uniform mat4 uLightViewProj;
+uniform mat4 uWorld;
+void main() {
+    gl_Position = uLightViewProj * (uWorld * vec4(aPosition, 1.0));
+}`,
+    fragment: `#version 300 es
+precision mediump float;
+void main() {}`,
+};
+
+/** Every feature combination the backend can request (for validation tests). @internal */
+export const SHADER_FEATURE_COMBINATIONS: readonly number[] = (() => {
+    const out: number[] = [0];
+    for (let f = 1; f < 64; f++) {
+        // Flat shading, standard shading and shadows only exist on lit programs
+        if (
+            (f & (FEATURE_FLAT | FEATURE_STANDARD | FEATURE_SHADOW)) !== 0 &&
+            (f & FEATURE_LIT) === 0
+        )
+            continue;
+        out.push(f);
+    }
+    return out;
+})();
+
+/** Line replaced by the `BrioShader` vertex hook. */
+const VERTEX_HOOK_MARKER = "// <brio-vertex-hook>";
+/** Line replaced by the `BrioShader` fragment (surface) hook. */
+const SURFACE_HOOK_MARKER = "// <brio-surface-hook>";
+
+const VERTEX_SHADER = `
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUv;
@@ -45,10 +150,26 @@ uniform mat3 uNormalMatrix;
 out vec3 vNormal;
 out vec3 vWorldPosition;
 out vec2 vUv;
+#ifdef USE_VERTEX_HOOK
+layout(std140) uniform BrioPass {
+    vec4 uCameraPosition;
+    vec4 uFogColor;
+    vec4 uFogParams;
+    vec4 uTimeParams;
+};
+#define TIME uTimeParams.x
+#define CAMERA_POSITION uCameraPosition.xyz
+${VERTEX_HOOK_MARKER}
+#endif
 void main() {
-    vec4 worldPosition = uWorld * vec4(aPosition, 1.0);
+    vec3 position = aPosition;
+    vec3 normal = aNormal;
+#ifdef USE_VERTEX_HOOK
+    vertex(position, normal);
+#endif
+    vec4 worldPosition = uWorld * vec4(position, 1.0);
     vWorldPosition = worldPosition.xyz;
-    vNormal = uNormalMatrix * aNormal;
+    vNormal = uNormalMatrix * normal;
     vUv = aUv;
     gl_Position = uViewProj * worldPosition;
 }`;
@@ -61,6 +182,21 @@ in vec2 vUv;
 uniform vec4 uColor;
 uniform sampler2D uMap;
 uniform float uAlphaCutoff;
+uniform vec3 uEmissive;
+uniform vec2 uRoughnessMetalness;
+#ifdef USE_SHADOW
+uniform highp sampler2DShadow uShadowMap;
+uniform mat4 uShadowMatrix;
+// x: depth bias, y: normal bias (world units), z: texel size, w: index of the shadow-casting directional light
+uniform vec4 uShadowParams;
+uniform float uShadowStrength;
+#endif
+layout(std140) uniform BrioPass {
+    vec4 uCameraPosition;
+    vec4 uFogColor;
+    vec4 uFogParams;
+    vec4 uTimeParams;
+};
 #ifdef USE_LIGHTING
 layout(std140) uniform BrioLights {
     vec4 uAmbient;
@@ -69,12 +205,151 @@ layout(std140) uniform BrioLights {
     vec4 uLightCount;
     vec4 uDirLightDirection[${MAX_DIRECTIONAL_LIGHTS}];
     vec4 uDirLightColor[${MAX_DIRECTIONAL_LIGHTS}];
+    vec4 uPunctualPosition[${MAX_PUNCTUAL_LIGHTS}];
+    vec4 uPunctualColor[${MAX_PUNCTUAL_LIGHTS}];
+    vec4 uPunctualDirection[${MAX_PUNCTUAL_LIGHTS}];
+    vec4 uPunctualCone[${MAX_PUNCTUAL_LIGHTS}];
 };
 #endif
 out vec4 fragColor;
 
+const float PI = 3.141592653589793;
+#define TIME uTimeParams.x
+#define CAMERA_POSITION uCameraPosition.xyz
+
+#ifdef USE_SURFACE_HOOK
+struct BrioSurface {
+    vec3 baseColor;
+    float opacity;
+    vec3 normal;
+    vec3 emissive;
+    float roughness;
+    float metalness;
+    vec3 worldPosition;
+    vec2 uv;
+};
+${SURFACE_HOOK_MARKER}
+#endif
+
 vec3 linearToSrgb(vec3 c) {
     return mix(pow(c, vec3(0.41666)) * 1.055 - vec3(0.055), c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308))));
+}
+
+#ifdef USE_LIGHTING
+// Distance falloff 1 / d^decay, windowed to zero at the range (KHR_lights_punctual), times the spot cone
+float punctualAttenuation(int i, float dist, vec3 toLight) {
+    float range = uPunctualPosition[i].w;
+    float attenuation = 1.0 / max(pow(dist, uPunctualCone[i].y), 1e-4);
+    if (range > 0.0) {
+        float ratio = dist / range;
+        float window = clamp(1.0 - ratio * ratio * ratio * ratio, 0.0, 1.0);
+        attenuation *= window * window;
+    }
+    if (uPunctualColor[i].w > 1.5) {
+        float cosAngle = dot(-toLight, uPunctualDirection[i].xyz);
+        float cosOuter = uPunctualDirection[i].w;
+        float t = clamp((cosAngle - cosOuter) / max(uPunctualCone[i].x - cosOuter, 1e-4), 0.0, 1.0);
+        attenuation *= t * t;
+    }
+    return attenuation;
+}
+
+#ifdef STANDARD_SHADING
+float distributionGGX(float NoH, float alpha) {
+    float a2 = alpha * alpha;
+    float d = NoH * NoH * (a2 - 1.0) + 1.0;
+    return a2 / (PI * d * d);
+}
+
+float visibilitySmithGGXCorrelated(float NoV, float NoL, float alpha) {
+    float a2 = alpha * alpha;
+    float gv = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
+    float gl = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
+    return 0.5 / max(gv + gl, 1e-5);
+}
+
+vec3 fresnelSchlick(vec3 f0, float VoH) {
+    return f0 + (1.0 - f0) * pow(1.0 - VoH, 5.0);
+}
+
+// Light of one source with radiance \`radiance\` from direction \`L\`: Lambert diffuse plus GGX specular. Light
+// intensities keep the Lambert convention of the other shading models (intensity 1 lights a white surface fully),
+// so both terms are scaled by PI.
+vec3 shadeStandard(vec3 N, vec3 V, vec3 L, vec3 radiance, vec3 diffuseColor, vec3 f0, float alpha) {
+    float NoL = max(dot(N, L), 0.0);
+    if (NoL <= 0.0) return vec3(0.0);
+    vec3 H = normalize(L + V);
+    float NoV = max(dot(N, V), 1e-4);
+    float NoH = max(dot(N, H), 0.0);
+    float VoH = max(dot(V, H), 0.0);
+    vec3 F = fresnelSchlick(f0, VoH);
+    vec3 specular = F * (distributionGGX(NoH, alpha) * visibilitySmithGGXCorrelated(NoV, NoL, alpha) * PI);
+    return radiance * NoL * ((1.0 - F) * diffuseColor + specular);
+}
+
+// Split-sum environment BRDF approximation (Karis, "Physically Based Shading on Mobile")
+vec3 environmentBRDF(vec3 f0, float roughness, float NoV) {
+    const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+    const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+    vec4 r = roughness * c0 + c1;
+    float a004 = min(r.x * r.x, exp2(-9.28 * NoV)) * r.x + r.y;
+    vec2 ab = vec2(-1.04, 1.04) * a004 + r.zw;
+    return f0 * ab.x + ab.y;
+}
+#endif
+#endif
+
+#ifdef USE_SHADOW
+// Fraction of light reaching this fragment from the shadow-casting light: 3x3 percentage-closer filtering on top of
+// the hardware 2x2 comparison (LINEAR + COMPARE_REF_TO_TEXTURE), so edges stay soft
+float shadowFactor(vec3 normal) {
+    vec4 coord = uShadowMatrix * vec4(vWorldPosition + normal * uShadowParams.y, 1.0);
+    vec3 p = coord.xyz / coord.w * 0.5 + 0.5;
+    if (p.x <= 0.0 || p.x >= 1.0 || p.y <= 0.0 || p.y >= 1.0 || p.z >= 1.0) return 1.0;
+    float depth = p.z - uShadowParams.x;
+    float texel = uShadowParams.z;
+    float sum = 0.0;
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            sum += texture(uShadowMap, vec3(p.xy + vec2(float(x), float(y)) * texel, depth));
+        }
+    }
+    return mix(1.0, sum / 9.0, uShadowStrength);
+}
+#endif
+
+vec3 toneMap(vec3 color, float mode) {
+    if (mode < 0.5) return color;
+    if (mode < 1.5) return color / (1.0 + color);
+    if (mode < 2.5) {
+        // ACES filmic fitted curve (Narkowicz)
+        color *= 0.6;
+        return clamp((color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14), 0.0, 1.0);
+    }
+    if (mode < 3.5) {
+        // AgX base contrast approximation (sigmoid fit of the AgX transform)
+        const mat3 agxIn = mat3(0.842479, 0.0423304, 0.0423738, 0.0784336, 0.878468, 0.0784336, 0.0792237, 0.0791661, 0.879142);
+        const mat3 agxOut = mat3(1.19688, -0.0528969, -0.0529716, -0.0980209, 1.15190, -0.0980435, -0.0990297, -0.0989612, 1.15107);
+        vec3 x = agxIn * max(color, vec3(1e-10));
+        x = clamp((log2(x) + 12.47393) / 16.5, 0.0, 1.0);
+        vec3 x2 = x * x;
+        vec3 x4 = x2 * x2;
+        x = 15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232;
+        return clamp(pow(max(agxOut * x, vec3(0.0)), vec3(2.2)), 0.0, 1.0);
+    }
+    // Khronos PBR Neutral
+    const float startCompression = 0.8 - 0.04;
+    const float desaturation = 0.15;
+    float x = min(color.r, min(color.g, color.b));
+    float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+    color -= offset;
+    float peak = max(color.r, max(color.g, color.b));
+    if (peak < startCompression) return color;
+    float d = 1.0 - startCompression;
+    float newPeak = 1.0 - d * d / (peak + d - startCompression);
+    color *= newPeak / peak;
+    float g = 1.0 - 1.0 / (desaturation * (peak - newPeak) + 1.0);
+    return mix(color, vec3(newPeak), g);
 }
 
 void main() {
@@ -83,25 +358,95 @@ void main() {
     // SRGB8_ALPHA8 storage: the sampler already returns linear values
     base *= texture(uMap, vUv);
 #endif
-#ifdef USE_ALPHA_TEST
-    if (base.a < uAlphaCutoff) discard;
-#endif
-    vec3 color = base.rgb;
-#ifdef USE_LIGHTING
 #ifdef FLAT_SHADED
     vec3 normal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
 #else
     vec3 normal = normalize(vNormal);
     normal = gl_FrontFacing ? normal : -normal;
 #endif
+    vec3 emissive = uEmissive;
+    float surfaceRoughness = uRoughnessMetalness.x;
+    float surfaceMetalness = uRoughnessMetalness.y;
+#ifdef USE_SURFACE_HOOK
+    BrioSurface hookSurface = BrioSurface(base.rgb, base.a, normal, emissive, surfaceRoughness, surfaceMetalness, vWorldPosition, vUv);
+    surface(hookSurface);
+    base = vec4(hookSurface.baseColor, hookSurface.opacity);
+    normal = normalize(hookSurface.normal);
+    emissive = hookSurface.emissive;
+    surfaceRoughness = hookSurface.roughness;
+    surfaceMetalness = hookSurface.metalness;
+#endif
+#ifdef USE_ALPHA_TEST
+    if (base.a < uAlphaCutoff) discard;
+#endif
+    vec3 color = base.rgb;
+#ifdef USE_LIGHTING
     float hemisphere = normal.y * 0.5 + 0.5;
-    vec3 irradiance = uAmbient.rgb + mix(uGroundColor.rgb, uSkyColor.rgb, hemisphere);
+    vec3 ambient = uAmbient.rgb + mix(uGroundColor.rgb, uSkyColor.rgb, hemisphere);
+    int directionalCount = int(uLightCount.x);
+    int punctualCount = int(uLightCount.y);
+#ifdef USE_SHADOW
+    float shadow = shadowFactor(normal);
+    int shadowLight = int(uShadowParams.w);
+#else
+    float shadow = 1.0;
+    int shadowLight = -1;
+#endif
+#ifdef STANDARD_SHADING
+    vec3 V = normalize(uCameraPosition.xyz - vWorldPosition);
+    float roughness = clamp(surfaceRoughness, 0.03, 1.0);
+    float metalness = clamp(surfaceMetalness, 0.0, 1.0);
+    float alpha = roughness * roughness;
+    vec3 diffuseColor = base.rgb * (1.0 - metalness);
+    vec3 f0 = mix(vec3(0.04), base.rgb, metalness);
+    float NoV = max(dot(normal, V), 1e-4);
+    vec3 reflected = reflect(-V, normal);
+    vec3 skyReflection = mix(uGroundColor.rgb, uSkyColor.rgb, reflected.y * 0.5 + 0.5) + uAmbient.rgb;
+    vec3 lit = ambient * diffuseColor + skyReflection * environmentBRDF(f0, roughness, NoV);
     for (int i = 0; i < ${MAX_DIRECTIONAL_LIGHTS}; i++) {
-        if (float(i) >= uLightCount.x) break;
-        irradiance += uDirLightColor[i].rgb * max(dot(normal, uDirLightDirection[i].xyz), 0.0);
+        if (i >= directionalCount) break;
+        float visibility = i == shadowLight ? shadow : 1.0;
+        lit += shadeStandard(normal, V, uDirLightDirection[i].xyz, uDirLightColor[i].rgb * visibility, diffuseColor, f0, alpha);
+    }
+    for (int i = 0; i < ${MAX_PUNCTUAL_LIGHTS}; i++) {
+        if (i >= punctualCount) break;
+        vec3 toLight = uPunctualPosition[i].xyz - vWorldPosition;
+        float dist = max(length(toLight), 1e-4);
+        toLight /= dist;
+        vec3 radiance = uPunctualColor[i].rgb * punctualAttenuation(i, dist, toLight);
+        lit += shadeStandard(normal, V, toLight, radiance, diffuseColor, f0, alpha);
+    }
+    color = lit;
+#else
+    vec3 irradiance = ambient;
+    for (int i = 0; i < ${MAX_DIRECTIONAL_LIGHTS}; i++) {
+        if (i >= directionalCount) break;
+        float visibility = i == shadowLight ? shadow : 1.0;
+        irradiance += uDirLightColor[i].rgb * (max(dot(normal, uDirLightDirection[i].xyz), 0.0) * visibility);
+    }
+    for (int i = 0; i < ${MAX_PUNCTUAL_LIGHTS}; i++) {
+        if (i >= punctualCount) break;
+        vec3 toLight = uPunctualPosition[i].xyz - vWorldPosition;
+        float dist = max(length(toLight), 1e-4);
+        toLight /= dist;
+        float lambert = max(dot(normal, toLight), 0.0);
+        irradiance += uPunctualColor[i].rgb * (lambert * punctualAttenuation(i, dist, toLight));
     }
     color *= irradiance;
 #endif
+#endif
+    color += emissive;
+    // Fog blends toward its color with the distance to the camera (mode in uFogColor.w)
+    float fogMode = uFogColor.w;
+    if (fogMode > 0.5) {
+        float dist = length(uCameraPosition.xyz - vWorldPosition);
+        float fog;
+        if (fogMode < 1.5) fog = clamp((dist - uFogParams.x) / max(uFogParams.y - uFogParams.x, 1e-4), 0.0, 1.0);
+        else if (fogMode < 2.5) fog = 1.0 - exp(-uFogParams.z * dist);
+        else fog = 1.0 - exp(-(uFogParams.z * dist) * (uFogParams.z * dist));
+        color = mix(color, uFogColor.rgb, fog);
+    }
+    color = toneMap(color * uCameraPosition.w, uFogParams.w);
     // Premultiplied output, matching the canvas compositor and the ONE / ONE_MINUS_SRC_ALPHA blend
     fragColor = vec4(linearToSrgb(color) * base.a, base.a);
 }`;
@@ -134,6 +479,23 @@ interface ProgramInfo {
     uColor: WebGLUniformLocation | null;
     uMap: WebGLUniformLocation | null;
     uAlphaCutoff: WebGLUniformLocation | null;
+    uEmissive: WebGLUniformLocation | null;
+    uRoughnessMetalness: WebGLUniformLocation | null;
+    uShadowMap: WebGLUniformLocation | null;
+    uShadowMatrix: WebGLUniformLocation | null;
+    uShadowParams: WebGLUniformLocation | null;
+    uShadowStrength: WebGLUniformLocation | null;
+    /** Whether the program includes `BrioShader` hooks (its parameters are uploaded per draw). */
+    custom: boolean;
+    /** Locations of custom parameters, looked up on first use. */
+    parameters: Map<string, WebGLUniformLocation | null>;
+}
+
+/** Depth-only program of the shadow pass. */
+interface DepthProgramInfo {
+    program: WebGLProgram;
+    uLightViewProj: WebGLUniformLocation | null;
+    uWorld: WebGLUniformLocation | null;
 }
 
 /** One queued `renderMesh3D()` call, sorted and drawn by `endFrame()`. */
@@ -146,6 +508,12 @@ interface DrawItem {
     materialId: number;
     /** Clip-space `w` of the object origin (view depth), used for sorting. */
     depth: number;
+    /** Object opacity (`transform.opacity`), multiplied with `material.opacity`. */
+    opacity: number;
+    /** Whether the item is drawn into the shadow map. */
+    castsShadow: boolean;
+    /** Custom hooks of the material (loaded `BrioShader`), if any. */
+    shader: BrioShader | undefined;
 }
 
 /** Opaque items: group by program and material (fewer state changes), then front-to-back (early-z). */
@@ -208,6 +576,7 @@ export class WebGL2Backend implements RenderBackend {
     readonly #itemPool: DrawItem[] = [];
     readonly #opaque: DrawItem[] = [];
     readonly #transparent: DrawItem[] = [];
+    readonly #sortScratch: DrawItem[] = [];
     #itemCount = 0;
 
     // Pixel rect of the current pass (top-left origin, as on the 2D canvas)
@@ -228,7 +597,38 @@ export class WebGL2Backend implements RenderBackend {
     /** `BrioLights` uniform buffer and its CPU copy (std140). */
     #lightsUbo: WebGLBuffer | null = null;
     readonly #lightData = new Float32Array(LIGHTS_FLOATS);
-    #lightsKey: string | undefined;
+    /** `BrioPass` uniform buffer and its CPU copy (std140), rewritten by `setPassParameters()`. */
+    #passUbo: WebGLBuffer | null = null;
+    readonly #passData = new Float32Array(PASS_FLOATS);
+    #passDirty = true;
+    /** `BrioShader.version` each custom shader's cached programs were built from. */
+    readonly #shaderVersions = new Map<number, number>();
+    /** Programs that failed to compile or link: logged once, then their draws are skipped (D-07). */
+    readonly #failedPrograms = new Set<number>();
+    readonly #emissiveScratch = new Float32Array(3);
+
+    // Directional shadow (one map per pass, from the first shadow-casting directional light)
+    #shadowLight = -1;
+    readonly #shadowDirection = new Float32Array(3);
+    /** size, distance, resolution, bias, normal bias, strength */
+    readonly #shadowSettings = new Float32Array(6);
+    #shadowTexture: WebGLTexture | null = null;
+    #shadowFramebuffer: WebGLFramebuffer | null = null;
+    #shadowResolution = 0;
+    #depthProgram: DepthProgramInfo | null = null;
+    /** Set once the depth program or framebuffer failed: shadows stay off instead of failing every frame. */
+    #shadowsUnsupported = false;
+    /** Whether the shadow map of the current pass was rendered (shadow variants sample it). */
+    #shadowReady = false;
+    readonly #shadowView = Matrix4.create();
+    readonly #shadowProjection = Matrix4.create();
+    readonly #shadowMatrix = Matrix4.create();
+    readonly #shadowEye = { x: 0, y: 0, z: 0 };
+    readonly #shadowCenter = { x: 0, y: 0, z: 0 };
+    readonly #shadowUp = { x: 0, y: 1, z: 0 };
+    /** GL (bottom-left) Y of the current pass viewport. */
+    #glY = 0;
+    #lightsVersion = -1;
     #lightsDirty = true;
 
     readonly #normalMatrix = new Float32Array(9);
@@ -237,6 +637,8 @@ export class WebGL2Backend implements RenderBackend {
     #trianglesRendered = 0;
 
     constructor() {
+        // Exposure 1 until a pass sets its parameters
+        this.#passData[3] = 1;
         this.setLights(
             buildLightingEnvironment(BrioLight.createDefaultRig(), createLightingEnvironment()),
         );
@@ -248,14 +650,15 @@ export class WebGL2Backend implements RenderBackend {
      * @param environment Lights reduced by `buildLightingEnvironment()`
      */
     public setLights(environment: LightingEnvironment): void {
-        if (environment.key === this.#lightsKey) return;
-        this.#lightsKey = environment.key;
+        if (environment.version === this.#lightsVersion) return;
+        this.#lightsVersion = environment.version;
         const data = this.#lightData;
         data.fill(0);
         data.set(environment.ambient, 0);
         data.set(environment.sky, 4);
         data.set(environment.ground, 8);
         data[12] = environment.directionalCount;
+        data[13] = environment.punctualCount;
         for (let i = 0; i < environment.directionalCount; i++) {
             data.set(environment.directions.subarray(i * 3, i * 3 + 3), 16 + i * 4);
             data.set(
@@ -263,7 +666,50 @@ export class WebGL2Backend implements RenderBackend {
                 16 + MAX_DIRECTIONAL_LIGHTS * 4 + i * 4,
             );
         }
+        const count = environment.punctualCount * 4;
+        const stride = MAX_PUNCTUAL_LIGHTS * 4;
+        data.set(environment.punctualPositions.subarray(0, count), PUNCTUAL_OFFSET);
+        data.set(environment.punctualColors.subarray(0, count), PUNCTUAL_OFFSET + stride);
+        data.set(environment.punctualDirections.subarray(0, count), PUNCTUAL_OFFSET + stride * 2);
+        data.set(environment.punctualCones.subarray(0, count), PUNCTUAL_OFFSET + stride * 3);
+        this.#shadowLight = environment.shadowLight;
+        this.#shadowDirection.set(environment.shadowDirection);
+        this.#shadowSettings.set(environment.shadowSettings);
         this.#lightsDirty = true;
+    }
+
+    /**
+     * Sets the camera position, fog, tone mapping and exposure of the current pass (`BrioPass` block).
+     *
+     * @param parameters Values of the pass
+     */
+    public setPassParameters(parameters: Readonly<RenderPassParameters>): void {
+        const data = this.#passData;
+        data[0] = parameters.cameraX;
+        data[1] = parameters.cameraY;
+        data[2] = parameters.cameraZ;
+        data[3] = parameters.exposure;
+        if (parameters.fogMode > 0) {
+            const fog = this.#linearColor(parameters.fogColor);
+            data[4] = fog[0];
+            data[5] = fog[1];
+            data[6] = fog[2];
+        }
+        data[7] = parameters.fogMode;
+        data[8] = parameters.fogNear;
+        data[9] = parameters.fogFar;
+        data[10] = parameters.fogDensity;
+        data[11] = TONE_MAPPING_CODES[parameters.toneMapping] ?? 0;
+        data[12] = parameters.time;
+        this.#passDirty = true;
+        this.#shadowCenter.x = parameters.targetX;
+        this.#shadowCenter.y = parameters.targetY;
+        this.#shadowCenter.z = parameters.targetZ;
+    }
+
+    /** Values currently uploaded (or pending upload) to the `BrioPass` block (std140 layout). */
+    public get passData(): Readonly<Float32Array> {
+        return this.#passData;
     }
 
     /** Light values currently uploaded (or pending upload) to the `BrioLights` block (std140 layout). */
@@ -361,6 +807,8 @@ export class WebGL2Backend implements RenderBackend {
         this.#ph = Math.round(viewport.height * h);
         // GL window coordinates start at the bottom-left corner
         const glY = h - this.#py - this.#ph;
+        this.#glY = glY;
+        this.#shadowReady = false;
         gl.viewport(this.#px, glY, this.#pw, this.#ph);
         gl.scissor(this.#px, glY, this.#pw, this.#ph);
 
@@ -389,14 +837,17 @@ export class WebGL2Backend implements RenderBackend {
      * @param material `BrioMaterial` appearance
      * @param worldMatrix Object 4x4 world matrix
      * @param viewProjMatrix Camera 4x4 view-projection matrix
+     * @param opacity Object opacity (`transform.opacity`), multiplied with `material.opacity`
      */
     public renderMesh3D(
         mesh: BrioMesh,
         material: BrioMaterial,
         worldMatrix: Mat4,
         viewProjMatrix: Mat4,
+        opacity: number = 1,
+        shadowFlags: number = SHADOW_CAST | SHADOW_RECEIVE,
     ): void {
-        if (!this.#gl || this.#contextLost || mesh.indices.length === 0) return;
+        if (!this.#gl || this.#contextLost || mesh.indices.length === 0 || opacity <= 0) return;
 
         let item = this.#itemPool[this.#itemCount];
         if (!item) {
@@ -408,6 +859,9 @@ export class WebGL2Backend implements RenderBackend {
                 features: 0,
                 materialId: 0,
                 depth: 0,
+                opacity: 1,
+                castsShadow: false,
+                shader: undefined,
             };
             this.#itemPool.push(item);
         }
@@ -423,8 +877,22 @@ export class WebGL2Backend implements RenderBackend {
         const y = worldMatrix[13];
         const z = worldMatrix[14];
         item.depth = vp[3] * x + vp[7] * y + vp[11] * z + vp[15];
+        item.opacity = opacity;
+        item.castsShadow = (shadowFlags & SHADOW_CAST) !== 0;
+        const shader = material.shader;
+        item.shader =
+            typeof shader === "object" && shader.isLoaded && (shader.fragment || shader.vertex)
+                ? shader
+                : undefined;
+        if (
+            this.#shadowLight >= 0 &&
+            (shadowFlags & SHADOW_RECEIVE) !== 0 &&
+            (item.features & FEATURE_LIT) !== 0
+        ) {
+            item.features |= FEATURE_SHADOW;
+        }
 
-        if (material.opacity < 1) this.#transparent.push(item);
+        if (material.opacity * opacity < 1) this.#transparent.push(item);
         else this.#opaque.push(item);
     }
 
@@ -442,8 +910,21 @@ export class WebGL2Backend implements RenderBackend {
             gl.bufferSubData(gl.UNIFORM_BUFFER, 0, this.#lightData);
             this.#lightsDirty = false;
         }
-        this.#opaque.sort(compareOpaque);
-        this.#transparent.sort(compareTransparent);
+        if (this.#passDirty && this.#passUbo) {
+            gl.bindBuffer(gl.UNIFORM_BUFFER, this.#passUbo);
+            gl.bufferSubData(gl.UNIFORM_BUFFER, 0, this.#passData);
+            this.#passDirty = false;
+        }
+        // Unlike Array.prototype.sort, allocates no work buffer per frame
+        sortInPlace(this.#opaque, this.#opaque.length, compareOpaque, this.#sortScratch);
+        sortInPlace(
+            this.#transparent,
+            this.#transparent.length,
+            compareTransparent,
+            this.#sortScratch,
+        );
+
+        if (this.#shadowLight >= 0) this.#renderShadowMap(gl);
 
         this.#setBlend(false);
         this.#setDepthMask(true);
@@ -509,6 +990,10 @@ export class WebGL2Backend implements RenderBackend {
             for (const texture of this.#ownedTextures) gl.deleteTexture(texture);
             for (const info of this.#programs.values()) gl.deleteProgram(info.program);
             if (this.#lightsUbo) gl.deleteBuffer(this.#lightsUbo);
+            if (this.#passUbo) gl.deleteBuffer(this.#passUbo);
+            if (this.#shadowTexture) gl.deleteTexture(this.#shadowTexture);
+            if (this.#shadowFramebuffer) gl.deleteFramebuffer(this.#shadowFramebuffer);
+            if (this.#depthProgram) gl.deleteProgram(this.#depthProgram.program);
         }
         this.#resetResources();
         this.#gl = null;
@@ -532,6 +1017,11 @@ export class WebGL2Backend implements RenderBackend {
         gl.bufferData(gl.UNIFORM_BUFFER, this.#lightData, gl.DYNAMIC_DRAW);
         gl.bindBufferBase(gl.UNIFORM_BUFFER, LIGHTS_BINDING, this.#lightsUbo);
         this.#lightsDirty = false;
+        this.#passUbo = gl.createBuffer();
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.#passUbo);
+        gl.bufferData(gl.UNIFORM_BUFFER, this.#passData, gl.DYNAMIC_DRAW);
+        gl.bindBufferBase(gl.UNIFORM_BUFFER, PASS_BINDING, this.#passUbo);
+        this.#passDirty = false;
         const ext =
             gl.getExtension("EXT_texture_filter_anisotropic") ??
             gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
@@ -555,6 +1045,16 @@ export class WebGL2Backend implements RenderBackend {
         this.#programs.clear();
         this.#lightsUbo = null;
         this.#lightsDirty = true;
+        this.#passUbo = null;
+        this.#passDirty = true;
+        this.#failedPrograms.clear();
+        this.#shaderVersions.clear();
+        this.#shadowTexture = null;
+        this.#shadowFramebuffer = null;
+        this.#shadowResolution = 0;
+        this.#depthProgram = null;
+        this.#shadowReady = false;
+        this.#shadowsUnsupported = false;
         this.#currentProgram = null;
         this.#currentVao = null;
         this.#cullEnabled = null;
@@ -569,6 +1069,7 @@ export class WebGL2Backend implements RenderBackend {
         if (material.texture && this.#textureFor(material.texture)) features |= FEATURE_MAP;
         if (material.shading !== "unlit") features |= FEATURE_LIT;
         if (material.shading === "flat") features |= FEATURE_FLAT;
+        if (material.shading === "standard") features |= FEATURE_STANDARD;
         if (material.alphaCutoff > 0) features |= FEATURE_ALPHA_TEST;
         return features;
     }
@@ -585,7 +1086,12 @@ export class WebGL2Backend implements RenderBackend {
     #draw(gl: WebGL2RenderingContext, item: DrawItem): void {
         const material = item.material;
         const geometry = this.#geometryFor(gl, item.mesh);
-        const info = this.#programFor(gl, item.features);
+        // Without a shadow map this pass (no depth texture support, nothing cast), draw the unshadowed variant
+        const features =
+            (item.features & FEATURE_SHADOW) !== 0 && !this.#shadowReady
+                ? item.features & ~FEATURE_SHADOW
+                : item.features;
+        const info = this.#programFor(gl, features, item.shader);
         if (!info) return;
 
         if (this.#currentProgram !== info.program) {
@@ -603,7 +1109,7 @@ export class WebGL2Backend implements RenderBackend {
         rgba[0] = color[0];
         rgba[1] = color[1];
         rgba[2] = color[2];
-        rgba[3] = color[3] * material.opacity;
+        rgba[3] = color[3] * material.opacity * item.opacity;
         gl.uniform4fv(info.uColor, rgba);
 
         if ((item.features & FEATURE_MAP) !== 0) {
@@ -614,6 +1120,39 @@ export class WebGL2Backend implements RenderBackend {
         if ((item.features & FEATURE_ALPHA_TEST) !== 0) {
             gl.uniform1f(info.uAlphaCutoff, material.alphaCutoff);
         }
+        const emissive = this.#emissiveScratch;
+        if (material.emissive !== "#000000" && material.emissiveIntensity > 0) {
+            const e = this.#linearColor(material.emissive);
+            const k = material.emissiveIntensity * e[3];
+            emissive[0] = e[0] * k;
+            emissive[1] = e[1] * k;
+            emissive[2] = e[2] * k;
+        } else {
+            emissive[0] = 0;
+            emissive[1] = 0;
+            emissive[2] = 0;
+        }
+        gl.uniform3fv(info.uEmissive, emissive);
+        if ((features & FEATURE_STANDARD) !== 0) {
+            gl.uniform2f(info.uRoughnessMetalness, material.roughness, material.metalness);
+        }
+        if ((features & FEATURE_SHADOW) !== 0) {
+            const settings = this.#shadowSettings;
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, this.#shadowTexture);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.uniform1i(info.uShadowMap, 1);
+            gl.uniformMatrix4fv(info.uShadowMatrix, false, this.#shadowMatrix);
+            gl.uniform4f(
+                info.uShadowParams,
+                settings[3],
+                settings[4],
+                1 / this.#shadowResolution,
+                this.#shadowLight,
+            );
+            gl.uniform1f(info.uShadowStrength, settings[5]);
+        }
+        if (info.custom) this.#uploadParameters(gl, info, material);
 
         this.#setCull(!material.doubleSided && !material.wireframe);
         // A mirroring transform flips the winding, so front faces become clockwise (as in three.js)
@@ -779,19 +1318,254 @@ export class WebGL2Backend implements RenderBackend {
         return handle;
     }
 
-    #programFor(gl: WebGL2RenderingContext, features: number): ProgramInfo | undefined {
-        const cached = this.#programs.get(features);
+    #programFor(
+        gl: WebGL2RenderingContext,
+        features: number,
+        shader?: BrioShader,
+    ): ProgramInfo | undefined {
+        if (shader) {
+            // A new source (hot reload) drops the programs built from the previous one
+            if (this.#shaderVersions.get(shader.id) !== shader.version) {
+                this.#forgetShaderPrograms(gl, shader);
+                this.#shaderVersions.set(shader.id, shader.version);
+            }
+        }
+        const key = shader ? features + FEATURE_KEY_SPAN * shader.id : features;
+        const cached = this.#programs.get(key);
         if (cached) return cached;
+        // A failed custom shader falls back to the built-in program of the same features
+        if (this.#failedPrograms.has(key))
+            return shader ? this.#programFor(gl, features) : undefined;
 
-        const defines: string[] = [];
-        if (features & FEATURE_MAP) defines.push("#define USE_MAP");
-        if (features & FEATURE_LIT) defines.push("#define USE_LIGHTING");
-        if (features & FEATURE_FLAT) defines.push("#define FLAT_SHADED");
-        if (features & FEATURE_ALPHA_TEST) defines.push("#define USE_ALPHA_TEST");
-        const fragmentSource = `#version 300 es\n${defines.join("\n")}\n${FRAGMENT_SHADER}`;
+        // A shader error must never throw from a draw (D-07): log it once with the driver's message and skip the
+        // draws of that variant (or fall back to the built-in shader), so the rest of the frame still renders
+        let program: WebGLProgram | undefined;
+        try {
+            program = this.#linkProgram(gl, features, shader);
+        } catch (err) {
+            this.#failedPrograms.add(key);
+            console.error(
+                shader
+                    ? `BrioJS WebGL2Backend: BrioShader '${shader.name}' failed to compile; its materials use the built-in shader. In the driver message, line numbers of source 1 are lines of the hook.`
+                    : `BrioJS WebGL2Backend: shader program (features ${features}) failed; its meshes are not drawn.`,
+                err,
+            );
+            return shader ? this.#programFor(gl, features) : undefined;
+        }
 
-        const vs = this.#compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-        const fs = this.#compile(gl, gl.FRAGMENT_SHADER, fragmentSource);
+        const info: ProgramInfo = {
+            program,
+            uViewProj: gl.getUniformLocation(program, "uViewProj"),
+            uWorld: gl.getUniformLocation(program, "uWorld"),
+            uNormalMatrix: gl.getUniformLocation(program, "uNormalMatrix"),
+            uColor: gl.getUniformLocation(program, "uColor"),
+            uMap: gl.getUniformLocation(program, "uMap"),
+            uAlphaCutoff: gl.getUniformLocation(program, "uAlphaCutoff"),
+            uEmissive: gl.getUniformLocation(program, "uEmissive"),
+            uRoughnessMetalness: gl.getUniformLocation(program, "uRoughnessMetalness"),
+            uShadowMap: gl.getUniformLocation(program, "uShadowMap"),
+            uShadowMatrix: gl.getUniformLocation(program, "uShadowMatrix"),
+            uShadowParams: gl.getUniformLocation(program, "uShadowParams"),
+            uShadowStrength: gl.getUniformLocation(program, "uShadowStrength"),
+            custom: shader !== undefined,
+            parameters: new Map(),
+        };
+        // Programs read the shared BrioLights (lit variants) and BrioPass uniform buffers
+        const lightsIndex = gl.getUniformBlockIndex(program, "BrioLights");
+        if (typeof lightsIndex === "number" && lightsIndex !== INVALID_INDEX) {
+            gl.uniformBlockBinding(program, lightsIndex, LIGHTS_BINDING);
+        }
+        const passIndex = gl.getUniformBlockIndex(program, "BrioPass");
+        if (typeof passIndex === "number" && passIndex !== INVALID_INDEX) {
+            gl.uniformBlockBinding(program, passIndex, PASS_BINDING);
+        }
+        this.#programs.set(key, info);
+        return info;
+    }
+
+    /** Deletes the cached programs of `shader` (every feature combination) and forgets its failures. */
+    #forgetShaderPrograms(gl: WebGL2RenderingContext, shader: BrioShader): void {
+        for (const [key, info] of this.#programs) {
+            if (Math.floor(key / FEATURE_KEY_SPAN) !== shader.id) continue;
+            if (!this.#contextLost) gl.deleteProgram(info.program);
+            if (this.#currentProgram === info.program) this.#currentProgram = null;
+            this.#programs.delete(key);
+        }
+        for (const key of this.#failedPrograms) {
+            if (Math.floor(key / FEATURE_KEY_SPAN) === shader.id) this.#failedPrograms.delete(key);
+        }
+    }
+
+    /** Uploads `material.parameters` to the uniforms of the same name (numbers, 2-4 vectors, CSS colors). */
+    #uploadParameters(gl: WebGL2RenderingContext, info: ProgramInfo, material: BrioMaterial): void {
+        const parameters = material.parameters;
+        for (const name in parameters) {
+            let location = info.parameters.get(name);
+            if (location === undefined) {
+                location = gl.getUniformLocation(info.program, name);
+                info.parameters.set(name, location);
+            }
+            if (location === null) continue;
+            const value = parameters[name];
+            if (typeof value === "number") {
+                gl.uniform1f(location, value);
+            } else if (typeof value === "string") {
+                const c = this.#linearColor(value);
+                gl.uniform3f(location, c[0], c[1], c[2]);
+            } else if (value.length === 2) {
+                gl.uniform2f(location, value[0], value[1]);
+            } else if (value.length === 3) {
+                gl.uniform3f(location, value[0], value[1], value[2]);
+            } else if (value.length >= 4) {
+                gl.uniform4f(location, value[0], value[1], value[2], value[3]);
+            }
+        }
+    }
+
+    /**
+     * Renders the depth of every shadow-casting opaque item of the pass, seen from the shadow-casting light, into
+     * the shadow map. The light's orthographic box (`size` half-width, `distance` deep) is centered on the camera
+     * target and snapped to whole texels in light space, so shadow edges do not shimmer when the camera moves.
+     */
+    #renderShadowMap(gl: WebGL2RenderingContext): void {
+        let casters = 0;
+        for (let i = 0; i < this.#opaque.length; i++) if (this.#opaque[i].castsShadow) casters++;
+        if (casters === 0 || this.#shadowsUnsupported || !this.#ensureShadowResources(gl)) return;
+
+        const settings = this.#shadowSettings;
+        const size = settings[0];
+        const distance = settings[1];
+        const resolution = this.#shadowResolution;
+        const d = this.#shadowDirection;
+        const center = this.#shadowCenter;
+        const eye = this.#shadowEye;
+        eye.x = center.x - d[0] * distance * 0.5;
+        eye.y = center.y - d[1] * distance * 0.5;
+        eye.z = center.z - d[2] * distance * 0.5;
+        const up = this.#shadowUp;
+        const vertical = Math.abs(d[1]) > 0.99;
+        up.x = 0;
+        up.y = vertical ? 0 : 1;
+        up.z = vertical ? 1 : 0;
+        const view = this.#shadowView;
+        Matrix4.lookAt(view, eye, center, up);
+        const texel = (size * 2) / resolution;
+        const vx = view[0] * center.x + view[4] * center.y + view[8] * center.z + view[12];
+        const vy = view[1] * center.x + view[5] * center.y + view[9] * center.z + view[13];
+        view[12] -= vx - Math.round(vx / texel) * texel;
+        view[13] -= vy - Math.round(vy / texel) * texel;
+        Matrix4.orthographic(this.#shadowProjection, -size, size, -size, size, 0, distance);
+        Matrix4.multiply(this.#shadowMatrix, this.#shadowProjection, view);
+
+        const depth = this.#depthProgram!;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.#shadowFramebuffer);
+        gl.viewport(0, 0, resolution, resolution);
+        gl.scissor(0, 0, resolution, resolution);
+        this.#setDepthMask(true);
+        this.#setBlend(false);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        gl.useProgram(depth.program);
+        this.#currentProgram = depth.program;
+        gl.uniformMatrix4fv(depth.uLightViewProj, false, this.#shadowMatrix);
+        // Slope-scaled depth offset against shadow acne
+        gl.enable(gl.POLYGON_OFFSET_FILL);
+        gl.polygonOffset(1.5, 2);
+        for (let i = 0; i < this.#opaque.length; i++) {
+            const item = this.#opaque[i];
+            if (!item.castsShadow || item.material.wireframe) continue;
+            const geometry = this.#geometryFor(gl, item.mesh);
+            const det = this.#computeNormalMatrix(item.world);
+            this.#setCull(!item.material.doubleSided);
+            this.#setFrontFaceCW(det < 0);
+            gl.uniformMatrix4fv(depth.uWorld, false, item.world);
+            this.#bindVao(gl, geometry.vao);
+            gl.drawElements(gl.TRIANGLES, geometry.indexCount, geometry.indexType, 0);
+            this.#drawCalls++;
+        }
+        gl.disable(gl.POLYGON_OFFSET_FILL);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(this.#px, this.#glY, this.#pw, this.#ph);
+        gl.scissor(this.#px, this.#glY, this.#pw, this.#ph);
+        this.#shadowReady = true;
+    }
+
+    /** Creates (or resizes) the depth texture, framebuffer and depth program; `false` when unsupported. */
+    #ensureShadowResources(gl: WebGL2RenderingContext): boolean {
+        const resolution = this.#shadowSettings[2];
+        if (!this.#depthProgram) {
+            try {
+                const vs = this.#compile(gl, gl.VERTEX_SHADER, SHADOW_DEPTH_SHADERS.vertex);
+                const fs = this.#compile(gl, gl.FRAGMENT_SHADER, SHADOW_DEPTH_SHADERS.fragment);
+                const program = gl.createProgram()!;
+                gl.attachShader(program, vs);
+                gl.attachShader(program, fs);
+                gl.linkProgram(program);
+                gl.deleteShader(vs);
+                gl.deleteShader(fs);
+                if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                    throw new Error(gl.getProgramInfoLog(program) ?? "link failed");
+                }
+                this.#depthProgram = {
+                    program,
+                    uLightViewProj: gl.getUniformLocation(program, "uLightViewProj"),
+                    uWorld: gl.getUniformLocation(program, "uWorld"),
+                };
+            } catch (err) {
+                console.error(
+                    "BrioJS WebGL2Backend: shadow depth program failed; shadows are off.",
+                    err,
+                );
+                this.#shadowLight = -1;
+                return false;
+            }
+        }
+        if (this.#shadowTexture && this.#shadowResolution === resolution) return true;
+
+        if (this.#shadowTexture) gl.deleteTexture(this.#shadowTexture);
+        if (this.#shadowFramebuffer) gl.deleteFramebuffer(this.#shadowFramebuffer);
+        const texture = gl.createTexture()!;
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, resolution, resolution);
+        // LINEAR + comparison mode: the hardware returns a 2x2 filtered visibility (percentage-closer filtering)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+        gl.activeTexture(gl.TEXTURE0);
+        const framebuffer = gl.createFramebuffer()!;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, texture, 0);
+        gl.drawBuffers([gl.NONE]);
+        gl.readBuffer(gl.NONE);
+        const complete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        this.#shadowTexture = texture;
+        this.#shadowFramebuffer = framebuffer;
+        this.#shadowResolution = resolution;
+        if (!complete) {
+            console.error(
+                "BrioJS WebGL2Backend: the shadow framebuffer is incomplete; shadows are off.",
+            );
+            this.#shadowLight = -1;
+            return false;
+        }
+        return true;
+    }
+
+    /** Compiles and links the program of `features`; throws with the info log when it fails. */
+    #linkProgram(gl: WebGL2RenderingContext, features: number, shader?: BrioShader): WebGLProgram {
+        const sources = buildShaderSources(features, shader);
+        const vs = this.#compile(gl, gl.VERTEX_SHADER, sources.vertex);
+        let fs: WebGLShader;
+        try {
+            fs = this.#compile(gl, gl.FRAGMENT_SHADER, sources.fragment);
+        } catch (err) {
+            gl.deleteShader(vs);
+            throw err;
+        }
         const program = gl.createProgram()!;
         gl.attachShader(program, vs);
         gl.attachShader(program, fs);
@@ -803,23 +1577,7 @@ export class WebGL2Backend implements RenderBackend {
             gl.deleteProgram(program);
             throw new Error(`WebGL2Backend: program link failed (features ${features}): ${log}`);
         }
-
-        const info: ProgramInfo = {
-            program,
-            uViewProj: gl.getUniformLocation(program, "uViewProj"),
-            uWorld: gl.getUniformLocation(program, "uWorld"),
-            uNormalMatrix: gl.getUniformLocation(program, "uNormalMatrix"),
-            uColor: gl.getUniformLocation(program, "uColor"),
-            uMap: gl.getUniformLocation(program, "uMap"),
-            uAlphaCutoff: gl.getUniformLocation(program, "uAlphaCutoff"),
-        };
-        // Lit programs read the shared BrioLights uniform buffer
-        const blockIndex = gl.getUniformBlockIndex(program, "BrioLights");
-        if (typeof blockIndex === "number" && blockIndex !== INVALID_INDEX) {
-            gl.uniformBlockBinding(program, blockIndex, LIGHTS_BINDING);
-        }
-        this.#programs.set(features, info);
-        return info;
+        return program;
     }
 
     #compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {

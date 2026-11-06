@@ -141,6 +141,8 @@ interface ProjectedTriangle {
  * ```
  */
 export class Canvas2DBackend implements RenderBackend {
+    /** `transform.opacity` of the mesh being queued (multiplied with `material.opacity`). */
+    #objectOpacity: number = 1;
     public readonly backendType: RenderBackendType = "canvas2d";
     #surface?: HTMLCanvasElement | OffscreenCanvas;
     #ctx?: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
@@ -176,14 +178,19 @@ export class Canvas2DBackend implements RenderBackend {
      */
     public setLights(environment: LightingEnvironment): void {
         const own = this.#lights;
-        if (environment.key === own.key) return;
+        if (environment.version === own.version) return;
         own.ambient.set(environment.ambient);
         own.sky.set(environment.sky);
         own.ground.set(environment.ground);
         own.directions.set(environment.directions);
         own.colors.set(environment.colors);
         own.directionalCount = environment.directionalCount;
-        own.key = environment.key;
+        own.punctualPositions.set(environment.punctualPositions);
+        own.punctualColors.set(environment.punctualColors);
+        own.punctualDirections.set(environment.punctualDirections);
+        own.punctualCones.set(environment.punctualCones);
+        own.punctualCount = environment.punctualCount;
+        own.version = environment.version;
     }
 
     /**
@@ -248,8 +255,10 @@ export class Canvas2DBackend implements RenderBackend {
         material: BrioMaterial,
         worldMatrix: Mat4,
         viewProjMatrix: Mat4,
+        opacity: number = 1,
     ): void {
         if (!this.#ctx || !this.#surface) return;
+        this.#objectOpacity = opacity;
 
         const w = this.#surface.width;
         const h = this.#surface.height;
@@ -267,7 +276,7 @@ export class Canvas2DBackend implements RenderBackend {
         // Opaque triangles are dilated by half a pixel so antialiased shared edges do not let the
         // background bleed through; translucent ones are not, because the overlap would double the alpha
         const dilation =
-            ramp !== null && ramp.opaque && material.opacity >= 1 ? SEAM_DILATION_PX : 0;
+            ramp !== null && ramp.opaque && material.opacity * opacity >= 1 ? SEAM_DILATION_PX : 0;
 
         const m = this.#mvpScratch;
         const clip = this.#clipScratch;
@@ -323,11 +332,28 @@ export class Canvas2DBackend implements RenderBackend {
                 // Average of the 3 vertex normals approximates the smooth surface normal at the centroid;
                 // the back side of a double-sided triangle is lit with the flipped normal
                 const facing = backFacing ? -1 : 1;
-                const nx = norm[i0] + norm[i1] + norm[i2];
-                const ny = norm[i0 + 1] + norm[i1 + 1] + norm[i2 + 1];
-                const nz = norm[i0 + 2] + norm[i1 + 2] + norm[i2 + 2];
+                const ox = norm[i0] + norm[i1] + norm[i2];
+                const oy = norm[i0 + 1] + norm[i1 + 1] + norm[i2 + 1];
+                const oz = norm[i0 + 2] + norm[i1 + 2] + norm[i2 + 2];
+                // World-space normal (upper 3x3 of the world matrix; exact for uniform scale) and centroid, so
+                // rotating objects are lit correctly and point / spot lights know where the triangle is
+                const wm = worldMatrix;
+                const nx = wm[0] * ox + wm[4] * oy + wm[8] * oz;
+                const ny = wm[1] * ox + wm[5] * oy + wm[9] * oz;
+                const nz = wm[2] * ox + wm[6] * oy + wm[10] * oz;
                 const k = facing / (Math.hypot(nx, ny, nz) || 1);
-                const luminance = irradianceLuminance(this.#lights, nx * k, ny * k, nz * k);
+                const cx = (pos[i0] + pos[i1] + pos[i2]) / 3;
+                const cy = (pos[i0 + 1] + pos[i1 + 1] + pos[i2 + 1]) / 3;
+                const cz = (pos[i0 + 2] + pos[i1 + 2] + pos[i2 + 2]) / 3;
+                const luminance = irradianceLuminance(
+                    this.#lights,
+                    nx * k,
+                    ny * k,
+                    nz * k,
+                    wm[0] * cx + wm[4] * cy + wm[8] * cz + wm[12],
+                    wm[1] * cx + wm[5] * cy + wm[9] * cz + wm[13],
+                    wm[2] * cx + wm[6] * cy + wm[10] * cz + wm[14],
+                );
                 shade = linearToSrgb(Math.min(1, luminance));
             }
 
@@ -390,7 +416,7 @@ export class Canvas2DBackend implements RenderBackend {
         tri.x2 = x2;
         tri.y2 = y2;
         tri.depth = depth;
-        tri.alpha = material.opacity;
+        tri.alpha = material.opacity * this.#objectOpacity;
         tri.wire = material.wireframe;
         if (ramp !== null) {
             // Pre-shaded tone: no per-triangle string allocation

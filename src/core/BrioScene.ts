@@ -93,6 +93,7 @@ export class BrioScene {
     #preloadFn?: () => PreloadAsset[];
     #loadFn?: (assets: AssetLoaderParam, scene: BrioScene) => SceneContent[];
     #onUpdate?: (scene: BrioScene, dt: number) => void;
+    #onFixedUpdate?: (scene: BrioScene, fixedDt: number) => void;
 
     /**
      * Creates a new `BrioScene` instance.
@@ -654,6 +655,40 @@ export class BrioScene {
     public onUpdate(callback: (scene: BrioScene, dt: number) => void): this {
         this.#onUpdate = callback;
         return this;
+    }
+
+    /**
+     * Registers a callback run at the game's fixed rate while this scene is active (`game.fixedTimestep`, `1 / 60`
+     * when the game has no `fixedUpdate()` of its own), right after the game's `fixedUpdate()` callback in each
+     * step. Put scene physics and other framerate-sensitive simulation here; `interpolate` smooths its motion too.
+     *
+     * @param callback Function called with `(scene, fixedDt)` on every fixed step
+     * @returns This `BrioScene` instance
+     * @example
+     * ```ts
+     * level.onFixedUpdate((scene, fixedDt) => {
+     *     ball.transform.position.y += velocityY * fixedDt;
+     * });
+     * ```
+     */
+    public onFixedUpdate(callback: (scene: BrioScene, fixedDt: number) => void): this {
+        this.#onFixedUpdate = callback;
+        return this;
+    }
+
+    /** Whether `onFixedUpdate()` registered a callback (the game runs fixed steps for it). */
+    public get hasFixedUpdate(): boolean {
+        return this.#onFixedUpdate !== undefined;
+    }
+
+    /**
+     * Runs the `onFixedUpdate` callback for one fixed step of `fixedDt` seconds (called by `BrioGame`).
+     *
+     * @param fixedDt Fixed step in seconds
+     */
+    public fixedStep(fixedDt: number): void {
+        if (this.#paused || !this.#onFixedUpdate) return;
+        this.#onFixedUpdate(this, fixedDt);
     }
 
     /**

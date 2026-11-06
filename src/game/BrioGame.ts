@@ -35,6 +35,7 @@ import { BrioVec2, create } from "../math/vec2";
 import { BrioRandom, BrioRandomSeed } from "../math/BrioRandom";
 import { BrioAtlas } from "../assets/BrioAtlas";
 import { BrioSpriteSheet } from "../assets/BrioSpriteSheet";
+import { BrioShader } from "../assets/BrioShader";
 import type { BrioTexture } from "../assets/BrioTexture";
 import { ECSWorld } from "../ecs/ECSWorld";
 import { ComponentMask } from "../ecs/ComponentStorage";
@@ -101,6 +102,8 @@ export interface BrioGameConfig {
     pixelRatio?: number | "auto";
     /** Upper bound of the `"auto"` pixel ratio (defaults to `2`), limiting fill cost on very dense screens. */
     maxPixelRatio?: number;
+    /** Pauses the game while its page is hidden and resumes it when visible (defaults to `true`). */
+    pauseWhenHidden?: boolean;
 }
 
 /**
@@ -162,6 +165,7 @@ export type LoaderCallbackFunction = (
  */
 export type PreloadAsset =
     | BrioSprite
+    | BrioShader
     | BrioSpriteSheet
     | BrioAudio
     | BrioAtlas
@@ -219,19 +223,111 @@ export interface CanvasRendering {
     smoothness: ImageSmoothingQuality;
 }
 
-/** Simulated position of an object temporarily replaced by its interpolated one (pooled, reused every frame). */
+/**
+ * Transform values interpolated between fixed steps: position, rotation (2D angle in `rz`, 3D quaternion in
+ * `qx..qw`) and scale. Used both for the state before the latest fixed step and, pooled, for the simulated state
+ * temporarily replaced while rendering.
+ */
 interface InterpolatedRecord {
     object: BrioObject2D | BrioObject3D | undefined;
     x: number;
     y: number;
     z: number;
+    rz: number;
+    /** 3D Euler angles, restored exactly so interpolation never drifts the simulated rotation. */
+    ex: number;
+    ey: number;
+    ez: number;
+    qx: number;
+    qy: number;
+    qz: number;
+    qw: number;
+    sx: number;
+    sy: number;
+    sz: number;
 }
+
+/** Scratch quaternion written through `transform.quaternion` by interpolation (no allocation per frame). */
+const SCRATCH_QUAT = { x: 0, y: 0, z: 0, w: 1 };
+const SCRATCH_EULER = { x: 0, y: 0, z: 0 };
+
+function createInterpolatedRecord(): InterpolatedRecord {
+    return {
+        object: undefined,
+        x: 0,
+        y: 0,
+        z: 0,
+        rz: 0,
+        ex: 0,
+        ey: 0,
+        ez: 0,
+        qx: 0,
+        qy: 0,
+        qz: 0,
+        qw: 1,
+        sx: 1,
+        sy: 1,
+        sz: 1,
+    };
+}
+
+/** Copies the interpolated transform values of `object` into `record`. */
+function readTransformState(object: BrioObject2D | BrioObject3D, record: InterpolatedRecord): void {
+    if (object instanceof BrioObject3D) {
+        const t = object.transform;
+        record.x = t.position.x;
+        record.y = t.position.y;
+        record.z = t.position.z;
+        record.qx = t.quaternion.x;
+        record.qy = t.quaternion.y;
+        record.qz = t.quaternion.z;
+        record.qw = t.quaternion.w;
+        record.ex = t.rotation.x;
+        record.ey = t.rotation.y;
+        record.ez = t.rotation.z;
+        record.sx = t.scale.x;
+        record.sy = t.scale.y;
+        record.sz = t.scale.z;
+    } else {
+        const t = object.transform;
+        record.x = t.position.x;
+        record.y = t.position.y;
+        record.rz = t.rotation;
+        record.sx = t.scale.x;
+        record.sy = t.scale.y;
+    }
+}
+
+/** Whether the transform values in `a` and `b` are identical (nothing to interpolate). */
+function sameTransformState(a: InterpolatedRecord, b: InterpolatedRecord): boolean {
+    return (
+        a.x === b.x &&
+        a.y === b.y &&
+        a.z === b.z &&
+        a.rz === b.rz &&
+        a.qx === b.qx &&
+        a.qy === b.qy &&
+        a.qz === b.qz &&
+        a.qw === b.qw &&
+        a.sx === b.sx &&
+        a.sy === b.sy &&
+        a.sz === b.sz
+    );
+}
+
+/** Scratch world position of `colliderExtent2D`. */
+const EXTENT_POSITION = { x: 0, y: 0 };
 
 /** X extent of an enabled 2D collider (sweep of the collision event pass). */
 function colliderExtent2D(object: BrioObject2D, out: { minX: number; maxX: number }): boolean {
     const collision = object.collision;
     if (!collision || !collision.enabled || object.entityId < 0) return false;
-    out.minX = object.transform.position.x + collision.pos.x;
+    const transform = object.transform;
+    // Children are swept at their world position, like BrioCollision tests them
+    const x = transform.parent
+        ? transform.getWorldPosition(EXTENT_POSITION).x
+        : transform.position.x;
+    out.minX = x + collision.pos.x;
     out.maxX = out.minX + collision.size.x;
     return true;
 }
@@ -328,6 +424,10 @@ export class BrioGame {
     #lifecyclePromise: Promise<void> = Promise.resolve();
     /** Error of the lifecycle stage that failed (rethrown by `ready()`). */
     #lifecycleError?: Error;
+    readonly #errorListeners: Array<(error: Error) => void> = [];
+    #pauseWhenHidden: boolean = true;
+    /** Whether the current pause was taken by `pauseWhenHidden` (resumed when the page is visible again). */
+    #hiddenPaused: boolean = false;
     // #endregion - GAME-STATE-LOGIC
 
     // #region - COMPOSITION-OBJECTS
@@ -392,11 +492,8 @@ export class BrioGame {
     #maxFixedSteps: number = 5;
     #fixedAccumulator: number = 0;
     #interpolate: boolean = false;
-    /** Position before the latest fixed step, per object (render interpolation). */
-    #previousPositions = new WeakMap<
-        BrioObject2D | BrioObject3D,
-        { x: number; y: number; z: number }
-    >();
+    /** Transform before the latest fixed step, per object (render interpolation). */
+    #previousPositions = new WeakMap<BrioObject2D | BrioObject3D, InterpolatedRecord>();
     /** Objects whose position was replaced by an interpolated one for the current render, with the real value. */
     #interpolated: InterpolatedRecord[] = [];
     /** Number of live records in `#interpolated` this frame (records past it are pooled for reuse). */
@@ -411,6 +508,8 @@ export class BrioGame {
         this.#interpolateObject(object);
     };
     #random: BrioRandom = new BrioRandom();
+    /** Game time in seconds (`game.time`). */
+    #time: number = 0;
     /** Contact trackers behind `onCollisionEnter` / `onCollisionStay` / `onCollisionExit`. */
     readonly #collisions2D = new CollisionEventSystem<BrioObject2D>(
         isColliding2D,
@@ -498,6 +597,7 @@ export class BrioGame {
             if (widthOrConfig.seed !== undefined) this.#random.reseed(widthOrConfig.seed);
             this.#pixelRatioSetting = widthOrConfig.pixelRatio ?? "auto";
             this.#maxPixelRatio = Math.max(1, widthOrConfig.maxPixelRatio ?? 2);
+            this.#pauseWhenHidden = widthOrConfig.pauseWhenHidden ?? true;
         } else {
             rawWidth = widthOrConfig;
             rawHeight = height ?? 0;
@@ -534,12 +634,18 @@ export class BrioGame {
         // Canvas element configuration
         this.#canvas = document.createElement("canvas");
         this.#canvas.style.background = "transparent";
+        // Touch gestures on the canvas belong to the game: no page scroll, pinch zoom or text selection
+        this.#canvas.style.touchAction = "none";
+        this.#canvas.style.userSelect = "none";
         this.#applyCanvasSize();
 
         // Canvas 2D context configuration
         this.ctx = this.#canvas.getContext("2d", this.#ctxSettings);
 
         container.appendChild(this.#canvas);
+        if (typeof document !== "undefined") {
+            document.addEventListener("visibilitychange", this.#onVisibilityChange);
+        }
 
         // Composing engine subsystems
         this.#canvasBackground = new BrioCanvasBackground(this.#canvas);
@@ -681,6 +787,19 @@ export class BrioGame {
      * game.timer.after(2.0, () => console.log("2 seconds of gameplay elapsed!"));
      * ```
      */
+    /**
+     * Seconds of game time simulated so far (the sum of the clamped `deltaTime` of every frame step). It stops while
+     * the game is paused and is exposed to custom shaders as `TIME`, so animated materials freeze with the game.
+     *
+     * @example
+     * ```ts
+     * const bob = Math.sin(game.time * 2) * 0.1;
+     * ```
+     */
+    public get time(): number {
+        return this.#time;
+    }
+
     public get timer(): BrioTimer {
         return this.#timer;
     }
@@ -905,6 +1024,11 @@ export class BrioGame {
      */
     public get loadedSpriteSheets(): Map<string, BrioSpriteSheet> {
         return this.#assets.spriteSheets;
+    }
+
+    /** Map of preloaded `BrioShader` assets keyed by name. */
+    public get loadedShaders(): Map<string, BrioShader> {
+        return this.#assets.shaders;
     }
 
     /**
@@ -1198,6 +1322,12 @@ export class BrioGame {
         const sheets = assets.filter(
             (asset): asset is BrioSpriteSheet => asset instanceof BrioSpriteSheet,
         );
+        const shaders = assets.filter((asset): asset is BrioShader => asset instanceof BrioShader);
+        const shaderPromises = shaders.map(async (shader) => {
+            await shader.load();
+            this.#assets.shaders.set(shader.name, shader);
+            progress(shader.name);
+        });
 
         for (const asset of assets) {
             if (asset instanceof BrioMesh) {
@@ -1276,11 +1406,27 @@ export class BrioGame {
             progress(sheet.name);
         });
 
+        await Promise.all(shaderPromises);
         await Promise.all(sheetPromises);
         await Promise.all(spriteLoadPromises);
         await Promise.all(spriteAtlasPromises);
         await Promise.all(audioLoadPromises);
         await Promise.all(modelLoadPromises);
+
+        // Materials may name their shader: resolve the names against every shader loaded so far
+        for (const asset of assets) {
+            if (asset instanceof BrioMaterial && typeof asset.shader === "string") {
+                const shader = this.#assets.shaders.get(asset.shader);
+                if (shader) {
+                    asset.shader = shader;
+                } else {
+                    this.#console.out(
+                        "warn",
+                        `Material '${asset.name}' names the shader '${asset.shader}', which was not preloaded.`,
+                    );
+                }
+            }
+        }
     }
 
     /**
@@ -1461,7 +1607,13 @@ export class BrioGame {
                         ? Math.min(rawDeltaTime, this.#maxDeltaTime)
                         : rawDeltaTime;
 
-                this.#step(deltaTime, rawDeltaTime, callbackFn);
+                try {
+                    this.#step(deltaTime, rawDeltaTime, callbackFn);
+                } catch (err) {
+                    // An exception would otherwise skip the next requestAnimationFrame and freeze the game silently
+                    this.#handleRuntimeError(err);
+                    return;
+                }
 
                 this.#deltaTimePreviousTime = currentTime;
 
@@ -1536,6 +1688,104 @@ export class BrioGame {
         return this.#lifecycleError;
     }
 
+    /**
+     * Registers a listener called when the running game stops because an exception escaped a callback of the frame
+     * (`update()`, `fixedUpdate()`, a scene, a collision listener, ...). The game also logs the error to the browser
+     * console with its stack and draws a short message over the canvas.
+     *
+     * @param listener Callback receiving the error
+     * @returns Function that unregisters the listener
+     * @example
+     * ```ts
+     * game.onError((error) => showCrashScreen(error.message));
+     * ```
+     */
+    public onError(listener: (error: Error) => void): () => void {
+        this.#errorListeners.push(listener);
+        return () => {
+            const index = this.#errorListeners.indexOf(listener);
+            if (index >= 0) this.#errorListeners.splice(index, 1);
+        };
+    }
+
+    /** Stops the loop after an exception in the frame, reports it and paints it over the canvas. */
+    #handleRuntimeError(err: unknown): void {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.#currentState = GameState.ERROR;
+        this.#updateIsRunning = false;
+        this.#lifecycleError = error;
+        cancelAnimationFrame(this.#updateFrameId);
+        // Always visible, even with game.debugging.console disabled: this is the student's only clue
+        console.error(
+            "BrioJS: the game stopped because a frame callback threw an exception.",
+            error,
+        );
+        const ctx = this.ctx;
+        if (ctx) {
+            const ratio = this.pixelRatio;
+            ctx.save();
+            ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+            ctx.globalAlpha = 0.85;
+            ctx.fillStyle = "#111827";
+            ctx.fillRect(0, 0, this.#width, Math.min(this.#height, 64));
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = "#fca5a5";
+            ctx.font = "bold 14px sans-serif";
+            ctx.textBaseline = "top";
+            ctx.fillText(
+                `The game stopped: ${error.message}`.slice(0, 120),
+                10,
+                10,
+                this.#width - 20,
+            );
+            ctx.fillStyle = "#e5e7eb";
+            ctx.font = "12px sans-serif";
+            ctx.fillText("See the browser console for the stack trace.", 10, 34, this.#width - 20);
+            ctx.restore();
+        }
+        for (const listener of this.#errorListeners.slice()) {
+            try {
+                listener(error);
+            } catch (listenerError) {
+                console.error("BrioJS: an onError listener threw.", listenerError);
+            }
+        }
+    }
+
+    /**
+     * Whether the game pauses while its page is hidden (another tab, minimized window) and resumes when it is
+     * visible again, so music and simulation do not run in the background.
+     *
+     * @default true
+     * @example
+     * ```ts
+     * game.pauseWhenHidden = false; // keep running (e.g. a networked game)
+     * ```
+     */
+    public get pauseWhenHidden(): boolean {
+        return this.#pauseWhenHidden;
+    }
+    public set pauseWhenHidden(value: boolean) {
+        this.#pauseWhenHidden = value;
+        if (!value && this.#hiddenPaused) {
+            this.#hiddenPaused = false;
+            this.resume();
+        }
+    }
+
+    readonly #onVisibilityChange = (): void => {
+        if (typeof document === "undefined") return;
+        if (document.hidden) {
+            if (this.#pauseWhenHidden && this.#updateIsRunning) {
+                this.pause();
+                this.#hiddenPaused = true;
+            }
+        } else if (this.#hiddenPaused) {
+            this.#hiddenPaused = false;
+            this.resume();
+        }
+    };
+
     /** Bound once so `ready()` passes no new closure per call. */
     readonly #throwLifecycleError = (): void => {
         if (this.#lifecycleError) throw this.#lifecycleError;
@@ -1562,6 +1812,8 @@ export class BrioGame {
         // Poll gamepads and advance frame-synchronized timers
         this.#gamepadInstance?.poll();
         this.#timer.update(deltaTime);
+        this.#time += deltaTime;
+        this.#compositor.time = this.#time;
 
         this.#renderDebuggingGrid();
 
@@ -1613,13 +1865,21 @@ export class BrioGame {
 
     /** Runs as many fixed steps as the accumulated time allows (at most `maxFixedSteps`). */
     #runFixedSteps(deltaTime: number): void {
-        if (this.#fixedTimestep <= 0 || !this.#fixedCallback) return;
+        const scene = this.#activeScene;
+        const sceneFixed = scene !== undefined && scene.hasFixedUpdate;
+        if (!this.#fixedCallback && !sceneFixed) return;
+        // A scene with onFixedUpdate() gets the default rate even when the game registered none (D-18)
+        if (this.#fixedTimestep <= 0) {
+            if (!sceneFixed) return;
+            this.fixedTimestep = 1 / 60;
+        }
         const step = this.#fixedTimestep;
         this.#fixedAccumulator += deltaTime;
         let steps = 0;
         while (this.#fixedAccumulator >= step && steps < this.#maxFixedSteps) {
             if (this.#interpolate) this.#forEachInterpolable(this.#rememberPositionVisitor);
-            this.#fixedCallback(this.#updater, step);
+            this.#fixedCallback?.(this.#updater, step);
+            if (sceneFixed) scene.fixedStep(step);
             this.#fixedAccumulator -= step;
             steps++;
         }
@@ -1642,59 +1902,84 @@ export class BrioGame {
     }
 
     #rememberPosition(object: BrioObject2D | BrioObject3D): void {
-        const position = object.transform.position as { x: number; y: number; z?: number };
         let previous = this.#previousPositions.get(object);
         if (!previous) {
-            previous = { x: 0, y: 0, z: 0 };
+            previous = createInterpolatedRecord();
             this.#previousPositions.set(object, previous);
         }
-        previous.x = position.x;
-        previous.y = position.y;
-        previous.z = position.z ?? 0;
+        readTransformState(object, previous);
     }
 
-    /** Moves every object that moved during the last fixed step to `lerp(previous, current, alpha)` for rendering. */
+    /** Moves every object that changed during the last fixed step to `lerp(previous, current, alpha)` for rendering. */
     #applyInterpolation(): void {
         this.#interpolationFrameAlpha = this.interpolationAlpha;
         this.#interpolatedCount = 0;
         this.#forEachInterpolable(this.#applyInterpolationVisitor);
     }
 
-    /** Interpolates one object and records its simulated position in a pooled record. */
+    /**
+     * Interpolates position, rotation and scale of one object (D-19) and records its simulated values in a pooled
+     * record. 2D angles are interpolated linearly; 3D rotations by normalized quaternion lerp along the shortest arc.
+     */
     #interpolateObject(object: BrioObject2D | BrioObject3D): void {
         const previous = this.#previousPositions.get(object);
         if (!previous) return;
-        const position = object.transform.position as { x: number; y: number; z?: number };
-        const z = position.z ?? 0;
-        if (previous.x === position.x && previous.y === position.y && previous.z === z) return;
 
         // Records are pooled: the array only grows when more objects move than in any earlier frame
         const records = this.#interpolated;
         let record = records[this.#interpolatedCount];
         if (!record) {
-            record = { object: undefined, x: 0, y: 0, z: 0 };
+            record = createInterpolatedRecord();
             records.push(record);
         }
+        readTransformState(object, record);
+        if (sameTransformState(previous, record)) return;
         this.#interpolatedCount++;
         record.object = object;
-        record.x = position.x;
-        record.y = position.y;
-        record.z = z;
 
-        const alpha = this.#interpolationFrameAlpha;
-        const ix = previous.x + (position.x - previous.x) * alpha;
-        const iy = previous.y + (position.y - previous.y) * alpha;
+        const a = this.#interpolationFrameAlpha;
+        const ix = previous.x + (record.x - previous.x) * a;
+        const iy = previous.y + (record.y - previous.y) * a;
         if (object instanceof BrioObject3D) {
-            object.transform.position.x = ix;
-            object.transform.position.y = iy;
-            object.transform.position.z = previous.z + (z - previous.z) * alpha;
+            const t = object.transform;
+            t.position.x = ix;
+            t.position.y = iy;
+            t.position.z = previous.z + (record.z - previous.z) * a;
+            // Shortest arc: flip the previous quaternion when it points away from the current one
+            const dot =
+                previous.qx * record.qx +
+                previous.qy * record.qy +
+                previous.qz * record.qz +
+                previous.qw * record.qw;
+            const sign = dot < 0 ? -1 : 1;
+            const qx = previous.qx * sign + (record.qx - previous.qx * sign) * a;
+            const qy = previous.qy * sign + (record.qy - previous.qy * sign) * a;
+            const qz = previous.qz * sign + (record.qz - previous.qz * sign) * a;
+            const qw = previous.qw * sign + (record.qw - previous.qw * sign) * a;
+            const len = Math.hypot(qx, qy, qz, qw) || 1;
+            const q = SCRATCH_QUAT;
+            q.x = qx / len;
+            q.y = qy / len;
+            q.z = qz / len;
+            q.w = qw / len;
+            // One write through the setter keeps the Euler angles and the ECS slot in sync
+            t.quaternion = q;
+            t.scale.x = previous.sx + (record.sx - previous.sx) * a;
+            t.scale.y = previous.sy + (record.sy - previous.sy) * a;
+            t.scale.z = previous.sz + (record.sz - previous.sz) * a;
         } else {
+            const t = object.transform;
             // Silent write: the real position is restored right after rendering
-            (object.transform.position as BrioVec2).setSilent(ix, iy);
+            (t.position as BrioVec2).setSilent(ix, iy);
+            if (previous.rz !== record.rz) t.rotation = previous.rz + (record.rz - previous.rz) * a;
+            if (previous.sx !== record.sx || previous.sy !== record.sy) {
+                t.scale.x = previous.sx + (record.sx - previous.sx) * a;
+                t.scale.y = previous.sy + (record.sy - previous.sy) * a;
+            }
         }
     }
 
-    /** Restores the simulated positions replaced by `#applyInterpolation()`. */
+    /** Restores the simulated transforms replaced by `#applyInterpolation()`. */
     #restoreInterpolation(): void {
         const records = this.#interpolated;
         const count = this.#interpolatedCount;
@@ -1702,13 +1987,29 @@ export class BrioGame {
             const record = records[i];
             const object = record.object!;
             if (object instanceof BrioObject3D) {
-                object.transform.position.x = record.x;
-                object.transform.position.y = record.y;
-                object.transform.position.z = record.z;
+                const t = object.transform;
+                t.position.x = record.x;
+                t.position.y = record.y;
+                t.position.z = record.z;
+                // The Euler angles are the exact simulated values (the quaternion follows from them)
+                const e = SCRATCH_EULER;
+                e.x = record.ex;
+                e.y = record.ey;
+                e.z = record.ez;
+                t.rotation = e;
+                t.scale.x = record.sx;
+                t.scale.y = record.sy;
+                t.scale.z = record.sz;
             } else {
-                (object.transform.position as BrioVec2).setSilent(record.x, record.y);
-                // Cached "static" layers rasterized the interpolated position: redraw them next frame
-                object.transform.markDirty();
+                const t = object.transform;
+                (t.position as BrioVec2).setSilent(record.x, record.y);
+                if (t.rotation !== record.rz) t.rotation = record.rz;
+                if (t.scale.x !== record.sx || t.scale.y !== record.sy) {
+                    t.scale.x = record.sx;
+                    t.scale.y = record.sy;
+                }
+                // Cached "static" layers rasterized the interpolated transform: redraw them next frame
+                t.markDirty();
             }
             // Drop the reference so a pooled record does not keep a destroyed object alive
             record.object = undefined;
@@ -2098,6 +2399,9 @@ export class BrioGame {
         if (asset instanceof BrioSprite) {
             if (a.sprites.get(asset.name) !== asset) return false;
             a.sprites.delete(asset.name);
+        } else if (asset instanceof BrioShader) {
+            if (a.shaders.get(asset.name) !== asset) return false;
+            a.shaders.delete(asset.name);
         } else if (asset instanceof BrioSpriteSheet) {
             if (a.spriteSheets.get(asset.name) !== asset) return false;
             a.spriteSheets.delete(asset.name);
@@ -2128,6 +2432,7 @@ export class BrioGame {
         const a = this.#assets;
         return (
             a.sprites.get(name) ??
+            a.shaders.get(name) ??
             a.spriteSheets.get(name) ??
             a.atlases.get(name) ??
             a.audios.get(name) ??
@@ -2539,6 +2844,10 @@ export class BrioGame {
         this.pause();
 
         this.#removeFullScreenListener();
+        if (typeof document !== "undefined") {
+            document.removeEventListener("visibilitychange", this.#onVisibilityChange);
+        }
+        this.#hiddenPaused = false;
 
         // Removing input listeners (and releasing a pointer lock held by the canvas)
         this.#input.cancelCapture();
@@ -2582,6 +2891,7 @@ export class BrioGame {
         this.#assets.sprites.clear();
         this.#assets.atlases.clear();
         this.#assets.spriteSheets.clear();
+        this.#assets.shaders.clear();
         this.#assetOwners.clear();
         this.#layers.clear();
         this.#layers.add(new BrioLayer({ name: DEFAULT_LAYER_NAME, order: 0, policy: "dynamic" }));

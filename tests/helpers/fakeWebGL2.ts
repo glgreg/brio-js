@@ -45,6 +45,17 @@ const CONSTANTS: Record<string, number> = {
     UNPACK_PREMULTIPLY_ALPHA_WEBGL: 0x9241,
     UNPACK_COLORSPACE_CONVERSION_WEBGL: 0x9243,
     NONE: 0,
+    FRAMEBUFFER: 0x8d40,
+    FRAMEBUFFER_COMPLETE: 0x8cd5,
+    DEPTH_ATTACHMENT: 0x8d00,
+    DEPTH_COMPONENT24: 0x81a6,
+    CLAMP_TO_EDGE: 0x812f,
+    TEXTURE_COMPARE_MODE: 0x884c,
+    TEXTURE_COMPARE_FUNC: 0x884d,
+    COMPARE_REF_TO_TEXTURE: 0x884e,
+    LEQUAL: 0x0203,
+    POLYGON_OFFSET_FILL: 0x8037,
+    TEXTURE1: 0x84c1,
 };
 
 /**
@@ -71,6 +82,7 @@ export function createFakeWebGL2(): {
         getParameter: () => 16,
         getShaderInfoLog: () => "",
         getProgramInfoLog: () => "",
+        checkFramebufferStatus: () => CONSTANTS.FRAMEBUFFER_COMPLETE,
     };
     const methods = new Map<string, ReturnType<typeof vi.fn>>();
 

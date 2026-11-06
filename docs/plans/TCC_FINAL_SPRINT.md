@@ -83,32 +83,32 @@ S1 goes first among the features because everything visual depends on it. S8, S9
 - Fix the documentation drift listed at the end of section 3 of the [study](../architecture/ENGINE_COMPLETION_STUDY.md).
 - Add `docs/adr/0007` for the third-party policy, `THIRD_PARTY_NOTICES.md`, and its entry in `files` in `package.json` (WP-01).
 
-### S1 Browser test rig `[ ]`
+### S1 Browser test rig `[~]`
 
 Design in WP-02.
 
-- [ ] Playwright as a dev dependency only, with headless Chromium and WebGL2.
-- [ ] Golden-image tests with tolerance, deterministic through `game.pause()` and `game.step(1 / 60)`, starting with the two current examples, on WebGL2 and Canvas2D.
-- [ ] Heap growth check over a run of frames, for the no-allocation rule.
-- [ ] Added to `.github/workflows/ci.yml`.
+- [x] Playwright as a dev dependency only, with headless Chromium and WebGL2.
+- [x] Golden-image tests with tolerance, deterministic through `game.pause()` and `game.step(1 / 60)`, starting with the two current examples, on WebGL2 and Canvas2D.
+- [~] Heap growth check over a run of frames, for the no-allocation rule. `e2e/heap.spec.ts` passes for 2D, text, collisions and tile maps; the 3D scenario is open, see [`PERFORMANCE_FOLLOWUPS.md`](./PERFORMANCE_FOLLOWUPS.md).
+- [x] Added to `.github/workflows/ci.yml`.
 
-### S2 Repairs `[ ]`
+### S2 Repairs `[~]`
 
 The defect IDs are in section 3 of the study.
 
-- [ ] D-01: render the 2D hierarchy through world transforms; camera follow, culling and collision read world values (WP-03).
-- [ ] D-12: 2D culling works with rotation and `game.scale`.
+- [x] D-01: render the 2D hierarchy through world transforms; camera follow, culling and collision read world values (WP-03).
+- [x] D-12: 2D culling works with rotation and `game.scale`.
 - [ ] D-02: glTF accessors, all component types, `normalized` and `sparse` (WP-04).
-- [ ] D-04: replace the lighting string key with a numeric version.
-- [ ] D-06: `transform.opacity` takes effect in 3D.
-- [ ] D-14: `object.sprite` returns early when unchanged.
-- [ ] D-20: `game.instantiate()` accepts `BrioObject3D`.
-- [ ] D-18: `BrioScene.fixedUpdate()`.
-- [ ] D-19: interpolation covers rotation and scale.
-- [ ] 3D frustum culling with bounding spheres, using the existing `isSphereInFrustum` (WP-12).
-- [ ] `BrioCompositor.#render3DPasses` clears when there are no 3D objects. Scene 2D cameras get `game.random`.
+- [x] D-04: replace the lighting string key with a numeric version.
+- [x] D-06: `transform.opacity` takes effect in 3D.
+- [x] D-14: `object.sprite` returns early when unchanged.
+- [x] D-20: `game.instantiate()` accepts `BrioObject3D`.
+- [x] D-18: `BrioScene.fixedUpdate()`.
+- [x] D-19: interpolation covers rotation and scale.
+- [x] 3D frustum culling with bounding spheres, using the existing `isSphereInFrustum` (WP-12).
+- [x] `BrioCompositor.#render3DPasses` clears when there are no 3D objects. Scene 2D cameras get `game.random`.
 
-### S3 BrioShader `[ ]`
+### S3 BrioShader `[~]`
 
 Confirmed by the maintainer: **`BrioShader` is an ordinary asset in the lifecycle**, loaded in `preload()` and found by name. Shaders must be highly customizable in GLSL, with a simple public API. The design is in WP-21 of the [completion plan](./ENGINE_COMPLETION_PLAN.md), and the evidence is in [`shader-authoring.md`](../../temp/research/shader-authoring.md).
 
@@ -119,40 +119,40 @@ game.preload(() => [
 ]);
 ```
 
-- [ ] D-07: program failure never throws from a draw. It logs once with file and line, then uses the last good program or a visible error material. Use `KHR_parallel_shader_compile` when present (WP-15).
+- [~] D-07: program failure never throws from a draw. It logs once with file and line, then uses the last good program or a visible error material. Use `KHR_parallel_shader_compile` when present (WP-15).
 - [ ] Rewrite the built-in fragment shader on the same hooks, so `inject()` and `standard` share one path.
-- [ ] `BrioShader` from a `.glsl` file or inline, accepted by `game.preload()` and `scene.preload()`.
-- [ ] `surface` domain with `vertex()`, `fragment()` and `light()` hooks and built-ins. `TIME` comes from game time.
-- [ ] `BrioMaterial` `shader` and `parameters` options; `material.inject()`; `material.set()` with JavaScript values; allocation-free `material.parameter()`.
+- [x] `BrioShader` from a `.glsl` file or inline, accepted by `game.preload()` and `scene.preload()`.
+- [~] `surface` domain with `vertex()`, `fragment()` and `light()` hooks and built-ins. `TIME` comes from game time. Done: `surface()` and `vertex()` hooks, `TIME`, `CAMERA_POSITION`; no `light()` hook.
+- [~] `BrioMaterial` `shader` and `parameters` options; `material.inject()`; `material.set()` with JavaScript values; allocation-free `material.parameter()`. Done: `shader`, `parameters`, `set()`; no `inject()` / `parameter()`.
 - [ ] Parameters discovered with `getActiveUniform`; comment annotations `@color`, `@range`, `@default`, `@linear`.
 - [ ] `varying` rewrite, custom vertex attributes, `defines`, render state on the material.
 - [ ] Reference-counted, hash-deduplicated programs; source limits; reserved `brio_` names; include resolver with depth 25 and no cycles; the `<brio/...>` library (WP-22).
-- [ ] Hot reload by assigning `shader.source`, keeping the last good program; `shader.onCompile`.
+- [~] Hot reload by assigning `shader.source`, keeping the last good program; `shader.onCompile`. Done by assigning `fragment` / `vertex`; a failure falls back to the built-in shader, no `onCompile`.
 - [ ] Texture settings: color space, wrap, filter, data textures (WP-13).
 - [ ] Raw mode.
 - [ ] `screen` domain, used by S6.
 - [ ] Layer shader for 2D: draw a `BrioLayer` offscreen in Canvas2D, upload it to GL, run a shader, and copy back. Per-sprite 2D shaders need the GPU 2D renderer in section 6.
-- [ ] Canvas2D: warns once and uses the `fallback`.
+- [~] Canvas2D: warns once and uses the `fallback`. Canvas2D draws the plain material (no warning yet).
 - [ ] Global parameters: `game.shaderGlobals` (WP-22).
 
-### S4 Lights and standard material `[ ]`
+### S4 Lights and standard material `[~]`
 
-- [ ] `point` and `spot` in `BrioLight` and the `BrioLights` UBO, fixed capacity, attenuation from `KHR_lights_punctual`. No recompile when the count changes (WP-16). Lights stay JS objects in this sprint.
-- [ ] Canvas2D: point lights through luminance per triangle.
-- [ ] `shading: "standard"`, with GGX, metallic and roughness, ported from `three: ShaderChunk`, built on the hooks of S3.
+- [x] `point` and `spot` in `BrioLight` and the `BrioLights` UBO, fixed capacity, attenuation from `KHR_lights_punctual`. No recompile when the count changes (WP-16). Lights stay JS objects in this sprint.
+- [x] Canvas2D: point lights through luminance per triangle.
+- [~] `shading: "standard"`, with GGX, metallic and roughness, ported from `three: ShaderChunk`, built on the hooks of S3. Done with scalar `roughness` / `metalness`, written directly in the built-in shader (the S3 hooks do not exist yet).
 - [ ] Normal, metallic-roughness, occlusion and emissive maps; `TANGENT` or derivative frame; `COLOR_0`; glTF import with `KHR_materials_unlit`, `KHR_materials_emissive_strength`, `KHR_texture_transform`, `KHR_lights_punctual` (WP-17).
 - [ ] Per-texel alpha blend, object-level sort.
 - [ ] `"toon"` shading.
 
-### S5 Shadows `[ ]`
+### S5 Shadows `[~]`
 
 Design in WP-20. Evidence in [`nvidia.md`](../../temp/research/nvidia.md#shadows) and `three: WebGLShadowMap.js`.
 
-- [ ] Internal depth render target and shadow atlas; hardware PCF through `sampler2DShadow`.
-- [ ] Directional shadows with up to 4 cascades, practical split with default weight 0.5, casters culled per split.
+- [~] Internal depth render target and shadow atlas; hardware PCF through `sampler2DShadow`. One depth map per pass (no atlas yet), hardware PCF plus a 3x3 kernel.
+- [~] Directional shadows with up to 4 cascades, practical split with default weight 0.5, casters culled per split.
 - [ ] Spot shadows.
 - [ ] Point shadows, with a limit.
-- [ ] `castShadow`, `receiveShadow`, `bias`, `normalBias`; `autoUpdate` and `needsUpdate` for static scenes.
+- [~] `castShadow`, `receiveShadow`, `bias`, `normalBias`; `autoUpdate` and `needsUpdate` for static scenes. Done except `autoUpdate` / `needsUpdate`.
 - [ ] Custom `vertex()` hooks and skinning apply in the shadow pass.
 
 ### S6 Post-processing and tone mapping `[ ]`
@@ -203,11 +203,11 @@ Design in WP-33 and WP-34. Facts in [`standards.md`](../../temp/research/standar
 - [ ] `game.saves`: `save`, `load`, `list`, `delete`, `export`, `import`. The `.briosave` file has a magic, a version and a checksum, and bad files are rejected before anything changes.
 - [ ] Restoring ECS worlds after a page reload (D-17): add a name table to the snapshot, plus the JS-side fields it needs, with a version bump and older readers kept. Scope it with the maintainers if it requires the ECS refactors in section 6.
 
-### S10 2D content `[ ]`
+### S10 2D content `[~]`
 
 - [ ] Sprite clip separated from playback (D-13); `BrioTween` with easing (WP-29).
-- [ ] `BrioText`: font, size, color, align, wrap, with `FontFace` loading in preload (WP-37).
-- [ ] `BrioTileMap` rendering in chunks of 16 tiles, and Tiled JSON import (WP-38).
+- [~] `BrioText`: font, size, color, align, wrap, with `FontFace` loading in preload (WP-37). Done in v0.2 except `FontFace` loading.
+- [x] `BrioTileMap` rendering in chunks of 16 tiles, and Tiled JSON import (WP-38).
 - [ ] `BrioParticleEmitter2D`, SoA, seeded by `game.random` (WP-40).
 - [ ] UI: label, image, button, bar, slider, containers, anchors, pointer and keyboard focus (WP-41).
 - [ ] `tint`, `blendMode`, shapes, nine-slice (WP-36).
@@ -218,12 +218,12 @@ Design in WP-33 and WP-34. Facts in [`standards.md`](../../temp/research/standar
 - [ ] `BrioOrbitControls`, `BrioFirstPersonControls` with Pointer Lock (WP-44).
 - [ ] `BrioCamera3D` follow and shake; render-to-texture camera for a minimap.
 
-### S12 Demos `[ ]`
+### S12 Demos `[~]`
 
 Start by 05/11. Use only the public API, in `examples/`, with readable code because it is teaching material. Each demo gets a golden test.
 
 - [ ] **2D platformer**: scenes, layers, tile map, animated sprites, parent and child objects, text and HUD, particles, sound, a layer shader, save through file and IndexedDB. The CC0 pack in `mepi/assets` on the `tcc` branch is a candidate; read its license file and check the font separately.
-- [ ] **3D scene**: animated GLB character (check the model's license), PBR, point, spot and directional lights, shadows, tone mapping, bloom and FXAA, custom shader from a `.glsl` file, orbit camera, additive scene load, save.
+- [~] **3D scene**: animated GLB character (check the model's license), PBR, point, spot and directional lights, shadows, tone mapping, bloom and FXAA, custom shader from a `.glsl` file, orbit camera, additive scene load, save. Status: `examples/3d-lantern-courtyard` has procedural meshes, standard materials, point, spot and directional lights, a shadow, fog, tone mapping, a `.glsl` water shader, an orbit camera and prefabs; the GLB character, bloom and FXAA, additive scene load and save are missing.
 - [ ] **Shader lab**: live GLSL editing, error list, parameter sliders. Reuse the Monaco setup in `showcase/` on the `tcc` branch if it fits (WP-23).
 
 ### S13 Freeze `[ ]`
@@ -272,3 +272,8 @@ Add one line per merged item: date, item, pull request, and anything the maintai
 | --- | --- | --- |
 | 2026-10-31 | Planning | Sprint created; planning documents not yet committed |
 | 2026-10-31 | S0 | PR #13. Node and npm not installed; Bun sequence accepted as the equivalent for now |
+| 2026-11-05 | v0.2.0 | PR #14, released as 0.2.0. S1 rig, D-20, 3D frustum culling, scene camera random, text, tile maps, input map, DPR and fit |
+| 2026-11-05 | S3/S12 | `feat/3d-shader-demo`: `BrioShader` surface and vertex hooks, `game.time`, Lantern Courtyard demo. Golden and visual review pending on a desktop machine |
+| 2026-11-05 | S5 | `feat/3d-shadows`: one directional shadow map (no cascades), centered on the camera target, texel-snapped, PCF. Visual tuning of bias pending on a desktop machine |
+| 2026-11-05 | S4 | `feat/3d-lighting`: point and spot lights, `"standard"` shading, emissive, tone mapping, exposure and fog per camera, D-07 logging (no fallback material yet). Shaders validated offline with `glslangValidator`; browser goldens pending on a desktop machine |
+| 2026-11-05 | S2 | `fix/s2-repairs`: D-01, D-04, D-06, D-12, D-14, D-18, D-19, empty 3D pass clear, loop error boundary, pause when hidden, touch-action, heap budget test. D-02 (glTF accessors) stays open. Browser and performance runs moved to a desktop machine: [`PERFORMANCE_FOLLOWUPS.md`](./PERFORMANCE_FOLLOWUPS.md) |

@@ -19,6 +19,34 @@ export interface BrioRay3D {
 /**
  * Configuration options for creating a `BrioCamera3D`.
  */
+/**
+ * Tone mapping operator applied to the lit (linear, unbounded) color before display:
+ * - `"none"`: values above 1 clip (the default, like BrioJS 0.2);
+ * - `"reinhard"`: simple and soft;
+ * - `"aces"`: filmic, contrasty (ACES fitted curve);
+ * - `"agx"`: filmic with natural saturation of very bright colors;
+ * - `"neutral"`: Khronos PBR Neutral, keeps base colors close to their sRGB values.
+ */
+export type ToneMappingMode = "none" | "reinhard" | "aces" | "agx" | "neutral";
+
+/**
+ * Distance fog of a `BrioCamera3D`: surfaces blend into `color` as they get farther from the camera.
+ * - `"linear"`: from no fog at `near` to full fog at `far`;
+ * - `"exponential"`: `1 - e^(-density * distance)`;
+ * - `"exponential2"`: `1 - e^(-(density * distance)^2)`, clear near the camera and thick far away.
+ */
+export interface BrioFog {
+    mode: "linear" | "exponential" | "exponential2";
+    /** Fog color (defaults to the camera `clearColor`, or `"#c8d2dc"`). */
+    color?: string;
+    /** Start distance of `"linear"` fog (defaults to `10`). */
+    near?: number;
+    /** End distance of `"linear"` fog (defaults to `50`). */
+    far?: number;
+    /** Density of exponential fog (defaults to `0.04`). */
+    density?: number;
+}
+
 export interface BrioCamera3DOptions {
     /** Projection mode (`"perspective"` or `"orthographic"`, defaults to `"perspective"`). */
     projection?: CameraProjection3D;
@@ -42,6 +70,12 @@ export interface BrioCamera3DOptions {
     viewport?: BrioViewport;
     /** Optional CSS color used to clear the viewport before the 3D pass (transparent clear when omitted). */
     clearColor?: string;
+    /** Tone mapping operator of this camera's passes (defaults to `"none"`). */
+    toneMapping?: ToneMappingMode;
+    /** Exposure multiplier applied before tone mapping (defaults to `1`). */
+    exposure?: number;
+    /** Distance fog of this camera's passes (none by default). */
+    fog?: BrioFog;
 }
 
 /**
@@ -76,6 +110,31 @@ export class BrioCamera3D {
 
     /** Optional CSS color used by `BrioGame` to clear this camera's viewport before rendering (transparent when `undefined`). */
     public clearColor?: string;
+    /**
+     * Tone mapping operator of this camera's passes. Lighting runs in linear light and can exceed 1 (bright lights,
+     * emissive surfaces); a filmic operator compresses those values instead of clipping them to white.
+     *
+     * @default "none"
+     * @example
+     * ```ts
+     * camera.toneMapping = "aces";
+     * camera.exposure = 1.2;
+     * ```
+     */
+    public toneMapping: ToneMappingMode;
+    /** Exposure multiplier applied before tone mapping. */
+    public exposure: number;
+    /**
+     * Distance fog of this camera's passes (`undefined` for none). Match `color` with `clearColor` so distant
+     * objects melt into the background.
+     *
+     * @example
+     * ```ts
+     * camera.clearColor = "#1b2330";
+     * camera.fog = { mode: "exponential2", color: "#1b2330", density: 0.05 };
+     * ```
+     */
+    public fog?: BrioFog;
 
     readonly #viewMatrix: Mat4 = Matrix4.create();
     readonly #projectionMatrix: Mat4 = Matrix4.create();
@@ -83,6 +142,8 @@ export class BrioCamera3D {
     readonly #inverseViewProjection: Mat4 = Matrix4.create();
     #viewDirty: boolean = true;
     #projDirty: boolean = true;
+    /** Whether the view or the projection changed since `viewProjectionMatrix` was last multiplied. */
+    #viewProjDirty: boolean = true;
     /** Six normalized frustum planes `(a, b, c, d)` in world space: left, right, bottom, top, near, far. */
     readonly #frustumPlanes: Float64Array = new Float64Array(24);
     #planesDirty: boolean = true;
@@ -104,14 +165,17 @@ export class BrioCamera3D {
         this.#position = new BrioVec3(p.x, p.y, p.z, () => {
             this.#viewDirty = true;
             this.#planesDirty = true;
+            this.#viewProjDirty = true;
         });
         this.#target = new BrioVec3(t.x, t.y, t.z, () => {
             this.#viewDirty = true;
             this.#planesDirty = true;
+            this.#viewProjDirty = true;
         });
         this.#up = new BrioVec3(u.x, u.y, u.z, () => {
             this.#viewDirty = true;
             this.#planesDirty = true;
+            this.#viewProjDirty = true;
         });
 
         this.#fov = options.fov ?? Math.PI / 3;
@@ -121,6 +185,9 @@ export class BrioCamera3D {
         this.#orthoSize = Math.max(0.01, options.orthoSize ?? 10);
         this.#viewport = options.viewport ?? new BrioViewport(0, 0, 1, 1);
         this.clearColor = options.clearColor;
+        this.toneMapping = options.toneMapping ?? "none";
+        this.exposure = Math.max(0, options.exposure ?? 1);
+        this.fog = options.fog;
     }
 
     /** Unique camera identifier. */
@@ -136,6 +203,7 @@ export class BrioCamera3D {
         this.#projection = value;
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Camera world position `{ x, y, z }`. */
@@ -170,6 +238,7 @@ export class BrioCamera3D {
         this.#fov = value;
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Viewport aspect ratio (`width / height`). */
@@ -180,6 +249,7 @@ export class BrioCamera3D {
         this.#aspect = Math.max(1e-4, value);
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Near clipping plane distance. */
@@ -190,6 +260,7 @@ export class BrioCamera3D {
         this.#near = Math.max(1e-4, value);
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Far clipping plane distance. */
@@ -200,6 +271,7 @@ export class BrioCamera3D {
         this.#far = Math.max(this.#near + 1e-3, value);
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Half-height in world units for `"orthographic"` projection. */
@@ -210,6 +282,7 @@ export class BrioCamera3D {
         this.#orthoSize = Math.max(1e-3, value);
         this.#projDirty = true;
         this.#planesDirty = true;
+        this.#viewProjDirty = true;
     }
 
     /** Normalized screen `BrioViewport` assigned to this camera. */
@@ -279,9 +352,13 @@ export class BrioCamera3D {
      * Computes and returns the combined 4x4 `projectionMatrix * viewMatrix` (`Mat4`).
      */
     public get viewProjectionMatrix(): Mat4 {
-        const v = this.viewMatrix;
-        const p = this.projectionMatrix;
-        Matrix4.multiply(this.#viewProjectionMatrix, p, v);
+        // Read every frame (and by every frustum test): multiply only after the view or projection changed
+        if (this.#viewProjDirty || this.#viewDirty || this.#projDirty) {
+            const v = this.viewMatrix;
+            const p = this.projectionMatrix;
+            Matrix4.multiply(this.#viewProjectionMatrix, p, v);
+            this.#viewProjDirty = false;
+        }
         return this.#viewProjectionMatrix;
     }
 

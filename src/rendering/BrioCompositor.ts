@@ -12,7 +12,12 @@ import { BrioObject2D } from "../objects/BrioObject2D";
 import { BrioObject3D } from "../objects/BrioObject3D";
 import { Mat4 } from "../math/index";
 import { BrioLight } from "../objects/BrioLight";
-import { RenderBackend } from "./contracts/RenderBackend";
+import {
+    RenderBackend,
+    RenderPassParameters,
+    SHADOW_CAST,
+    SHADOW_RECEIVE,
+} from "./contracts/RenderBackend";
 import { buildLightingEnvironment, createLightingEnvironment } from "./lighting";
 import { drawTileMaps } from "./BrioTileMapRenderer";
 
@@ -144,6 +149,25 @@ export class BrioCompositor {
     readonly #meshBounds = new WeakMap<BrioMesh, MeshBounds>();
     /** World-space sphere center reused by the culling test. */
     readonly #cullCenter = { x: 0, y: 0, z: 0 };
+    /** Game time in seconds, set by `BrioGame` every frame step (custom shaders read it as `TIME`). */
+    public time: number = 0;
+    /** Pass parameters handed to the 3D backend, reused for every camera. */
+    readonly #passParams: RenderPassParameters = {
+        cameraX: 0,
+        cameraY: 0,
+        cameraZ: 0,
+        targetX: 0,
+        targetY: 0,
+        targetZ: 0,
+        time: 0,
+        toneMapping: "none",
+        exposure: 1,
+        fogMode: 0,
+        fogColor: "#c8d2dc",
+        fogNear: 10,
+        fogFar: 50,
+        fogDensity: 0.04,
+    };
     /** Canvas pixels per logical pixel of the frame being rendered. */
     #pixelRatio: number = 1;
 
@@ -307,8 +331,14 @@ export class BrioCompositor {
                 ctx.translate(vx, vy);
                 this.#applyCameraTransform(ctx, camera, layer, vw, vh, gameScale);
                 this.#drawLayerTileMaps(ctx, layer, camera, vw, vh, gameScale);
-                const cull = layer.policy === "dynamic" && camera.rotation === 0 && gameScale === 1;
-                this.#drawObjects(ctx, layer.getSortedObjects(), cull ? camera : undefined);
+                // Culling stays on for rotated cameras and any game.scale (D-12)
+                this.#drawObjects(
+                    ctx,
+                    layer.getSortedObjects(),
+                    layer.policy === "dynamic" ? camera : undefined,
+                    gameScale,
+                    layer.scrollFactor,
+                );
                 ctx.restore();
             }
         }
@@ -392,10 +422,12 @@ export class BrioCompositor {
         ctx: Context2D,
         objects: readonly BrioObject2D[],
         cullCamera?: BrioCamera2D,
+        gameScale: number = 1,
+        scrollFactor?: { readonly x: number; readonly y: number },
     ): void {
         for (let i = 0; i < objects.length; i++) {
             const obj = objects[i];
-            if (cullCamera && !cullCamera.isVisible(obj)) {
+            if (cullCamera && !cullCamera.isVisible(obj, gameScale, scrollFactor)) {
                 this.#stats.objectsCulled++;
                 continue;
             }
@@ -534,7 +566,8 @@ export class BrioCompositor {
 
     #render3DPasses(source: CompositorSource, width: number, height: number): void {
         const backend = this.#backend3D;
-        if (!backend || source.cameras3D.length === 0 || source.objects3D.length === 0) return;
+        // A camera without objects still clears its viewport to its clear color
+        if (!backend || source.cameras3D.length === 0) return;
         if (backend.setLights) {
             const lights =
                 source.lights && source.lights.length > 0 ? source.lights : this.#defaultLights;
@@ -552,6 +585,7 @@ export class BrioCompositor {
                 if (Math.abs(camera.aspect - aspect) > 1e-6) camera.aspect = aspect;
             }
             backend.beginFrame(viewport, camera.clearColor);
+            if (backend.setPassParameters) backend.setPassParameters(this.#passParameters(camera));
             const viewProj = camera.viewProjectionMatrix;
             for (let i = 0; i < source.objects3D.length; i++) {
                 const obj = source.objects3D[i];
@@ -566,15 +600,27 @@ export class BrioCompositor {
         obj: BrioObject3D,
         viewProj: Mat4,
         camera: BrioCamera3D,
+        parentOpacity: number = 1,
     ): void {
         if (!obj.transform.visibility) return;
+        // Opacity multiplies down the hierarchy, so fading a model fades its parts (D-06)
+        const opacity = parentOpacity * obj.transform.opacity;
+        if (opacity <= 0) return;
         if (obj.mesh) {
             const mesh = this.#meshes.get(obj.mesh);
             if (mesh) {
                 const world = obj.transform.worldMatrix;
                 if (this.#isMeshVisible(mesh, world, camera)) {
                     const material = this.#materials.get(obj.material) ?? this.#defaultMaterial;
-                    backend.renderMesh3D(mesh, material, world, viewProj);
+                    backend.renderMesh3D(
+                        mesh,
+                        material,
+                        world,
+                        viewProj,
+                        opacity,
+                        (obj.castShadow ? SHADOW_CAST : 0) |
+                            (obj.receiveShadow ? SHADOW_RECEIVE : 0),
+                    );
                     this.#stats.objects3DDrawn++;
                 } else {
                     this.#stats.objects3DCulled++;
@@ -583,8 +629,35 @@ export class BrioCompositor {
         }
         const children = obj.children;
         for (let i = 0; i < children.length; i++) {
-            this.#renderObject3D(backend, children[i], viewProj, camera);
+            this.#renderObject3D(backend, children[i], viewProj, camera, opacity);
         }
+    }
+
+    /** Fills the reused pass parameters from `camera` (position, tone mapping, exposure, fog). */
+    #passParameters(camera: BrioCamera3D): RenderPassParameters {
+        const p = this.#passParams;
+        const position = camera.position;
+        p.cameraX = position.x;
+        p.cameraY = position.y;
+        p.cameraZ = position.z;
+        const target = camera.target;
+        p.targetX = target.x;
+        p.targetY = target.y;
+        p.targetZ = target.z;
+        p.time = this.time;
+        p.toneMapping = camera.toneMapping;
+        p.exposure = camera.exposure;
+        const fog = camera.fog;
+        if (fog) {
+            p.fogMode = fog.mode === "linear" ? 1 : fog.mode === "exponential" ? 2 : 3;
+            p.fogColor = fog.color ?? camera.clearColor ?? "#c8d2dc";
+            p.fogNear = fog.near ?? 10;
+            p.fogFar = fog.far ?? 50;
+            p.fogDensity = fog.density ?? 0.04;
+        } else {
+            p.fogMode = 0;
+        }
+        return p;
     }
 
     /** Tests the world-space bounding sphere of `mesh` (placed by `world`) against the camera frustum. */

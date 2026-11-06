@@ -1,9 +1,42 @@
 import { BrioMaterial } from "../../assets/BrioMaterial";
 import { BrioMesh } from "../../assets/BrioMesh";
 import type { BrioTexture } from "../../assets/BrioTexture";
+import type { ToneMappingMode } from "../../cameras/BrioCamera3D";
 import { ViewportRect } from "../../core/BrioViewport";
 import { Mat4 } from "../../math/mat4";
 import { LightingEnvironment } from "../lighting";
+
+/** `renderMesh3D` shadow flag: the mesh casts shadows. */
+export const SHADOW_CAST = 1;
+/** `renderMesh3D` shadow flag: the mesh receives shadows. */
+export const SHADOW_RECEIVE = 2;
+
+/**
+ * Camera-dependent values of one 3D pass (`RenderBackend.setPassParameters()`).
+ */
+export interface RenderPassParameters {
+    /** Camera world position. */
+    cameraX: number;
+    cameraY: number;
+    cameraZ: number;
+    /** Point the camera looks at: the center of the directional shadow box. */
+    targetX: number;
+    targetY: number;
+    targetZ: number;
+    /** Game time in seconds (`game.time`), exposed to custom shaders as `TIME`. */
+    time: number;
+    /** Tone mapping operator (`ToneMappingMode`). */
+    toneMapping: ToneMappingMode;
+    /** Exposure multiplier applied before tone mapping. */
+    exposure: number;
+    /** Fog mode: `0` none, `1` linear, `2` exponential, `3` exponential squared. */
+    fogMode: number;
+    /** Fog CSS color. */
+    fogColor: string;
+    fogNear: number;
+    fogFar: number;
+    fogDensity: number;
+}
 
 /**
  * Supported rendering backend identifiers in priority order (`webgpu -> webgl2 -> webgl1 -> canvas2d`).
@@ -43,18 +76,30 @@ export interface RenderBackend {
     setLights?(environment: LightingEnvironment): void;
 
     /**
+     * Sets the camera-dependent values of the following pass (camera position for specular highlights, fog, tone
+     * mapping, exposure); called by the compositor after `beginFrame()` of each 3D camera. Optional.
+     *
+     * @param parameters Values of the pass (the object is reused by the caller; copy what you keep)
+     */
+    setPassParameters?(parameters: Readonly<RenderPassParameters>): void;
+
+    /**
      * Renders a 3D `BrioMesh` with `BrioMaterial` transformed by `worldMatrix` and `viewProjMatrix`.
      *
      * @param mesh 3D geometry buffers
      * @param material 3D surface appearance
      * @param worldMatrix Object 4x4 local-to-world matrix
      * @param viewProjMatrix Camera 4x4 view-projection matrix
+     * @param opacity Object opacity (`transform.opacity`, defaults to `1`), multiplied with `material.opacity`
+     * @param shadowFlags `SHADOW_CAST | SHADOW_RECEIVE` bits of the object (defaults to both)
      */
     renderMesh3D(
         mesh: BrioMesh,
         material: BrioMaterial,
         worldMatrix: Mat4,
         viewProjMatrix: Mat4,
+        opacity?: number,
+        shadowFlags?: number,
     ): void;
 
     /**

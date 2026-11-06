@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { BrioLight } from "../../src/objects/BrioLight";
 import {
+    punctualAttenuation,
     buildLightingEnvironment,
     createLightingEnvironment,
     irradianceLuminance,
@@ -39,16 +40,19 @@ describe("Lighting environment", () => {
         expect(env.directionalCount).toBe(1);
         expect(Array.from(env.directions.subarray(0, 3))).toEqual([-0, 1, -0]);
         expect(env.colors[0]).toBeCloseTo(2);
-        expect(env.key).not.toContain("off");
+        expect(env.version).toBeGreaterThan(0);
     });
 
-    it("caps directional lights and changes the key when a light changes", () => {
+    it("caps directional lights and changes the version only when a light changes", () => {
         const lights = Array.from({ length: 6 }, (_, i) => new BrioLight(`d${i}`, "directional"));
         const env = buildLightingEnvironment(lights, createLightingEnvironment());
         expect(env.directionalCount).toBe(MAX_DIRECTIONAL_LIGHTS);
-        const key = env.key;
+        const version = env.version;
+        expect(buildLightingEnvironment(lights, env).version).toBe(version);
         lights[0].direction.x = 5;
-        expect(buildLightingEnvironment(lights, env).key).not.toBe(key);
+        const changed = buildLightingEnvironment(lights, env).version;
+        expect(changed).not.toBe(version);
+        expect(buildLightingEnvironment(lights.slice(1), env).version).not.toBe(changed);
     });
 
     it("computes luminance from hemisphere blend and Lambert terms", () => {
@@ -79,7 +83,11 @@ describe("WebGL2Backend lights uniform buffer", () => {
         const surface = document.createElement("canvas");
         const backend = new WebGL2Backend();
         await backend.init(surface);
-        expect(fake.callsOf("bindBufferBase")).toEqual([[GL.UNIFORM_BUFFER, 0, expect.anything()]]);
+        // BrioLights at binding 0, BrioPass (camera, fog, tone mapping) at binding 1
+        expect(fake.callsOf("bindBufferBase")).toEqual([
+            [GL.UNIFORM_BUFFER, 0, expect.anything()],
+            [GL.UNIFORM_BUFFER, 1, expect.anything()],
+        ]);
 
         const env = createLightingEnvironment();
         const lights = [new BrioLight("sun", "directional", { direction: { x: 0, y: 0, z: -1 } })];
@@ -97,7 +105,7 @@ describe("WebGL2Backend lights uniform buffer", () => {
         };
         draw();
         expect(fake.count("bufferSubData")).toBe(1);
-        expect(fake.count("uniformBlockBinding")).toBe(1);
+        expect(fake.count("uniformBlockBinding")).toBe(2);
         const fragment = fake
             .callsOf("shaderSource")
             .map((a) => a[1] as string)
@@ -112,6 +120,98 @@ describe("WebGL2Backend lights uniform buffer", () => {
         backend.setLights(buildLightingEnvironment(lights, env));
         draw();
         expect(fake.count("bufferSubData")).toBe(2);
+    });
+});
+
+describe("point and spot lights", () => {
+    it("are packed with position, range, cone and decay", () => {
+        const env = buildLightingEnvironment(
+            [
+                new BrioLight("lamp", "point", {
+                    position: { x: 1, y: 2, z: 3 },
+                    range: 8,
+                    intensity: 2,
+                    color: "#ffffff",
+                }),
+                new BrioLight("stage", "spot", {
+                    position: { x: 0, y: 5, z: 0 },
+                    direction: { x: 0, y: -2, z: 0 },
+                    angle: Math.PI / 4,
+                    penumbra: 0.5,
+                }),
+            ],
+            createLightingEnvironment(),
+        );
+        expect(env.punctualCount).toBe(2);
+        expect(Array.from(env.punctualPositions.subarray(0, 4))).toEqual([1, 2, 3, 8]);
+        expect(env.punctualColors[0]).toBeCloseTo(2);
+        expect(env.punctualColors[3]).toBe(1);
+        expect(env.punctualColors[7]).toBe(2);
+        expect(env.punctualDirections[5]).toBeCloseTo(-1);
+        expect(env.punctualDirections[7]).toBeCloseTo(Math.cos(Math.PI / 4));
+        expect(env.punctualCones[4]).toBeCloseTo(Math.cos(Math.PI / 8));
+        expect(env.punctualCones[5]).toBe(2);
+    });
+
+    it("fade with distance, vanish past the range and outside the spot cone", () => {
+        const env = buildLightingEnvironment(
+            [
+                new BrioLight("lamp", "point", { position: { x: 0, y: 2, z: 0 }, range: 4 }),
+                new BrioLight("spot", "spot", {
+                    position: { x: 0, y: 2, z: 0 },
+                    direction: { x: 0, y: -1, z: 0 },
+                    angle: 0.3,
+                    penumbra: 0,
+                    enabled: false,
+                }),
+            ],
+            createLightingEnvironment(),
+        );
+        const near = irradianceLuminance(env, 0, 1, 0, 0, 1, 0);
+        const far = irradianceLuminance(env, 0, 1, 0, 0, -1, 0);
+        expect(near).toBeGreaterThan(far);
+        expect(irradianceLuminance(env, 0, 1, 0, 0, -3, 0)).toBe(0); // 5 units away, beyond the range of 4
+        expect(punctualAttenuation(env, 0, 1, 0, 1, 0)).toBeCloseTo(1 * (1 - 1 / 256) ** 2);
+
+        const spotOnly = buildLightingEnvironment(
+            [
+                new BrioLight("spot", "spot", {
+                    position: { x: 0, y: 2, z: 0 },
+                    direction: { x: 0, y: -1, z: 0 },
+                    angle: 0.3,
+                    penumbra: 0,
+                }),
+            ],
+            createLightingEnvironment(),
+        );
+        expect(irradianceLuminance(spotOnly, 0, 1, 0, 0, 0, 0)).toBeGreaterThan(0); // under the spot
+        expect(irradianceLuminance(spotOnly, 0, 1, 0, 3, 0, 0)).toBe(0); // outside the cone
+    });
+
+    it("upload tone mapping, exposure, fog and the camera position through BrioPass", async () => {
+        const backend = new WebGL2Backend();
+        await backend.init(document.createElement("canvas"));
+        expect(backend.passData[3]).toBe(1);
+        backend.setPassParameters({
+            cameraX: 1,
+            cameraY: 2,
+            cameraZ: 3,
+            targetX: 0,
+            targetY: 0,
+            targetZ: 0,
+            time: 0,
+            toneMapping: "aces",
+            exposure: 1.5,
+            fogMode: 3,
+            fogColor: "#000000",
+            fogNear: 1,
+            fogFar: 9,
+            fogDensity: 0.1,
+        });
+        expect(Array.from(backend.passData.subarray(0, 4))).toEqual([1, 2, 3, 1.5]);
+        expect(backend.passData[7]).toBe(3);
+        expect(backend.passData[10]).toBeCloseTo(0.1);
+        expect(backend.passData[11]).toBe(2);
     });
 });
 
@@ -189,12 +289,12 @@ describe("Lights in BrioGame and BrioScene", () => {
         });
         game.preload(() => [BrioMesh.createBox("box")]);
         await game.ready();
-        // The compositor reuses one environment object, so record each key when it is handed over
+        // The compositor reuses one environment object, so record its source lights when it is handed over
         const keys: string[] = [];
         const backend = game.renderBackend!;
         const original = backend.setLights!.bind(backend);
         backend.setLights = (env) => {
-            keys.push(env.key);
+            keys.push(env.sources.map((light) => `${light.name}:`).join(""));
             original(env);
         };
 

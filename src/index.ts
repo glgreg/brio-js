@@ -11,6 +11,7 @@ import { BrioSpriteSheet as SpriteSheet } from "./assets/BrioSpriteSheet";
 import { BrioAnimation as Animation } from "./assets/BrioAnimation";
 import { BrioMesh as Mesh } from "./assets/BrioMesh";
 import { BrioMaterial as Material } from "./assets/BrioMaterial";
+import { BrioShader as Shader } from "./assets/BrioShader";
 import { BrioModel as Model } from "./assets/BrioModel";
 import { OBJLoader } from "./assets/loaders/OBJLoader";
 import { GLBLoader } from "./assets/loaders/GLBLoader";
@@ -85,7 +86,9 @@ export type {
     FlatTileGrid,
     TiledImportOptions,
 } from "./assets/BrioTileMap";
-export type { BrioMaterialOptions } from "./assets/BrioMaterial";
+export type { BrioMaterialOptions, ShaderParameterValue } from "./assets/BrioMaterial";
+export type { BrioShaderOptions } from "./assets/BrioShader";
+export type { BrioShadowOptions } from "./objects/BrioLight";
 export type { BrioModelOptions, ModelFormat, ModelBoundingBox } from "./assets/BrioModel";
 export type { ParsedModelData, OBJLoaderOptions } from "./assets/loaders/OBJLoader";
 export type {
@@ -151,14 +154,24 @@ export type {
 } from "./math/BrioCollision";
 export type { BrioRigidBodyOptions } from "./physics/BrioRigidBody";
 export type { CameraBounds2D, CameraScreenSpace2D } from "./cameras/BrioCamera2D";
-export type { CameraProjection3D, BrioCamera3DOptions, BrioRay3D } from "./cameras/BrioCamera3D";
+export type {
+    CameraProjection3D,
+    BrioCamera3DOptions,
+    BrioRay3D,
+    ToneMappingMode,
+    BrioFog,
+} from "./cameras/BrioCamera3D";
 export type { LayerPolicy, BrioLayerOptions } from "./core/BrioLayer";
 export type { ViewportRect } from "./core/BrioViewport";
 export type { MouseButton } from "./input/BrioMouse";
 export type { TouchPoint } from "./input/BrioTouch";
 export type { GamepadButtonName } from "./input/BrioGamepad";
 export type { HostPlatformType, PlatformCapabilities } from "./tools/PlatformAdapter";
-export type { RenderBackendType, RenderBackend } from "./rendering/contracts/RenderBackend";
+export type {
+    RenderBackendType,
+    RenderBackend,
+    RenderPassParameters,
+} from "./rendering/contracts/RenderBackend";
 export type { Vec2, Vec2Bool, Vec3, Vec3Bool, Quat, Mat4 } from "./math/index";
 export type {
     DebugConsoleProperties,
@@ -204,6 +217,7 @@ export {
     Animation as BrioAnimation,
     Mesh as BrioMesh,
     Material as BrioMaterial,
+    Shader as BrioShader,
     Model as BrioModel,
     OBJLoader,
     GLBLoader,
@@ -278,6 +292,7 @@ const Brio = {
     Animation,
     Mesh,
     Material,
+    Shader,
     Model,
     OBJLoader,
     GLBLoader,

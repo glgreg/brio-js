@@ -233,7 +233,10 @@ describe("WebGL2Backend", () => {
             .map((args) => args[1] as string)
             .filter((src) => src.includes("fragColor"));
         // Opaque items are grouped by program, so variants compile in feature-bit order
-        expect(fragments.map((src) => src.match(/#define \w+/g) ?? [])).toEqual([
+        // Variant defines only (the template always defines TIME and CAMERA_POSITION for custom hooks)
+        expect(
+            fragments.map((src) => src.match(/#define (?:USE|FLAT|STANDARD)\w*/g) ?? []),
+        ).toEqual([
             [],
             ["#define USE_LIGHTING"],
             ["#define USE_LIGHTING", "#define USE_ALPHA_TEST"],

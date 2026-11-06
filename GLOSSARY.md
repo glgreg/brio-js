@@ -50,6 +50,14 @@ _Avoid_: Cache, Dump, StringifiedState
 A 2D object that draws a string with a font, color, alignment, wrapping, outline and shadow; its size is measured from the text.
 _Avoid_: Label, TextSprite, Caption (as class names)
 
+**Shader (`BrioShader`)**:
+Custom GLSL hooks attached to a material (`surface()` per pixel, `vertex()` per vertex) that change what the built-in pipeline computes; lighting, shadows, fog and tone mapping still apply.
+_Avoid_: Program, Effect (for the asset)
+
+**Tone Mapping (`camera.toneMapping`)**:
+The curve that maps lit colors, which can exceed 1 in linear light, to displayable colors (`"aces"`, `"agx"`, `"neutral"`, `"reinhard"`), after `exposure`.
+_Avoid_: Color Grading, HDR (for the curve itself)
+
 **Pixel Ratio (`game.pixelRatio`)**:
 The number of canvas pixels per logical pixel. Game code, cameras and input always use logical pixels; the backing store is scaled by the pixel ratio (device pixel ratio times the fit scale).
 _Avoid_: Resolution, DPI, Zoom (for this factor)

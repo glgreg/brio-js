@@ -242,6 +242,8 @@ export class BrioObject2D {
         return this.#sprite;
     }
     public set sprite(newSprite: string) {
+        // Animations assign the current frame every tick: an unchanged frame must not invalidate cached layers
+        if (this.#sprite === newSprite) return;
         this.#sprite = newSprite;
         this.#transform.markDirty();
     }

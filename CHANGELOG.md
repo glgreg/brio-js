@@ -6,6 +6,66 @@ While the major version is `0`, minor releases may include breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- `BrioShader`: custom GLSL hooks for materials (`material.shader`, by reference or by preloaded name). The fragment
+  hook `surface(inout BrioSurface s)` edits base color, opacity, normal, emissive, roughness and metalness before
+  lighting; the vertex hook `vertex(inout vec3 position, inout vec3 normal)` moves vertices. Built-ins `TIME` and
+  `CAMERA_POSITION`; `material.parameters` / `material.set()` feed the hooks' uniforms (numbers, 2-4 vectors, CSS
+  colors). Loaded by `preload()` from inline code or a `.glsl` file (`// @vertex` splits the hooks), recompiled when
+  its source changes, and replaced by the built-in shader when it fails to compile (logged once).
+- `game.time`: game time in seconds, paused with the game.
+- `examples/3d-lantern-courtyard`: a night scene showing the 3D features.
+
+- Directional shadows on WebGL2: `castShadow` and `shadow` (`size`, `distance`, `resolution`, `bias`, `normalBias`,
+  `strength`) on `BrioLight`, `castShadow` / `receiveShadow` on `BrioObject3D`. One shadow map per pass, centered on
+  the camera target, snapped to texels and filtered with hardware PCF plus a 3x3 kernel;
+  `RenderBackend.renderMesh3D()` takes optional shadow flags (`SHADOW_CAST`, `SHADOW_RECEIVE`).
+
+- `"point"` and `"spot"` `BrioLight`s with `position`, `range`, `decay`, `angle` and `penumbra` (up to 8 per pass,
+  `KHR_lights_punctual` attenuation), on WebGL2 and on the Canvas2D fallback.
+- `shading: "standard"` on `BrioMaterial`: metallic-roughness shading with GGX highlights, Fresnel and reflections
+  of the hemisphere sky (`roughness`, `metalness`); `emissive` and `emissiveIntensity` on every material.
+- `BrioCamera3D` `toneMapping` (`"none"`, `"reinhard"`, `"aces"`, `"agx"`, `"neutral"`), `exposure` and distance `fog`
+  (`"linear"`, `"exponential"`, `"exponential2"`), applied per camera pass; `RenderBackend.setPassParameters?()`.
+- A shader program that fails to compile or link is logged once and its draws are skipped, instead of throwing
+  inside the frame (D-07).
+- `tests/rendering/ShaderSources.test.ts` compiles every WebGL2 program variant offline with `glslangValidator`
+  when it is installed.
+
+- `scene.onFixedUpdate()`: scene simulation at the game's fixed rate (`1 / 60` when the game has no
+  `fixedUpdate()`), smoothed by `interpolate` like game objects.
+- `game.onError()` and an error boundary in the frame loop: an exception in `update()`, `fixedUpdate()`, a scene
+  or a collision listener stops the game with a message on the canvas and in the console, instead of freezing it
+  silently.
+- `pauseWhenHidden` option and `game.pauseWhenHidden` (default `true`): the game pauses, audio included, while its
+  page is hidden and resumes when it is visible.
+- `transform.getWorldPosition(out)` on `BrioTransform2D`, allocation-free.
+- `e2e/heap.spec.ts`: an allocation budget for the game loop, and `e2e/tools/profile-allocations.mjs` to find
+  allocation sites.
+
+### Changed
+
+- 2D hierarchy is rendered (D-01): a child is drawn inside its ancestors' frames (position, rotation and skew around
+  the pivot, scale). `worldPosition` follows the same math, so it now rotates around the parent's pivot; camera
+  follow, culling, collision tests and collision events use world positions.
+- `transform.opacity` of a `BrioObject3D` takes effect and multiplies down the hierarchy (D-06);
+  `RenderBackend.renderMesh3D()` takes an optional `opacity`.
+- `LightingEnvironment.key` (a string built every pass) is replaced by a numeric `version`, and the environment is
+  only rebuilt when a light changes (D-04).
+- Render interpolation covers rotation and scale (2D angle, 3D quaternion along the shortest arc), not only
+  position (D-19).
+- The canvas claims touch gestures (`touch-action: none`), so dragging on a game no longer scrolls or zooms the page.
+- The Canvas2D fallback lights triangles with world-space normals (rotated objects used to keep their lighting).
+
+### Fixed
+
+- 2D culling stays on with a rotated camera, any `game.scale` and parallax layers (D-12).
+- Assigning the current sprite again no longer redraws `"static"` layers (D-14).
+- A `BrioCamera3D` without objects clears its viewport to its clear color.
+- `BrioCamera3D.viewProjectionMatrix` is cached; `BrioTransform3D` rotation sync, the WebGL2 draw sort and the
+  collision event sweep no longer allocate per frame.
+
 ## [0.2.0] - 2026-11-04
 
 Preview release for simple 2D and 3D games: engine-drawn text, collision events, tile maps, action-based input,
