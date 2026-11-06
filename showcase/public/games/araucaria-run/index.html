@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <title>Araucária Run · BrioJS</title>
+        <script type="importmap">
+            { "imports": { "@brio-js/core": "/engine/brio.js" } }
+        </script>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
+        <link rel="stylesheet" href="./style.css" />
+    </head>
+    <body>
+        <div id="game"></div>
+        <div id="hud" hidden>
+            <div class="pill score"><small data-t="score"></small><b id="score">0</b></div>
+            <div class="pill fruit"><i class="yuzu"></i><b id="fruit">0</b></div>
+            <div class="pill best"><small data-t="best"></small><b id="best">0</b></div>
+        </div>
+        <div id="combo" class="combo"></div>
+        <div id="overlay" data-screen="title">
+            <section class="card title-card">
+                <p class="kicker">BrioJS · WebGL2 · glTF</p>
+                <h1 data-t="title"></h1>
+                <p class="tagline" data-t="tagline"></p>
+                <p class="go" data-t="start"></p>
+                <p class="small" data-t="controls"></p>
+                <p class="small" id="title-best"></p>
+                <p class="small warn" id="nowebgl" hidden>WebGL2 is not available: this game needs it.</p>
+            </section>
+            <section class="card over-card">
+                <h2 data-t="over"></h2>
+                <p class="record" id="over-record" data-t="record" hidden></p>
+                <div class="stats">
+                    <div><small data-t="score"></small><b id="over-score"></b></div>
+                    <div><small data-t="yuzus"></small><b id="over-fruit"></b></div>
+                    <div><small data-t="best"></small><b id="over-best"></b></div>
+                </div>
+                <p class="go" data-t="again"></p>
+            </section>
+        </div>
+        <script type="module" src="./main.js"></script>
+    </body>
+</html>

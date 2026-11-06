@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>My BrioJS game</title>
+        <!-- "@brio-js/core" resolves to the engine served by the playground -->
+        <script type="importmap">
+            { "imports": { "@brio-js/core": "/engine/brio.js" } }
+        </script>
+        <style>
+            html, body { margin: 0; height: 100%; overflow: hidden; background: #1e1913; }
+            #game { height: 100%; display: grid; place-items: center; }
+            #game canvas { display: block; }
+        </style>
+    </head>
+    <body>
+        <div id="game"></div>
+        <script type="module" src="./main.js"></script>
+    </body>
+</html>

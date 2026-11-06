@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <title>Comet Garden · BrioJS</title>
+        <script type="importmap">
+            { "imports": { "@brio-js/core": "/engine/brio.js" } }
+        </script>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+        <link rel="stylesheet" href="./style.css" />
+    </head>
+    <body>
+        <div id="game"></div>
+        <header class="hud">
+            <div class="title-block">
+                <h1 data-t="title"></h1>
+                <p id="level"></p>
+            </div>
+            <div class="meter"><small data-t="shots"></small><b id="shots">0</b></div>
+            <div class="meter"><small data-t="stars"></small><span id="stars" class="stars"></span></div>
+            <div class="nav">
+                <button id="prev" type="button" aria-label="Previous level">‹</button>
+                <button id="next" type="button" aria-label="Next level">›</button>
+            </div>
+        </header>
+        <p id="hint" class="hint" hidden></p>
+        <p class="keys" data-t="reset"></p>
+        <div id="card" class="card" hidden>
+            <h2 id="card-title"></h2>
+            <p id="card-text"></p>
+            <button id="card-next" type="button"></button>
+        </div>
+        <p class="warn" id="nowebgl" hidden>WebGL2 is not available: this game needs it.</p>
+        <script type="module" src="./main.js"></script>
+    </body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <title>Prism Stack · BrioJS</title>
+        <script type="importmap">
+            { "imports": { "@brio-js/core": "/engine/brio.js" } }
+        </script>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;700&display=swap" rel="stylesheet" />
+        <link rel="stylesheet" href="./style.css" />
+    </head>
+    <body>
+        <div id="game"></div>
+        <div id="hud" hidden>
+            <div id="score" class="score">0</div>
+            <div id="best" class="best"></div>
+        </div>
+        <div id="perfect" class="perfect"></div>
+        <div id="milestone" class="milestone"></div>
+        <div id="screen" data-screen="title">
+            <section class="title-screen">
+                <p class="kicker">BrioJS · WebGL2 · BrioShader</p>
+                <h1 data-t="title"></h1>
+                <p data-t="tagline"></p>
+                <p class="cta" data-t="start"></p>
+                <p class="small" id="title-best"></p>
+                <p class="small warn" id="nowebgl" hidden>WebGL2 is not available: this game needs it.</p>
+            </section>
+            <section class="over-screen">
+                <p data-t="over"></p>
+                <div class="big" id="over-score"></div>
+                <p class="small" data-t="floors"></p>
+                <p class="record" id="over-record" data-t="record" hidden></p>
+                <p class="small" id="over-best"></p>
+                <p class="cta" data-t="again"></p>
+            </section>
+        </div>
+        <script type="module" src="./main.js"></script>
+    </body>
+</html>
