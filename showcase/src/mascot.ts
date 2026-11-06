@@ -82,7 +82,7 @@ export function capySVG(options: CapyOptions = {}): string {
 export function logoMark(): string {
     return `<svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
         <circle cx="24" cy="24" r="23" class="logo-bg"/>
-        <g transform="translate(-7 6) scale(.25)">
+        <g transform="translate(-40.8 7) scale(.33)">
             <path class="capy-dark" d="${EAR}"/>
             <path class="capy-body" d="${HEAD}"/>
             <path class="capy-snout" d="${SNOUT}"/>

@@ -422,7 +422,7 @@ button {
 .logo-mark circle:not(.logo-bg),
 .logo-mark ellipse {
     stroke: var(--ink);
-    stroke-width: 9;
+    stroke-width: 7.5;
     stroke-linejoin: round;
 }
 .logo-mark .capy-body {
