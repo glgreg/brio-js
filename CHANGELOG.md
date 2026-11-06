@@ -8,6 +8,11 @@ While the major version is `0`, minor releases may include breaking changes.
 
 ### Added
 
+- `showcase/`: the project website, rebuilt for the TCC presentation (English and Portuguese). A landing page with a
+  live WebGL2 scene, three demo games that use only the WebGL2 backend (Lumen Vigil, a pixel-art survivor drawn as lit
+  GPU quads; Araucária Run, a low-poly glTF runner; Prism Stack, a neon stacker), a player page, asset credits, and a
+  playground IDE (Monaco with the engine's type definitions, projects and assets stored in IndexedDB, a service worker
+  sandbox, console with source links, zip export and import). Not part of the npm package.
 - `BrioTexture.filter` (`"linear"` or `"nearest"`) and `BrioTexture.wrap` (`"repeat"` or `"clamp"`): a `"nearest"`
   texture uploads to WebGL2 with one level and no mipmaps, so pixel art stays crisp on 3D quads; `"clamp"` keeps
   sprite-sheet frames from bleeding at the borders. Both are read once at upload.
