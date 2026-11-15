@@ -46,6 +46,12 @@ camera controllers, point/spot lights, particles). Before 1.0, the public API su
   - `docs/plans/ENGINE_COMPLETION_PLAN.md`: design reference and post-TCC backlog; its evidence is
     `docs/architecture/ENGINE_COMPLETION_STUDY.md`, which links the local study base in the gitignored `temp/` folder
     (`temp/research/` notes, `temp/repos/` reference clones). Read that base before working on a package.
+  - `docs/plans/GAME_LIFECYCLE_PLAN.md` (**proposed**, 2026-11-15): work packages for a complete 2D and 3D game lifecycle
+    after the TCC; evidence in `docs/architecture/GAME_LIFECYCLE_STUDY.md` (state of the engine, target capability
+    classes, engine and developer responsibility, open decisions DL-01 to DL-10) and
+    `docs/architecture/RENDER_QUALITY_AND_WEBGPU_STUDY.md` (WebGPU, upscaling, optimization order).
+    `docs/plans/MCP_PACKAGE_PLAN.md` plans the `@brio-js/mcp` package. They become current when the maintainers
+    confirm decision DL-08.
   - `docs/tcc/` (local, gitignored): TCC questions, research gaps and the provenance of algorithms and reference code.
   - `docs/ROADMAP.md`: known issues and planned work; `TODO.md`: detailed engineering checklist.
   - `CONTRIBUTING.md`: setup, checks (`npm run check`, `npm run test:e2e`), branches and conventions.

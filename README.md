@@ -272,6 +272,8 @@ Known issues and the roadmap are tracked in [`docs/ROADMAP.md`](./docs/ROADMAP.m
 - [Target architecture](./docs/architecture/TARGET_ARCHITECTURE.md): ECS backend, multi-backend renderer, layers, and workers.
 - [Rendering study](./docs/architecture/RENDERING_STUDY_THREEJS.md): techniques studied from three.js and the WebGPU plan.
 - [MCP game authoring](./docs/architecture/MCP_GAME_AUTHORING.md): the proposed MCP server for agentic game creation.
+- [Game lifecycle study](./docs/architecture/GAME_LIFECYCLE_STUDY.md) and [plan](./docs/plans/GAME_LIFECYCLE_PLAN.md) (proposed): what a complete 2D and 3D game still needs from the engine.
+- [Render quality and WebGPU study](./docs/architecture/RENDER_QUALITY_AND_WEBGPU_STUDY.md) and [MCP package plan](./docs/plans/MCP_PACKAGE_PLAN.md) (proposed).
 
 **Architecture decision records**
 

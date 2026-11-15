@@ -2,6 +2,8 @@
 
 Status: **Study / Proposed** (2026-10-20). Nothing in this document is implemented yet. The tracked work items are in [TODO.md section 10](../../TODO.md). The decision record is [ADR-0006](../adr/0006-mcp-agentic-game-authoring.md).
 
+> **Update (2026-11-15)**: the implementation plan for the package is [`MCP_PACKAGE_PLAN.md`](../plans/MCP_PACKAGE_PLAN.md). It keeps this study's catalog and security model and changes three points, pending the maintainers' confirmation: the bridge ships inside `@brio-js/mcp` instead of a separate `@brio-js/devtools` package; core cannot run headless in plain Node yet, so that mode is engine work; and headless runs return state, not screenshots. It also records that the TypeScript SDK v2 is now the stable line (section 2.1 below still calls it beta).
+
 ## 1. Goal
 
 Make BrioJS the engine an AI agent can use end-to-end to **create, run, inspect, test, and iterate on games**. The agent can be Claude Code, Claude Desktop, Codex, Cursor, VS Code / Copilot, Gemini CLI, or any other MCP-capable platform. The agent must be able to:

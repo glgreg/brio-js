@@ -7,6 +7,13 @@ backlog is [`docs/plans/ENGINE_COMPLETION_PLAN.md`](./plans/ENGINE_COMPLETION_PL
 engineering checklist (in Portuguese) lives in [`TODO.md`](../TODO.md); architecture decisions are in
 [`docs/adr/`](./adr/).
 
+Proposed on 2026-11-15, pending the maintainers' confirmation: [`GAME_LIFECYCLE_PLAN.md`](./plans/GAME_LIFECYCLE_PLAN.md),
+the work needed for complete 2D and 3D games (skeletal animation, rigging, level of detail, WebGPU, upscaling,
+particles, UI with DOM and React hooks, positional audio), with its evidence in
+[`GAME_LIFECYCLE_STUDY.md`](./architecture/GAME_LIFECYCLE_STUDY.md) and
+[`RENDER_QUALITY_AND_WEBGPU_STUDY.md`](./architecture/RENDER_QUALITY_AND_WEBGPU_STUDY.md), and
+[`MCP_PACKAGE_PLAN.md`](./plans/MCP_PACKAGE_PLAN.md) for the `@brio-js/mcp` package.
+
 Last updated: 2026-11-04 (v0.2.0).
 
 ## Known issues
