@@ -1,0 +1,22 @@
+# CLI deploys of the showcase (Vercel project root directory: showcase/) only need the engine sources and the
+# showcase itself. Local-only folders (study, demo, assets, reference clones) stay on this machine.
+/study
+/demo
+/assets
+/temp
+/dist
+/node_modules
+/test-results
+/playwright-report
+/proofs
+/docs
+/e2e
+/tests
+/examples
+/brio-agent
+/.claude
+/.github
+/showcase/node_modules
+/showcase/dist
+/showcase/public/engine
+*.tgz

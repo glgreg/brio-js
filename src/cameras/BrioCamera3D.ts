@@ -1,0 +1,484 @@
+import { BrioViewport } from "../core/BrioViewport";
+import { BrioVec3, Mat4, Matrix4, Vec3, Vector3 } from "../math/index";
+
+/**
+ * 3D projection mode supported by `BrioCamera3D`.
+ */
+export type CameraProjection3D = "perspective" | "orthographic";
+
+/**
+ * Half-line in 3D world space (`origin + t * direction`, `t >= 0`), returned by `BrioCamera3D.screenToRay()`.
+ */
+export interface BrioRay3D {
+    /** Start point on the camera near plane. */
+    origin: Vec3;
+    /** Unit direction pointing away from the camera. */
+    direction: Vec3;
+}
+
+/**
+ * Configuration options for creating a `BrioCamera3D`.
+ */
+/**
+ * Tone mapping operator applied to the lit (linear, unbounded) color before display:
+ * - `"none"`: values above 1 clip (the default, like BrioJS 0.2);
+ * - `"reinhard"`: simple and soft;
+ * - `"aces"`: filmic, contrasty (ACES fitted curve);
+ * - `"agx"`: filmic with natural saturation of very bright colors;
+ * - `"neutral"`: Khronos PBR Neutral, keeps base colors close to their sRGB values.
+ */
+export type ToneMappingMode = "none" | "reinhard" | "aces" | "agx" | "neutral";
+
+/**
+ * Distance fog of a `BrioCamera3D`: surfaces blend into `color` as they get farther from the camera.
+ * - `"linear"`: from no fog at `near` to full fog at `far`;
+ * - `"exponential"`: `1 - e^(-density * distance)`;
+ * - `"exponential2"`: `1 - e^(-(density * distance)^2)`, clear near the camera and thick far away.
+ */
+export interface BrioFog {
+    mode: "linear" | "exponential" | "exponential2";
+    /** Fog color (defaults to the camera `clearColor`, or `"#c8d2dc"`). */
+    color?: string;
+    /** Start distance of `"linear"` fog (defaults to `10`). */
+    near?: number;
+    /** End distance of `"linear"` fog (defaults to `50`). */
+    far?: number;
+    /** Density of exponential fog (defaults to `0.04`). */
+    density?: number;
+}
+
+export interface BrioCamera3DOptions {
+    /** Projection mode (`"perspective"` or `"orthographic"`, defaults to `"perspective"`). */
+    projection?: CameraProjection3D;
+    /** Initial camera position in 3D world space (defaults to `{ x: 0, y: 0, z: 10 }`). */
+    position?: Vec3;
+    /** Initial target point the camera looks at (defaults to `{ x: 0, y: 0, z: 0 }`). */
+    target?: Vec3;
+    /** Up direction vector (defaults to `{ x: 0, y: 1, z: 0 }`). */
+    up?: Vec3;
+    /** Vertical field of view in radians for `"perspective"` mode (defaults to `Math.PI / 3`, i.e. 60 degrees). */
+    fov?: number;
+    /** Viewport aspect ratio `width / height` (defaults to `640 / 480`). */
+    aspect?: number;
+    /** Near clipping plane distance (defaults to `0.1`). */
+    near?: number;
+    /** Far clipping plane distance (defaults to `1000`). */
+    far?: number;
+    /** Half-height in world units for `"orthographic"` projection (defaults to `10`). */
+    orthoSize?: number;
+    /** Normalized screen `BrioViewport` (defaults to full-screen). */
+    viewport?: BrioViewport;
+    /** Optional CSS color used to clear the viewport before the 3D pass (transparent clear when omitted). */
+    clearColor?: string;
+    /** Tone mapping operator of this camera's passes (defaults to `"none"`). */
+    toneMapping?: ToneMappingMode;
+    /** Exposure multiplier applied before tone mapping (defaults to `1`). */
+    exposure?: number;
+    /** Distance fog of this camera's passes (none by default). */
+    fog?: BrioFog;
+}
+
+/**
+ * Perspective and orthographic 3D observer (`BrioCamera3D`) that computes `viewMatrix`, `projectionMatrix`,
+ * and `viewProjectionMatrix` (`Mat4`) for a target `BrioViewport`, provides 3D sphere frustum culling, and
+ * converts screen pixels into world rays (`screenToRay`) for picking.
+ *
+ * @example
+ * ```ts
+ * const cam3D = new BrioCamera3D("cam_3d", {
+ *     position: { x: 0, y: 5, z: 15 },
+ *     target: { x: 0, y: 0, z: 0 },
+ *     fov: Math.PI / 3,
+ *     aspect: 16 / 9,
+ * });
+ * const vpMatrix = cam3D.viewProjectionMatrix;
+ * ```
+ */
+export class BrioCamera3D {
+    readonly #name: string;
+    #projection: CameraProjection3D;
+    readonly #position: BrioVec3;
+    readonly #target: BrioVec3;
+    readonly #up: BrioVec3;
+
+    #fov: number;
+    #aspect: number;
+    #near: number;
+    #far: number;
+    #orthoSize: number;
+    #viewport: BrioViewport;
+
+    /** Optional CSS color used by `BrioGame` to clear this camera's viewport before rendering (transparent when `undefined`). */
+    public clearColor?: string;
+    /**
+     * Tone mapping operator of this camera's passes. Lighting runs in linear light and can exceed 1 (bright lights,
+     * emissive surfaces); a filmic operator compresses those values instead of clipping them to white.
+     *
+     * @default "none"
+     * @example
+     * ```ts
+     * camera.toneMapping = "aces";
+     * camera.exposure = 1.2;
+     * ```
+     */
+    public toneMapping: ToneMappingMode;
+    /** Exposure multiplier applied before tone mapping. */
+    public exposure: number;
+    /**
+     * Distance fog of this camera's passes (`undefined` for none). Match `color` with `clearColor` so distant
+     * objects melt into the background.
+     *
+     * @example
+     * ```ts
+     * camera.clearColor = "#1b2330";
+     * camera.fog = { mode: "exponential2", color: "#1b2330", density: 0.05 };
+     * ```
+     */
+    public fog?: BrioFog;
+
+    readonly #viewMatrix: Mat4 = Matrix4.create();
+    readonly #projectionMatrix: Mat4 = Matrix4.create();
+    readonly #viewProjectionMatrix: Mat4 = Matrix4.create();
+    readonly #inverseViewProjection: Mat4 = Matrix4.create();
+    #viewDirty: boolean = true;
+    #projDirty: boolean = true;
+    /** Whether the view or the projection changed since `viewProjectionMatrix` was last multiplied. */
+    #viewProjDirty: boolean = true;
+    /** Six normalized frustum planes `(a, b, c, d)` in world space: left, right, bottom, top, near, far. */
+    readonly #frustumPlanes: Float64Array = new Float64Array(24);
+    #planesDirty: boolean = true;
+
+    /**
+     * Creates a new `BrioCamera3D` instance.
+     *
+     * @param name Unique camera identifier
+     * @param options Optional 3D camera settings
+     */
+    constructor(name: string, options: BrioCamera3DOptions = {}) {
+        this.#name = name;
+        this.#projection = options.projection ?? "perspective";
+
+        const p = options.position ?? { x: 0, y: 0, z: 10 };
+        const t = options.target ?? { x: 0, y: 0, z: 0 };
+        const u = options.up ?? { x: 0, y: 1, z: 0 };
+
+        this.#position = new BrioVec3(p.x, p.y, p.z, () => {
+            this.#viewDirty = true;
+            this.#planesDirty = true;
+            this.#viewProjDirty = true;
+        });
+        this.#target = new BrioVec3(t.x, t.y, t.z, () => {
+            this.#viewDirty = true;
+            this.#planesDirty = true;
+            this.#viewProjDirty = true;
+        });
+        this.#up = new BrioVec3(u.x, u.y, u.z, () => {
+            this.#viewDirty = true;
+            this.#planesDirty = true;
+            this.#viewProjDirty = true;
+        });
+
+        this.#fov = options.fov ?? Math.PI / 3;
+        this.#aspect = options.aspect ?? 640 / 480;
+        this.#near = Math.max(1e-4, options.near ?? 0.1);
+        this.#far = Math.max(this.#near + 1, options.far ?? 1000);
+        this.#orthoSize = Math.max(0.01, options.orthoSize ?? 10);
+        this.#viewport = options.viewport ?? new BrioViewport(0, 0, 1, 1);
+        this.clearColor = options.clearColor;
+        this.toneMapping = options.toneMapping ?? "none";
+        this.exposure = Math.max(0, options.exposure ?? 1);
+        this.fog = options.fog;
+    }
+
+    /** Unique camera identifier. */
+    public get name(): string {
+        return this.#name;
+    }
+
+    /** Projection mode (`"perspective"` or `"orthographic"`). */
+    public get projection(): CameraProjection3D {
+        return this.#projection;
+    }
+    public set projection(value: CameraProjection3D) {
+        this.#projection = value;
+        this.#projDirty = true;
+        this.#planesDirty = true;
+        this.#viewProjDirty = true;
+    }
+
+    /** Camera world position `{ x, y, z }`. */
+    public get position(): Vec3 {
+        return this.#position;
+    }
+    public set position(value: Vec3) {
+        this.#position.set(value.x, value.y, value.z);
+    }
+
+    /** World target point `{ x, y, z }` the camera looks toward. */
+    public get target(): Vec3 {
+        return this.#target;
+    }
+    public set target(value: Vec3) {
+        this.#target.set(value.x, value.y, value.z);
+    }
+
+    /** Camera up vector `{ x, y, z }`. */
+    public get up(): Vec3 {
+        return this.#up;
+    }
+    public set up(value: Vec3) {
+        this.#up.set(value.x, value.y, value.z);
+    }
+
+    /** Vertical field of view in radians (used in `"perspective"` mode). */
+    public get fov(): number {
+        return this.#fov;
+    }
+    public set fov(value: number) {
+        this.#fov = value;
+        this.#projDirty = true;
+        this.#planesDirty = true;
+        this.#viewProjDirty = true;
+    }
+
+    /** Viewport aspect ratio (`width / height`). */
+    public get aspect(): number {
+        return this.#aspect;
+    }
+    public set aspect(value: number) {
+        this.#aspect = Math.max(1e-4, value);
+        this.#projDirty = true;
+        this.#planesDirty = true;
+        this.#viewProjDirty = true;
+    }
+
+    /** Near clipping plane distance. */
+    public get near(): number {
+        return this.#near;
+    }
+    public set near(value: number) {
+        this.#near = Math.max(1e-4, value);
+        this.#projDirty = true;
+        this.#planesDirty = true;
+        this.#viewProjDirty = true;
+    }
+
+    /** Far clipping plane distance. */
+    public get far(): number {
+        return this.#far;
+    }
+    public set far(value: number) {
+        this.#far = Math.max(this.#near + 1e-3, value);
+        this.#projDirty = true;
+        this.#planesDirty = true;
+        this.#viewProjDirty = true;
+    }
+
+    /** Half-height in world units for `"orthographic"` projection. */
+    public get orthoSize(): number {
+        return this.#orthoSize;
+    }
+    public set orthoSize(value: number) {
+        this.#orthoSize = Math.max(1e-3, value);
+        this.#projDirty = true;
+        this.#planesDirty = true;
+        this.#viewProjDirty = true;
+    }
+
+    /** Normalized screen `BrioViewport` assigned to this camera. */
+    public get viewport(): BrioViewport {
+        return this.#viewport;
+    }
+    public set viewport(value: BrioViewport) {
+        this.#viewport = value;
+    }
+
+    /**
+     * Points the camera toward `targetPos` in 3D world space.
+     *
+     * @param targetPos Target 3D coordinates `{ x, y, z }`
+     * @example
+     * ```ts
+     * camera3D.lookAt(player3D.transform.position);
+     * ```
+     */
+    public lookAt(targetPos: Vec3): void {
+        this.#target.set(targetPos.x, targetPos.y, targetPos.z);
+    }
+
+    /**
+     * Lazily computed 4x4 View Matrix (`Mat4`).
+     */
+    public get viewMatrix(): Mat4 {
+        if (this.#viewDirty) {
+            Matrix4.lookAt(this.#viewMatrix, this.#position, this.#target, this.#up);
+            this.#viewDirty = false;
+        }
+        return this.#viewMatrix;
+    }
+
+    /**
+     * Lazily computed 4x4 Projection Matrix (`Mat4`).
+     */
+    public get projectionMatrix(): Mat4 {
+        if (this.#projDirty) {
+            if (this.#projection === "perspective") {
+                Matrix4.perspective(
+                    this.#projectionMatrix,
+                    this.#fov,
+                    this.#aspect,
+                    this.#near,
+                    this.#far,
+                );
+            } else {
+                const halfH = this.#orthoSize;
+                const halfW = halfH * this.#aspect;
+                Matrix4.orthographic(
+                    this.#projectionMatrix,
+                    -halfW,
+                    halfW,
+                    -halfH,
+                    halfH,
+                    this.#near,
+                    this.#far,
+                );
+            }
+            this.#projDirty = false;
+        }
+        return this.#projectionMatrix;
+    }
+
+    /**
+     * Computes and returns the combined 4x4 `projectionMatrix * viewMatrix` (`Mat4`).
+     */
+    public get viewProjectionMatrix(): Mat4 {
+        // Read every frame (and by every frustum test): multiply only after the view or projection changed
+        if (this.#viewProjDirty || this.#viewDirty || this.#projDirty) {
+            const v = this.viewMatrix;
+            const p = this.projectionMatrix;
+            Matrix4.multiply(this.#viewProjectionMatrix, p, v);
+            this.#viewProjDirty = false;
+        }
+        return this.#viewProjectionMatrix;
+    }
+
+    /**
+     * Projects a 3D world point into Normalized Device Coordinates (NDC `[-1, 1]`).
+     *
+     * @param worldPoint 3D point `{ x, y, z }`
+     * @returns Projected NDC point `{ x, y, z }`
+     * @example
+     * ```ts
+     * const ndc = camera3D.projectToNDC({ x: 0, y: 0, z: 0 });
+     * ```
+     */
+    public projectToNDC(worldPoint: Vec3): Vec3 {
+        const out = Vector3.create();
+        return Matrix4.transformPoint(out, worldPoint, this.viewProjectionMatrix);
+    }
+
+    /**
+     * Builds the world-space ray through a point given in Normalized Device Coordinates of this camera
+     * (`x`, `y` in `[-1, 1]`, `+y` up), from the near plane toward the far plane.
+     *
+     * @param ndcX Horizontal NDC coordinate
+     * @param ndcY Vertical NDC coordinate
+     * @returns Ray with origin on the near plane and unit direction
+     * @example
+     * ```ts
+     * const ray = camera3D.ndcToRay(0, 0); // through the viewport center
+     * ```
+     */
+    public ndcToRay(ndcX: number, ndcY: number): BrioRay3D {
+        const inverse = Matrix4.invert(this.#inverseViewProjection, this.viewProjectionMatrix);
+        const near = Matrix4.transformPoint(Vector3.create(), { x: ndcX, y: ndcY, z: -1 }, inverse);
+        const far = Matrix4.transformPoint(Vector3.create(), { x: ndcX, y: ndcY, z: 1 }, inverse);
+        const direction = Vector3.normalizeSelf(Vector3.subtract(Vector3.create(), far, near));
+        return { origin: near, direction };
+    }
+
+    /**
+     * Builds the world-space ray under a canvas pixel (e.g. the mouse position), honoring this camera's
+     * `viewport` (split-screen, minimaps). Use it for picking, aiming, and placing objects with the mouse.
+     *
+     * @param screenX Canvas X in pixels (left = `0`)
+     * @param screenY Canvas Y in pixels (top = `0`)
+     * @param canvasWidth Canvas width in pixels (`game.width`)
+     * @param canvasHeight Canvas height in pixels (`game.height`)
+     * @returns Ray with origin on the near plane and unit direction
+     * @example
+     * ```ts
+     * const ray = camera3D.screenToRay(game.mouse.position.x, game.mouse.position.y, game.width, game.height);
+     * ```
+     */
+    public screenToRay(
+        screenX: number,
+        screenY: number,
+        canvasWidth: number,
+        canvasHeight: number,
+    ): BrioRay3D {
+        const vp = this.#viewport;
+        const left = vp.x * canvasWidth;
+        const top = vp.y * canvasHeight;
+        const width = Math.max(1e-6, vp.width * canvasWidth);
+        const height = Math.max(1e-6, vp.height * canvasHeight);
+        const ndcX = ((screenX - left) / width) * 2 - 1;
+        const ndcY = 1 - ((screenY - top) / height) * 2;
+        return this.ndcToRay(ndcX, ndcY);
+    }
+
+    /**
+     * Tests a world-space bounding sphere against the six planes of the view frustum (left, right, bottom, top,
+     * near, far), for both projection modes. The test is conservative: a sphere near a frustum corner may be
+     * reported as visible although it lies just outside, but a sphere reported as outside is never visible.
+     * The planes are cached and rebuilt only after the camera or its projection changes, so the call does
+     * not allocate and is cheap enough for per-object culling.
+     *
+     * @param center World-space sphere center `{ x, y, z }`
+     * @param radius Sphere radius in world units (negative values are treated as `0`)
+     * @returns `true` if the sphere intersects or lies inside the view frustum
+     * @example
+     * ```ts
+     * if (camera3D.isSphereInFrustum(meshObj.transform.position, 2.0)) { ... }
+     * ```
+     */
+    public isSphereInFrustum(center: Vec3, radius: number): boolean {
+        if (this.#planesDirty) this.#updateFrustumPlanes();
+        const planes = this.#frustumPlanes;
+        const r = radius > 0 ? radius : 0;
+        for (let i = 0; i < 24; i += 4) {
+            const distance =
+                planes[i] * center.x +
+                planes[i + 1] * center.y +
+                planes[i + 2] * center.z +
+                planes[i + 3];
+            if (distance < -r) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Extracts the frustum planes from the view-projection matrix (Gribb/Hartmann, OpenGL clip space with
+     * `z` in `[-w, w]`) and normalizes them so plane distances are in world units.
+     */
+    #updateFrustumPlanes(): void {
+        const m = this.viewProjectionMatrix;
+        const planes = this.#frustumPlanes;
+        // Column-major: row i of the matrix is (m[i], m[4 + i], m[8 + i], m[12 + i])
+        for (let p = 0; p < 6; p++) {
+            const row = p >> 1;
+            const sign = (p & 1) === 0 ? 1 : -1;
+            const a = m[3] + sign * m[row];
+            const b = m[7] + sign * m[4 + row];
+            const c = m[11] + sign * m[8 + row];
+            const d = m[15] + sign * m[12 + row];
+            const length = Math.hypot(a, b, c) || 1;
+            const o = p * 4;
+            planes[o] = a / length;
+            planes[o + 1] = b / length;
+            planes[o + 2] = c / length;
+            planes[o + 3] = d / length;
+        }
+        this.#planesDirty = false;
+    }
+}

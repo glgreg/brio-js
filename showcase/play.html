@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Play · BrioJS</title>
+        <meta name="theme-color" content="#16120e" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    </head>
+    <body class="play-page">
+        <header id="site-header"></header>
+        <main class="play-main wrap" id="play-main">
+            <div class="play-stage-wrap">
+                <div class="play-bar">
+                    <a class="play-back" href="/#games">← <span data-i18n="play.back">All games</span></a>
+                    <h1 class="display play-title" id="play-title"></h1>
+                    <div class="play-tools">
+                        <button class="tool" type="button" id="restart"><span data-i18n="play.restart">Restart</span></button>
+                        <button class="tool" type="button" id="fullscreen"><span data-i18n="play.fullscreen">Full screen</span></button>
+                        <a class="btn yuzu small" id="edit"><span data-i18n="play.edit">Edit in playground</span></a>
+                    </div>
+                </div>
+                <div class="play-stage" id="play-stage">
+                    <div class="play-cover" id="play-cover">
+                        <button class="play-start" type="button" id="play-start">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z" /></svg>
+                            <span data-i18n="play.clickToStart">Click to start</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <aside class="play-info">
+                <section>
+                    <h2 data-i18n="play.about">About this game</h2>
+                    <p id="play-desc"></p>
+                </section>
+                <section>
+                    <h2 data-i18n="play.controls">Controls</h2>
+                    <ul class="play-controls" id="play-controls"></ul>
+                </section>
+                <section>
+                    <h2 data-i18n="play.features">Engine features used</h2>
+                    <ul class="play-features" id="play-features"></ul>
+                </section>
+                <section>
+                    <h2 data-i18n="play.credits">Credits</h2>
+                    <ul class="play-credits" id="play-credits"></ul>
+                </section>
+            </aside>
+        </main>
+        <footer id="site-footer"></footer>
+        <script type="module" src="/src/play.ts"></script>
+    </body>
+</html>
