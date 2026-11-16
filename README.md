@@ -272,8 +272,8 @@ Known issues and the roadmap are tracked in [`docs/ROADMAP.md`](./docs/ROADMAP.m
 - [Target architecture](./docs/architecture/TARGET_ARCHITECTURE.md): ECS backend, multi-backend renderer, layers, and workers.
 - [Rendering study](./docs/architecture/RENDERING_STUDY_THREEJS.md): techniques studied from three.js and the WebGPU plan.
 - [MCP game authoring](./docs/architecture/MCP_GAME_AUTHORING.md): the proposed MCP server for agentic game creation.
-- [Game lifecycle study](./docs/architecture/GAME_LIFECYCLE_STUDY.md) and [plan](./docs/plans/GAME_LIFECYCLE_PLAN.md) (proposed): what a complete 2D and 3D game still needs from the engine.
-- [Render quality and WebGPU study](./docs/architecture/RENDER_QUALITY_AND_WEBGPU_STUDY.md) and [MCP package plan](./docs/plans/MCP_PACKAGE_PLAN.md) (proposed).
+- [Game lifecycle plan](./docs/plans/GAME_LIFECYCLE_PLAN.md) (the current plan) and its [study](./docs/architecture/GAME_LIFECYCLE_STUDY.md): what a complete 2D and 3D game still needs from the engine.
+- [Render quality and WebGPU study](./docs/architecture/RENDER_QUALITY_AND_WEBGPU_STUDY.md) and [MCP package plan](./docs/plans/MCP_PACKAGE_PLAN.md).
 
 **Architecture decision records**
 
@@ -284,8 +284,9 @@ Known issues and the roadmap are tracked in [`docs/ROADMAP.md`](./docs/ROADMAP.m
 | [0003](./docs/adr/0003-multi-canvas-layers-and-offscreen-workers.md) | Multi-canvas layers and offscreen workers |
 | [0004](./docs/adr/0004-concrete-2d-3d-domain-and-strict-ubiquitous-language.md) | Concrete 2D/3D domain and strict ubiquitous language |
 | [0005](./docs/adr/0005-binary-ecs-state-serialization.md) | Binary ECS state serialization |
-| [0006](./docs/adr/0006-mcp-agentic-game-authoring.md) | MCP agentic game authoring (proposed) |
+| [0006](./docs/adr/0006-mcp-agentic-game-authoring.md) | MCP agentic game authoring |
 | [0007](./docs/adr/0007-third-party-code-policy.md) | Third-party code policy |
+| [0008](./docs/adr/0008-two-tier-interface-and-react-package.md) | Two-tier interface (canvas widgets and DOM roots) and the React package |
 
 ## Contributing
 

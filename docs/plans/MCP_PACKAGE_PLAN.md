@@ -1,12 +1,13 @@
 # MCP Package Plan: `@brio-js/mcp`
 
-Status: **Proposed** (2026-11-15). Implementation study and work packages for the MCP server as a separate npm package. It builds on [`MCP_GAME_AUTHORING.md`](../architecture/MCP_GAME_AUTHORING.md) (state of the art, tool catalog draft, security model) and [ADR 0006](../adr/0006-mcp-agentic-game-authoring.md), and changes three points of them, listed in section 2. Track M of [`GAME_LIFECYCLE_PLAN.md`](./GAME_LIFECYCLE_PLAN.md); its session rules apply.
+Status: **Accepted direction** (decisions DL-06 and DL-07 confirmed by the maintainer on 2026-11-16; ADR 0006, update of the same date). Implementation study and work packages for the MCP server as a separate npm package. It builds on [`MCP_GAME_AUTHORING.md`](../architecture/MCP_GAME_AUTHORING.md) (state of the art, tool catalog draft, security model) and [ADR 0006](../adr/0006-mcp-agentic-game-authoring.md), and changes three points of them, listed in section 2. Track M of [`GAME_LIFECYCLE_PLAN.md`](./GAME_LIFECYCLE_PLAN.md); its session rules apply.
 
 ## 1. Requirement
 
 The maintainer's requirement, restated:
 
 - The engine stays on npm as `@brio-js/core`. The MCP server is a separate package, `@brio-js/mcp`.
+- The MCP server is a **first-class feature** of BrioJS. It is kept out of core only for package size, so installing it must never become complex.
 - It must work **out of the box with core as soon as it is installed**: no glue code in the game, no manual version matching, no configuration beyond registering the server in the agent client.
 
 What "out of the box" has to mean in practice, as acceptance criteria for the whole track:
@@ -22,7 +23,7 @@ What "out of the box" has to mean in practice, as acceptance criteria for the wh
 | Earlier text | Finding on 2026-11-15 | Change |
 | --- | --- | --- |
 | "v2 was still flagged beta in parts of the docs" | The SDK site calls v2 "the stable release line implementing the 2026-07-28 spec"; the registry lists `@modelcontextprotocol/server` 2.4.0, Apache-2.0, Node 20 or newer, with `zod` `^4.2.0` as a dependency | Build on v2. Pin the minor version and re-read the migration page at implementation time |
-| Two packages, `@brio-js/mcp` and `@brio-js/devtools` | The bridge and the server must agree on a wire protocol; two packages add a third version to keep in step with core | One package. The browser bridge is an entry point of `@brio-js/mcp`; core keeps only a small hook (section 4). Decision DL-07 |
+| Two packages, `@brio-js/mcp` and `@brio-js/devtools` | The bridge and the server must agree on a wire protocol; two packages add a third version to keep in step with core | One package. The browser bridge is an entry point of `@brio-js/mcp`; core keeps only a small hook (section 4). Decision DL-07, confirmed |
 | "Headless-capable core (`PlatformAdapter` `"headless"`)" | `PlatformAdapter` detects a headless host, but `BrioGame` requires an `HTMLElement` container (`src/game/BrioGame.ts:563`) and drives itself with `requestAnimationFrame`. The unit tests run under jsdom. Core cannot run in plain Node today | A headless mode is engine work, package M-02 |
 | Phase 1 screenshots "from the headless Canvas2D backend" | Node has no Canvas2D without a native dependency | Headless runs give state, not pixels. Pixels come from a browser through the bridge, section 6 |
 | Protocol summary | Confirmed against the [2026-07-28 changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog), with three nuances: deterministic `tools/list` order is a SHOULD; schemas may use any JSON Schema 2020-12 keyword (a loosening, with `$ref` resolution rules); Roots, Sampling and Logging are deprecated but "remain fully functional during the deprecation window" | No design change. `ping`, `logging/setLevel` and `notifications/roots/list_changed` are removed outright, and the HTTP+SSE transport is deprecated |
@@ -32,7 +33,7 @@ The draft changelog shows no released revision after 2026-07-28.
 
 ## 3. Package layout
 
-Decision DL-07. Recommendation: **the same repository, a self-contained package folder**, following the precedent of `showcase/` (its own `package.json` and lockfile, built against the engine of this repository, outside the npm package of core).
+Decision DL-07, confirmed: **the same repository, a self-contained package folder**, following the precedent of `showcase/` (its own `package.json` and lockfile, built against the engine of this repository, outside the npm package of core).
 
 ```text
 packages/
@@ -61,7 +62,7 @@ Package metadata:
 | Field | Value | Reason |
 | --- | --- | --- |
 | `peerDependencies` | `"@brio-js/core": ">=0.3.0 <1.0.0"` (the first version with the hook of M-02) | The server uses the project's copy, never its own |
-| `dependencies` | `@modelcontextprotocol/server` (Apache-2.0), `zod` 4, a WebSocket server library after a license and size check | Allowed for tooling after decision DL-06. None of them reaches a game bundle |
+| `dependencies` | `@modelcontextprotocol/server` (Apache-2.0), `zod` 4, a WebSocket server library after a license and size check | Allowed for tooling (decision DL-06, confirmed). None of them reaches a game bundle |
 | `optionalDependencies` or optional peer | A browser automation library for unattended screenshots (M-07) | Not needed for the interactive path |
 | `exports` | `"."` (server API), `"./bridge"` (browser), `"./vite"` (optional dev plugin) | The bridge is importable only by tools, never by game code |
 | `license` | MIT | Same as core |
@@ -172,13 +173,12 @@ Status marks, sizes and priorities as in `GAME_LIFECYCLE_PLAN.md`. Packages M-02
 
 ### M-01 Package skeleton and CI `[ ]`
 
-P1, S. Decisions DL-06, DL-07.
+P1, S. Decisions DL-06 and DL-07 are confirmed.
 
 - Create `packages/mcp` as in section 3 with a stdio server that implements `server/discover` and one tool, `brio_project_info` (project root, core version, package versions, detected entry points).
 - `brio-mcp init`: writes the server entry for the agent clients it detects in the project (at least the generic `.mcp.json`), prints each file it touches, and never overwrites without `--force`.
 - `brio-mcp doctor`: checks Node version, core resolution and the version range.
 - A CI job for the package (its own install, type check, tests) and a release workflow with provenance. Add `packages/` to `.vercelignore` if the showcase deploy would otherwise pick it up.
-- Amend ADR 0006 with the confirmed decisions.
 
 Accept: in a fixture project with core installed, `npx brio-mcp` answers `server/discover` and `brio_project_info` through the SDK's client in a test; with core missing or out of range, the server exits with the message of criterion 4.
 

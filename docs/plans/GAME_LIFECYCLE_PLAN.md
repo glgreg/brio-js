@@ -1,6 +1,6 @@
 # Game Lifecycle Plan
 
-Status: **Proposed** (2026-11-15). It becomes the current plan when the maintainers confirm decision DL-08 in [`GAME_LIFECYCLE_STUDY.md`](../architecture/GAME_LIFECYCLE_STUDY.md). Until then [`TCC_FINAL_SPRINT.md`](./TCC_FINAL_SPRINT.md) is still the plan named by `CLAUDE.md`.
+Status: **Active. This is the current plan** (decision DL-08, confirmed by the maintainer on 2026-11-16). Start every session here. The TCC was presented on 2026-11-13 and [`TCC_FINAL_SPRINT.md`](./TCC_FINAL_SPRINT.md) is closed; its open items are absorbed below. Work follows `branch -> develop -> main`.
 
 Goal: every tool a developer or an agent needs to take a 2D or 3D game from prototype to a shipped build, on the existing architecture: ECS core, object-oriented public API, zero runtime dependencies in `@brio-js/core`.
 
@@ -18,7 +18,7 @@ Follow section 1 of `ENGINE_COMPLETION_PLAN.md` (protocol, stones, study base, t
 1. Pick the first `[ ]` package in the order of section 4 whose dependencies are `[x]` and whose decision, if any, is **Confirmed** in the study, section 8. If the decision is Open, stop and tell the maintainer; do not choose for them.
 2. Mark it `[~]` with the branch name. Branches: `feat/<id>-slug`, for example `feat/a-03-skinning`. One package per pull request. Large packages list their own slices; one slice per pull request is fine.
 3. The study base in `temp/` is gitignored. If it is missing, recreate the clones (study section 1 of `ENGINE_COMPLETION_STUDY.md`) and **read the cited source before writing code**. Line references here are carried over from the earlier study and may have moved.
-4. Before porting third-party code, apply ADR 0007 and section 9 of the lifecycle study: file header, notice, and for Godot a check of `COPYRIGHT.txt`. For AMD and `meshoptimizer` material, decision DL-05 must be Confirmed first.
+4. Before porting third-party code, apply ADR 0007 and section 9 of the lifecycle study: file header, notice, and for Godot a check of `COPYRIGHT.txt`. For AMD and `meshoptimizer` material, follow the update of 2026-11-16 in ADR 0007 (decision DL-05, confirmed): port FSR 1 only from its MIT repository, and never copy from the current FidelityFX SDK.
 5. Never use material from a commercial game: no assets, extracted data, decompiled code, names or level layouts. Test and demo content is original or has a checked license recorded in the example folder.
 6. Each package states its **tier** (core, opt-in module, recipe; study section 4). Do not promote a recipe to an API without a maintainer decision.
 7. Definition of done: tests added and passing, `npm run check` green, `npm run test:e2e` green when rendering, input or examples change, `CHANGELOG.md`, `GLOSSARY.md` for new terms, affected stones updated, `keystone stone doctor` clean, capability matrix updated when a backend differs, and the package ticked here in the same pull request.
@@ -93,7 +93,7 @@ What "a complete game lifecycle" means here, and which packages close each stage
 ## 4. Order of work
 
 ```text
-L0 Foundations      F-01 F-02 F-03 F-04
+L0 Foundations      F-01 F-02 F-03 F-04 F-05
 L1 Render core      R-01 R-02 R-04            (everything visual waits for R-01)
 L2 Content          A-01 A-02 A-03 A-04 A-05  |  C-01 C-02 C-04 C-05  |  P-01 P-02 P-03   (three parallel lanes)
 L3 Look             R-03 R-06 R-07 R-05 Q-01 Q-03 R-13
@@ -102,7 +102,7 @@ L5 Interface, sound U-01 U-02 U-03 U-04 U-05 U-06  |  S-01 S-02 S-03 S-04
 L6 Scale            R-08 R-09 R-10 R-12 R-11 Q-02
 L7 Authoring        A-06 A-07 A-08 A-09 A-10 A-11 C-06
 L8 WebGPU           G-01 G-02 G-03 G-04 G-05 Q-04
-L9 Delivery         X-01 X-02 X-03 X-04 X-05 P-04 P-05 C-03 C-07
+L9 Delivery         X-01 X-02 X-03 X-04 X-05 P-04 P-05 C-03 C-07 U-07
 MCP                 M-01 to M-09, in parallel from L0 (see MCP_PACKAGE_PLAN.md)
 ```
 
@@ -115,21 +115,29 @@ Notes on the order:
   - Stylized 3D platformer: R-01, R-02, R-04, A-01 to A-05, P-01 to P-03, P-05, Q-01, R-06, R-13.
   - Dense 3D action: the path above, plus R-03, R-07, R-08, R-09, R-10, R-12, S-01, S-02, C-01, C-02.
   - Hand-animated 2D action: R-01, T-01, T-02, T-06, T-03, T-05, T-07, P-01 to P-03, U-01, U-02.
-  - Touch games and visual novels: U-01, U-03, U-05, U-06, C-04, C-05, C-03.
+  - Touch games and visual novels: U-01, U-03, U-04, U-05, U-06, C-04, C-05, C-03.
+- **Releases.** Which packages make each version is the maintainers' decision. The v0.3 list in `docs/ROADMAP.md` predates this plan and names a WebGPU backend, which this plan places after the shared layer (L8). A suggestion, to be confirmed: v0.3 as L0 and L1, the interface contract with DOM roots and the React package (U-01, U-03, U-04), and the first MCP release (M-01 to M-04).
 
 ## 5. Work packages
 
 ### Track F: foundations
 
-#### F-01 Adopt the plan `[ ]`
+#### F-01 Adopt the plan `[x]`
 
-P1, S. No dependencies. Decision DL-08.
+P1, S. No dependencies. Decision DL-08. Done on 2026-11-16, in the pull request that added this plan.
 
-- Maintainers mark decisions in study section 8 as Confirmed, changed or rejected.
-- Repoint `CLAUDE.md` ("Current focus"), `.keystone/identity.md` (lifecycle stage and documentation list) and `docs/ROADMAP.md` to this plan. Mark `TCC_FINAL_SPRINT.md` as closed, keeping its progress log.
-- For each Confirmed decision that replaces a recorded one, write the ADR: DL-01 and DL-03 amend ADR 0001; DL-04 is a new ADR that supersedes plan decision 16; DL-05 amends ADR 0007; DL-06 and DL-07 amend ADR 0006.
+- Decisions DL-01, DL-02 and DL-04 to DL-08 are Confirmed in study section 8. **DL-03, DL-09 and DL-10 stay open** and block only the packages named there.
+- `CLAUDE.md`, `.keystone/identity.md`, `.keystone/standards.md` and `docs/ROADMAP.md` point to this plan; `TCC_FINAL_SPRINT.md` is closed and keeps its progress log.
+- Records written: ADR 0008 (interface in two tiers, React in its own package, supersedes plan decision 16), and updates of 2026-11-16 in ADR 0001 (WebGPU order, GLSL and WGSL as separate variants), ADR 0006 (one MCP package, first-class) and ADR 0007 (AMD, NVIDIA Image Scaling, tooling dependencies).
 
-Accept: `keystone stone doctor` clean; no document names a finished plan as current.
+#### F-05 Detach `develop` from the TCC `[ ]`
+
+P2, S. Depends on the last merge of `main` into the `tcc` branch, which freezes that branch. Maintainers decide each removal.
+
+- List what on `develop` exists only for the TCC, and propose per item whether it is removed, archived or kept as history: `docs/plans/TCC_FINAL_SPRINT.md`, `docs/plans/PERFORMANCE_FOLLOWUPS.md` (after F-02 closes it), the TCC demo definitions and "must" priorities of `ENGINE_COMPLETION_PLAN.md` section 2, mentions of the presentation in the Key and in stones, the `docs/tcc/` entry of `.gitignore`, and `TODO.md` sections that the plans replaced.
+- Do not delete anything that is the only record of a design the plans still cite. `ENGINE_COMPLETION_PLAN.md` and `ENGINE_COMPLETION_STUDY.md` stay, because this plan references their work packages and defects.
+
+Accept: no document on `develop` describes TCC work as pending; every internal link still resolves; `keystone stone doctor` clean.
 
 #### F-02 Sprint leftovers `[ ]`
 
@@ -201,14 +209,14 @@ Port: GGX and normal mapping chunks from three.js, with upstream credits kept (A
 
 #### R-04 Shader API completion and program cache `[ ]`
 
-P1, L. Depends on R-01. Design: WP-15, WP-21, WP-22. Decision DL-02 for the WGSL variant field only. Stones: new `shaders`, `rendering`, `assets`.
+P1, L. Depends on R-01. Design: WP-15, WP-21, WP-22. Decision DL-02 (confirmed) for the shader variants. Stones: new `shaders`, `rendering`, `assets`.
 
 Remaining from the sprint, section S3, plus what this study adds:
 
 - Built-in materials rewritten on the same hooks, so `material.inject()` works.
 - `light()` hook; custom varyings; custom vertex attributes; `defines`; render state on the material; includes with `<brio/...>`; parameter discovery and annotations; `parameter()` handles; `shader.onCompile`; global parameters; per-object parameters.
 - **New: a clip-space hook** (`void clip(inout vec4 position)`) that runs after projection, and the built-ins `RESOLUTION` (render target size in pixels) and `VIEWPORT`. Needed by vertex snapping (render study section 7).
-- **New: `wgsl` variant** on `BrioShader` (inline or a sibling `.wgsl` file). Stored and validated for presence only until G-04 uses it.
+- **New: named shader variants.** GLSL and WGSL are separate languages and are never mixed or translated in core (ADR 0001, update of 2026-11-16). Inline: `new BrioShader(name, { glsl: { fragment, vertex }, wgsl: { fragment, vertex } })`; files: a `.wgsl` file next to the `.glsl` one. The existing top-level `fragment` and `vertex` options keep meaning GLSL. The WGSL variant is stored and checked for presence only, until G-04 uses it. Add "Shader Variant" to `GLOSSARY.md`.
 - Parallel compile with `KHR_parallel_shader_compile`, deferred status checks, `game.compileShaders()` warm-up with progress, a visible error material, program reference counting.
 
 Accept: as in WP-21, plus a test that a clip hook moves vertices and that a shadow pass honors `vertex()` and `clip()`.
@@ -513,7 +521,7 @@ Accept: goldens at scale 0.5 for each filter; text stays at native resolution; i
 
 #### Q-02 FSR 1 upscaling and sharpening `[ ]`
 
-P2, M. Depends on Q-01, R-06, Q-03. Decision DL-05. Tier: opt-in module, loaded on demand.
+P2, M. Depends on Q-01, R-06, Q-03. Decision DL-05 (confirmed; ADR 0007, update of 2026-11-16). Tier: opt-in module, loaded on demand.
 
 - Port EASU and RCAS from the MIT repository `GPUOpen-Effects/FidelityFX-FSR` (render study section 5). Header on the adapted files and AMD's notice in `THIRD_PARTY_NOTICES.md`. Do not read or copy from the current FidelityFX SDK, whose license is different.
 - Presets `"ultraQuality"`, `"quality"`, `"balanced"`, `"performance"` with AMD's published ratios; `sharpness` parameter; texture mip bias applied while a preset is active (take the formula from the integration PDF in the repository).
@@ -541,7 +549,7 @@ Accept: a moving-camera golden sequence without ghosting on the test scene; a wr
 
 ### Track G: WebGPU
 
-All of track G waits for decision DL-01. Read render study sections 1 to 4 first.
+Decision DL-01 is confirmed (ADR 0001, update of 2026-11-16). Read render study sections 1 to 4 first.
 
 #### G-01 Shared GPU layer `[ ]`
 
@@ -555,7 +563,7 @@ Accept: `WebGL2Backend.ts` contains no sorting, light packing or cascade math; g
 
 #### G-02 Built-in shaders in WGSL `[ ]`
 
-P1, L. Depends on G-01. Decision DL-02.
+P1, L. Depends on G-01. Decision DL-02 (confirmed).
 
 - Hand-written WGSL for every built-in chunk, with the same chunk names and hook points as the GLSL set. Variant selection by the same feature key.
 - An offline validation test, like `tests/rendering/ShaderSources.test.ts` does for GLSL, using a WGSL validator when one is installed on the machine. A development tool, never a dependency of the package.
@@ -578,7 +586,7 @@ Accept: every 3D example renders on WebGPU within tolerance of its WebGL2 golden
 P1, M. Depends on G-03.
 
 - Remaining features to parity with the capability matrix (render study section 8).
-- Custom shaders through the `wgsl` variant of R-04, with the selection rule of render study section 4: under `"auto"`, a game with a GLSL-only shader stays on WebGL2 and logs once.
+- Custom shaders through the WGSL variant of R-04, with the selection rule of render study section 4: under `"auto"`, a game with a GLSL-only shader stays on WebGL2 and logs once.
 - `preferredBackend` documentation and a `?backend=` switch in the examples.
 
 Accept: the shader lab example shows both variants; the rule is covered by a test.
@@ -594,16 +602,34 @@ Accept: each extra has a measured gain in F-03 and a fallback path.
 
 ### Track U: interface
 
-#### U-01 Reactive state store `[ ]`
+#### U-01 Interface contract: state stores, requests, notices `[ ]`
 
-P1, M. Depends on C-04 for persistence tiers. Design: WP-34, state part. Stones: `storage`, `game`.
+P1, M. Depends on C-04 for persistence tiers. Design: WP-34 (state part) and ADR 0008. Tier: core. Stones: `storage`, `game`, new `ui`.
 
-- `game.state.define(name, { defaults, tier, version, migrate })` with `get`, `set`, `subscribe(key, listener)` and `subscribe(listener)`.
-- **Contract for UI bindings**: `getSnapshot()` returns an immutable object that is the same reference until a value changes, and listeners are called at most once per frame, after `update()`. React's `useSyncExternalStore` requires exactly this ("repeated calls to getSnapshot must return the same value", "must be immutable").
-- Values written every frame (a health bar while it drains) should not go through React state; the store offers `subscribeFrame(key, listener)` for direct style writes.
-- Store contents are part of saves (C-05) and visible to the MCP introspection (M-02).
+This is the only surface an interface uses, in either tier and in any framework (study section 10). There is no general event emitter for interfaces to subscribe to.
 
-Accept: no allocation on `set` when the value is unchanged; a listener count test for batching.
+```ts
+// Game side
+const hud = game.state.define("hud", { defaults: { score: 0, hp: 100 } });
+hud.set("score", 10);                                         // read by the interface as a snapshot
+
+game.ui.onRequest("startGame", ({ slot }: { slot: number }) => game.saves.load(`slot${slot}`));
+game.ui.notify("toast", { text: "Saved" });                   // transient, not state
+
+// Interface side (any framework)
+hud.subscribe(() => render(hud.getSnapshot()));
+game.ui.send("startGame", { slot: 1 });                       // handled at the start of the next update()
+game.ui.onNotice("toast", ({ text }) => showToast(text));
+```
+
+- **State store**: `game.state.define(name, { defaults, tier, version, migrate })` with `get`, `set`, `getSnapshot`, `subscribe(key, listener)` and `subscribe(listener)`. `getSnapshot()` returns an immutable object that keeps its identity until a value changes, and listeners are called at most once per frame, after `update()`. React's `useSyncExternalStore` requires exactly this ("repeated calls to getSnapshot must return the same value", "must be immutable").
+- **Request** (interface to game): a named, typed message. The game declares it with `game.ui.onRequest(name, handler)`; the interface calls `game.ui.send(name, payload)`. Requests are queued and handled at the start of the next `update()`, in arrival order. A request with no handler warns once. Payloads are plain data and are copied.
+- **Notice** (game to interface): `game.ui.notify(name, payload)` and `game.ui.onNotice(name, listener)`. Queued and delivered after `update()`, with the store notifications. A notice with no listener is dropped.
+- Requests are recorded and replayed with input (X-05). Stores are part of saves (C-05) and visible to the MCP introspection (M-02).
+- Values written every frame (a health bar while it drains) should not cause a component render each frame; the store offers `subscribeFrame(key, listener)` for direct style writes.
+- `onRequest`, `onNotice` and `subscribe` return a function that removes the registration, and registrations made by a scene or a DOM root end with it.
+
+Accept: no allocation on `set` when the value is unchanged; a listener count test for batching; a request sent during `update()` is handled in the next one, never the current; a replay that includes requests reproduces a run.
 
 #### U-02 Canvas widgets `[ ]`
 
@@ -615,9 +641,9 @@ P1, L. Depends on T-02; draws through Canvas2D until T-01 exists. Design: WP-41.
 
 Use it for: in-world UI, UI that must appear in captures, post-processing and golden tests, and games that must run inside a worker later. Accept: as in WP-41.
 
-#### U-03 DOM interface layer `[ ]`
+#### U-03 DOM roots `[ ]`
 
-P1, M. Depends on U-01. Decision DL-04. Tier: opt-in module. Stone: `ui`.
+P1, M. Depends on U-01. Decision DL-04 (confirmed; ADR 0008). Tier: opt-in module. Stone: `ui`.
 
 ```ts
 const hud = game.ui.mount("hud", { order: 10 });   // creates <div data-brio-ui="hud"> over the canvas
@@ -626,6 +652,7 @@ score.subscribe("value", (v) => (hud.element.querySelector("#score")!.textConten
 hud.visible = false;                                // also hidden by scene changes when bound to a scene
 ```
 
+- A DOM root is where a React tree (U-04) or plain markup is mounted. It talks to the game only through the contract of U-01.
 - `game.ui.mount(name, options)` creates a positioned root inside the game container, above the canvas, sized and scaled with the canvas so that one CSS pixel equals one logical game pixel in every scale mode, including `"fit"` and high-DPI. `mount(element)` adopts an existing element.
 - **Input arbitration**: the root has `pointer-events: none`; interactive descendants opt in with `pointer-events: auto`. A pointer event that lands on such an element never reaches the game. While an editable element has focus, `game.keyboard` and the input map ignore key events. `game.ui.focusNavigation` maps input-map actions to DOM focus movement for gamepad and keyboard.
 - Roots follow scene visibility, `game.pause()` (an attribute `data-brio-paused` for CSS), and are removed by `game.end()`.
@@ -635,23 +662,28 @@ hud.visible = false;                                // also hidden by scene chan
 
 Engine: mounting, scaling, input arbitration, lifetime. Developer: markup, style, components. Accept: browser tests for scaling across DPR 1 and 2 and `"fit"`; a click on a DOM button does not register as a game click; typing in an input does not move the player.
 
-#### U-04 React binding `[ ]`
+#### U-04 React binding: `@brio-js/react` `[ ]`
 
-P2, S. Depends on U-03, M-01 (package folder pattern). Decision DL-04. A separate package, `@brio-js/react`, with `react` as a peer dependency. Core gains nothing React-specific.
+P1, S. Depends on U-03, M-01 (package folder pattern: `packages/react`). Decision DL-04 (confirmed; ADR 0008). A separate package with `react` 18 or newer as a peer dependency. Core gains nothing React-specific.
+
+React is the primary way to write a DOM root: menus, heads-up displays and touch layouts in the documentation and examples are written with it first.
 
 ```tsx
 function Hud() {
-    const score = useBrioState(scoreStore, "value");      // useSyncExternalStore over the U-01 contract
-    const game = useBrioGame();
-    return <button onClick={() => game.pause()}>Score {score}</button>;
+    const score = useBrioState(hudStore, "score");            // useSyncExternalStore over the U-01 contract
+    const startGame = useBrioRequest<{ slot: number }>("startGame");
+    useBrioNotice("toast", ({ text }) => toast(text));
+    return <button onClick={() => startGame({ slot: 1 })}>Score {score}</button>;
 }
 createBrioRoot(game.ui.mount("hud")).render(<Hud />);
 ```
 
-- `useBrioState`, `useBrioGame`, `useBrioEvent`, `createBrioRoot`, and `<BrioCanvas>` to host a game inside an existing React application with correct mount and unmount.
-- The same pattern is documented for plain JavaScript and for Web Components, which need no package.
+- Hooks: `useBrioState`, `useBrioRequest` (a stable function), `useBrioNotice`, `useBrioGame`. Components: `createBrioRoot`, and `<BrioCanvas>` to host a game inside an existing React application with correct mount and unmount, including React's development double mount.
+- The package only adapts the contract of U-01. It does not reach engine objects, and it adds no second way to exchange data.
+- Works with the usual web toolchain (a Vite React project). An example project and a playground template use it.
+- Plain JavaScript and Web Components use the same contract directly and need no package; one short guide shows it.
 
-Accept: a test that a store change renders once per frame; unmounting the component ends the game and frees the canvas.
+Accept: a store change renders a component once per frame; unmounting `<BrioCanvas>` ends the game and frees the canvas; the package builds against the lowest and the current supported React versions in its CI job.
 
 #### U-05 Dialogue and text reveal `[ ]`
 
@@ -664,6 +696,7 @@ talk.on("choices", (options) => box.ask(options));
 talk.start("intro"); talk.advance(); talk.choose(1);
 ```
 
+- The runner publishes the current line and choices to a state store and accepts `advance` and `choose` as requests (U-01), so a canvas widget or a React component can present it without holding the runner.
 - `BrioDialogue` is a runner with no rendering: nodes with speaker, text key, next node, choices with conditions over a state store, and events. Its position is state, so it is saved and restored.
 - `BrioTextReveal`: reveals text over game time (characters per second, pauses on punctuation, skip), deterministic under `game.step`. Works on `BrioText`, on a canvas label and on a DOM element.
 - Minimal inline markup for color, emphasis and pauses, parsed once when the line starts.
@@ -681,6 +714,15 @@ P1, S. Depends on U-02 or U-03. Design: WP-45, touch part.
 - Shown only when a touch device is detected, by default.
 
 Accept: a browser test with two simultaneous touches driving a stick and a button.
+
+#### U-07 React renderer for canvas widgets `[ ]`
+
+P3, M. Depends on U-02, U-04. A later option recorded in ADR 0008; not planned before the widget set is stable.
+
+- A custom React renderer inside `@brio-js/react` that creates canvas widgets instead of DOM elements, so one component tree can drive either tier. This is the shape native platforms use with React: React's core over a non-DOM renderer.
+- Decide after U-02 and U-04 are in use, from real demand.
+
+Accept: decided when picked.
 
 ### Track S: sound
 
@@ -840,7 +882,7 @@ Accept: zero overhead when off; a captured frame equals the golden of the same s
 
 #### X-02 Asset tooling `[ ]`
 
-P2, M. Depends on M-01 (package folder pattern). Decision DL-05. A Node tool, exposed as a command of the tooling package and as MCP tools; never part of core.
+P2, M. Depends on M-01 (package folder pattern). Decision DL-05 (confirmed). A Node tool, exposed as a command of the tooling package and as MCP tools; never part of core.
 
 - `brio lod <model>`: generates levels with `meshoptimizer` (MIT, its JavaScript simplifier) and writes them into the model with the naming convention of R-09.
 - `brio compress <model>`: mesh quantization and compression, texture conversion.
@@ -884,7 +926,7 @@ Accept: a recorded run replays to an identical snapshot.
 
 Create stones when the first package touches the area: `animation` (`src/animation`), `shaders` (`src/shaders`), `ui` (`src/ui`), `particles` (`src/particles`), and `gpu` if `src/rendering/gpu` grows its own invariants.
 
-Glossary terms to add with their packages, in addition to section 8 of the earlier plan: Level of Detail, Sector, Static Batch, Instanced Mesh, Render Scale, Upscaler, Mesh Sprite, Interaction Field, Influence, Skin Binder, Pose, Emitter (audio), Listener, Virtual Voice, Character Body, Query, State Store, DOM Root, Dialogue, Text Reveal, Scene Document, Recipe.
+Glossary terms to add with their packages, in addition to section 8 of the earlier plan: Request, Notice, Canvas Widget, Shader Variant, Level of Detail, Sector, Static Batch, Instanced Mesh, Render Scale, Upscaler, Mesh Sprite, Interaction Field, Influence, Skin Binder, Pose, Emitter (audio), Listener, Virtual Voice, Character Body, Query, State Store, DOM Root, Dialogue, Text Reveal, Scene Document, Recipe.
 
 ## 7. Risks
 

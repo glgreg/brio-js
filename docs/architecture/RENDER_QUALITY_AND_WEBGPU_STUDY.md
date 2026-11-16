@@ -1,6 +1,6 @@
 # Render Quality and WebGPU Study
 
-Status: **Study / Proposed** (2026-11-15). Companion of [`GAME_LIFECYCLE_STUDY.md`](./GAME_LIFECYCLE_STUDY.md); read its section 1 for the method and limits, which apply here. Work packages are in [`GAME_LIFECYCLE_PLAN.md`](../plans/GAME_LIFECYCLE_PLAN.md), tracks R (render), G (WebGPU) and Q (quality).
+Status: **Study** (2026-11-15). Decisions DL-01, DL-02 and DL-05 were confirmed by the maintainer on 2026-11-16. Companion of [`GAME_LIFECYCLE_STUDY.md`](./GAME_LIFECYCLE_STUDY.md); read its section 1 for the method and limits, which apply here. Work packages are in [`GAME_LIFECYCLE_PLAN.md`](../plans/GAME_LIFECYCLE_PLAN.md), tracks R (render), G (WebGPU) and Q (quality).
 
 Questions answered here:
 
@@ -86,14 +86,15 @@ Plan decision 8, confirmed by the maintainer, makes standard GLSL ES 3.00 the si
 | --- | --- | --- | --- |
 | A. Translator in core | Parse GLSL, emit WGSL | A GLSL front end is thousands of lines; the earlier plan chose "No GLSL parser" | High: partial coverage produces confusing errors |
 | B. Translator as a plugin | An optional package that loads an existing translator compiled to WebAssembly on demand | A large download, only for games that need it; a dependency outside core | Medium: depends on a third-party toolchain whose license and size must be checked first |
-| C. Explicit twin | The author supplies WGSL next to GLSL: `new BrioShader("shd_water", { fragment, vertex, wgsl: { fragment, vertex } })`, or a `water.wgsl` file next to `water.glsl` | Authors who want WebGPU write the hook twice | Low. Hooks are short by design |
+| C. Explicit variants | The author supplies WGSL next to GLSL, each under its own name: `new BrioShader("shd_water", { glsl: { fragment, vertex }, wgsl: { fragment, vertex } })`, or a `water.wgsl` file next to `water.glsl`. The existing top-level `fragment` and `vertex` options keep meaning GLSL | Authors who want WebGPU write the hook twice | Low. Hooks are short by design |
 | D. Restricted hook subset | Translate only hook bodies that use a documented subset | A small translator, but a second dialect to document | Medium: "valid GLSL that is rejected" breaks the promise that files stay valid GLSL |
 
-**Recommendation (decision DL-02): C now, B later if demand appears.** Rules that make C safe:
+**Decision DL-02, confirmed on 2026-11-16: option C.** The maintainer's reason is the ubiquitous-language rule of the project: GLSL and WGSL are different languages, so they are kept as separate, named variants, and nothing in core pretends one is the other. Option B stays possible later as a plugin outside core, if demand appears. Rules that make C safe:
 
 - Under `preferredBackend: "auto"`, a game that registers any shader without a WGSL variant runs on WebGL2. The engine logs once which shader kept it there. Nothing breaks, and nothing is silently drawn wrong.
 - Under an explicit `"webgpu"`, a GLSL-only shader uses the material's `fallback` and warns once, the same rule Canvas2D already follows.
 - The hook names, built-ins and parameter annotations are identical in both languages, so `material.set()` and `material.parameters` do not change.
+- The glossary term is **Shader Variant**: the source of one shader in one language. Documents and messages say "the WGSL variant of `shd_water`", never "the translated shader".
 - The shader lab and the MCP tools can show both variants side by side, which is also good teaching material.
 
 The cost of this decision is stated plainly: until a translator exists, a custom shader is extra work to bring to WebGPU. That is acceptable because WebGL2 stays first-class (section 1).
@@ -109,7 +110,7 @@ The cost of this decision is stated plainly: until a translator exists, a custom
 | AMD FSR 1 | Spatial: one frame in, one frame out | Color only. "taking the current anti-aliased frame and upscaling it to display resolution without relying on other data such as frame history or motion vectors" ([GPUOpen](https://gpuopen.com/fidelityfx-superresolution/)) | MIT ([license](https://raw.githubusercontent.com/GPUOpen-Effects/FidelityFX-FSR/master/license.txt)) | **Yes**, on WebGL2 and WebGPU, as two fragment passes |
 | AMD FSR 2 | Temporal | Depth, motion vectors and jittered rendering; HLSL compute shaders ([SDK documentation](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/main/Kits/FidelityFX/docs/techniques/super-resolution-temporal.md)) | The current SDK license allows binary redistribution only and forbids reverse engineering ([license](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/main/docs/license.md)). An earlier release is bundled in Godot as Expat (`thirdparty/amd-fsr2`, [`COPYRIGHT.txt`](https://raw.githubusercontent.com/godotengine/godot/master/COPYRIGHT.txt)) | Only on WebGPU (compute), only from the Expat copy, and only as a large port. Not planned |
 | AMD FSR 3 | Temporal plus frame generation | Native swap chain control | Current SDK license, as above | **No** |
-| NVIDIA Image Scaling | Spatial | Color only, after tone mapping | MIT ([repository](https://github.com/NVIDIAGameWorks/NVIDIAImageScaling)) | Technically yes, but the project keeps NVIDIA material as reference only (decision DL-05); FSR 1 covers the same need |
+| NVIDIA Image Scaling | Spatial | Color only, after tone mapping | MIT ([repository](https://github.com/NVIDIAGameWorks/NVIDIAImageScaling)) | Technically yes, but the project keeps NVIDIA material as reference only (ADR 0007); FSR 1 covers the same need |
 
 ### 5.2 What BrioJS should implement
 
@@ -121,7 +122,7 @@ The cost of this decision is stated plainly: until a translator exists, a custom
 - Presets published by AMD, per dimension: Ultra Quality 1.3x, Quality 1.5x, Balanced 1.7x, Performance 2.0x.
 - Textures should be sampled with a negative mip bias when rendering below display resolution. The FSR 1 formula was **not obtained** (the integration PDF could not be read); take it from the PDF in the FSR 1 repository when implementing. For reference, the FSR 2 documentation gives `mipBias = log2(renderResolution / displayResolution) - 1.0`.
 - The reference header `ffx_fsr1.h` lets the integrator supply the texture fetch callbacks. GLSL ES 3.00 has no `textureGather`, so the WebGL2 version implements them with `texelFetch` or `textureOffset`. Verify against the header when porting.
-- Port from the MIT repository, with AMD's notice in `THIRD_PARTY_NOTICES.md`, after decision DL-05.
+- Port from the MIT repository, with AMD's notice in `THIRD_PARTY_NOTICES.md` (decision DL-05, confirmed; ADR 0007, update of 2026-11-16).
 
 **Step 3, anti-aliasing (Q-03).** FSR 1 expects an anti-aliased input, so anti-aliasing comes first in the chain: MSAA on the scene target, or FXAA. FXAA runs after tone mapping because NVIDIA's paper requires "non-linear (perceptually encoded) RGB input" (`ENGINE_COMPLETION_STUDY.md` section 4.12), and its licensing note from ADR 0007 still applies: check the terms of the three.js port or write the pass from the paper.
 

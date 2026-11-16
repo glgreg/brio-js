@@ -20,7 +20,9 @@ When the environment has a limitation or pending setup (a missing runtime, depen
 
 ## Current focus
 
-The TCC final presentation is on 2026-11-13. Start every session at `docs/plans/TCC_FINAL_SPRINT.md`, the current plan: it holds the context, calendar, order of work and environment notes, and it overrides older plans.
+The TCC was presented on 2026-11-13 and its sprint is closed. Start every session at `docs/plans/GAME_LIFECYCLE_PLAN.md`, the current plan: it holds the order of work, the session rules and the work packages, and it overrides older plans. Its evidence and the maintainers' decisions (DL-01 to DL-10) are in `docs/architecture/GAME_LIFECYCLE_STUDY.md`. Do not start a package whose decision is still open there.
+
+Work follows `branch -> develop -> main`. The `tcc` branch holds the academic artifacts and is frozen once `main` has been merged into it one last time: do not base work on it, and merge into it only when a maintainer asks.
 
 ## Keystone
 

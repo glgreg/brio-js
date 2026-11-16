@@ -1,6 +1,6 @@
 # Game Lifecycle Study
 
-Status: **Study / Proposed** (2026-11-15). Nothing in this document is implemented by it. The work packages are in [`GAME_LIFECYCLE_PLAN.md`](../plans/GAME_LIFECYCLE_PLAN.md). Rendering quality, WebGPU and upscaling have their own study, [`RENDER_QUALITY_AND_WEBGPU_STUDY.md`](./RENDER_QUALITY_AND_WEBGPU_STUDY.md), and the MCP package has its own plan, [`MCP_PACKAGE_PLAN.md`](../plans/MCP_PACKAGE_PLAN.md).
+Status: **Study** (2026-11-15). The maintainer confirmed decisions DL-01, DL-02 and DL-04 to DL-08 on 2026-11-16; section 8 records each one. Nothing in this document is implemented by it. The work packages are in [`GAME_LIFECYCLE_PLAN.md`](../plans/GAME_LIFECYCLE_PLAN.md). Rendering quality, WebGPU and upscaling have their own study, [`RENDER_QUALITY_AND_WEBGPU_STUDY.md`](./RENDER_QUALITY_AND_WEBGPU_STUDY.md), and the MCP package has its own plan, [`MCP_PACKAGE_PLAN.md`](../plans/MCP_PACKAGE_PLAN.md).
 
 This study continues [`ENGINE_COMPLETION_STUDY.md`](./ENGINE_COMPLETION_STUDY.md). That study asked what the TCC demos needed. This one asks a wider question, after the presentation of 2026-11-13.
 
@@ -16,7 +16,7 @@ Evidence used:
 | --- | --- | --- |
 | BrioJS | `develop` at `995234a`: every document under `docs/`, the Key, `TODO.md`, `CHANGELOG.md`, and the source files cited in section 2 | Read in this session |
 | Earlier studies | `ENGINE_COMPLETION_STUDY.md` and `ENGINE_COMPLETION_PLAN.md`, with their three.js (`fa01dd6`) and Godot (`95c0fa5`) line references | Read; **the references were not re-read**, see the limits below |
-| Web platform | WebGPU implementation status, MCP specification and SDK, FSR, XeSS and NIS licenses, Web Audio, HTML-in-Canvas, React | Pages fetched on 2026-11-15, listed in section 9 of each document |
+| Web platform | WebGPU implementation status, MCP specification and SDK, FSR, XeSS and NIS licenses, Web Audio, HTML-in-Canvas, React | Pages fetched on 2026-11-15, listed in the Sources section of each document |
 
 ### Limits of this study
 
@@ -118,8 +118,8 @@ Described as: 2D sprites that move beyond frame animation and react to the playe
 
 | Capability | Engine today | Engine responsibility | Developer responsibility | Package |
 | --- | --- | --- | --- | --- |
-| HUD and menus that react to the game | `BrioText` on `ui` layers | A reactive state store; canvas widgets; a DOM layer bound to the same store | Layout and style | U-01 to U-04 |
-| UI written in HTML, CSS, JavaScript or React | None | `game.ui.mount()` for a DOM root over the canvas, input arbitration, scaling with the canvas, and a React binding in a separate package | The components | U-03, U-04 |
+| HUD and menus that react to the game | `BrioText` on `ui` layers | A framework-neutral contract (state stores, requests, notices); canvas widgets and DOM roots that both use it (section 10) | Layout and style | U-01 to U-04 |
+| UI written in React, or in plain HTML, CSS and JavaScript | None | `game.ui.mount()` for a DOM root over the canvas, input arbitration, scaling with the canvas; the React binding as the package `@brio-js/react` | The components | U-03, U-04 |
 | Text boxes, typewriter effect, choices | None | A dialogue runner (data in, events out) and a text reveal primitive | The script, portraits, pacing | U-05 |
 | Touch controls | Touch state and input map bindings | Virtual stick and buttons that feed the input map | Placement and look | U-06 |
 
@@ -206,33 +206,33 @@ Boundaries:
 
 ## 7. Conflicts with documented decisions
 
-The Keystone protocol asks that a request which conflicts with a documented decision be answered with the conflict, its consequence and a compliant alternative, and that the maintainers decide. These are the conflicts this study found. None of them is changed by this study; each one is a decision in section 8.
+The Keystone protocol asks that a request which conflicts with a documented decision be answered with the conflict, its consequence and a compliant alternative, and that the maintainers decide. These are the conflicts this study found. Each one is a decision in section 8, where its status is recorded.
 
-| Documented decision | Request or finding | Consequence if followed | Proposed resolution |
+| Documented decision | Request or finding | Consequence if followed | Resolution |
 | --- | --- | --- | --- |
-| Plan decision 16: "UI is canvas-based, not DOM". The study rejected a DOM overlay because "it does not work inside the compositor and does not survive `OffscreenCanvas`" | UI written in HTML, CSS, JavaScript or React | A DOM layer cannot be interleaved with canvas layers, is not captured by `captureFrame`, post-processing or golden tests, and cannot run in a worker | Two tiers that share one state store: canvas widgets for in-world and captured UI, a DOM layer for menus, text-heavy screens and touch controls. Decision DL-04 |
+| Plan decision 16: "UI is canvas-based, not DOM". The study rejected a DOM overlay because "it does not work inside the compositor and does not survive `OffscreenCanvas`" | UI written in HTML, CSS, JavaScript or React | A DOM layer cannot be interleaved with canvas layers, is not captured by `captureFrame`, post-processing or golden tests, and cannot run in a worker | Two tiers over one contract in core: canvas widgets for in-world and captured UI, DOM roots written mainly in React for menus, text-heavy screens and touch controls. Decision DL-04, ADR 0008 |
 | Plan decision 1 and sprint section 6: WebGPU is not planned before the presentation | WebGPU in the cascade | Two GPU backends double the surface of every visual feature | Extract a shared layer first, then build the WebGPU backend to parity. Decision DL-01 |
 | Plan decision 8: standard GLSL ES 3.00 is the only shading language | WebGPU accepts only WGSL | Custom `BrioShader` code written in GLSL does not run on WebGPU without translation | Options in the render study, section 4. Decision DL-02 |
 | ADR 0001: cascade `WebGPU -> WebGL2 -> WebGL1 -> Canvas2D` | Every planned feature uses WebGL2 features; the study already rejected a WebGL1 backend | A WebGL1 entry that will never be implemented misleads readers | Keep the type for compatibility, state in ADR 0001 that WebGL1 is not planned. Decision DL-03 |
 | ADR 0001: zero runtime dependencies | The MCP package needs the MCP SDK (Apache-2.0) and Zod | None for the engine: the rule protects `@brio-js/core` | State in ADR 0006 that the rule applies to core, and that `@brio-js/mcp` is a Node tool with ordinary dependencies. Decision DL-06 |
 | ADR 0006 and the MCP study: two packages, `@brio-js/mcp` and `@brio-js/devtools` | One separate package that works with core as soon as it is installed | A second package is one more version to keep in step | Ship the browser bridge inside `@brio-js/mcp` and keep only a small hook in core. Decision DL-07 |
 | ADR 0007: adaptable sources are three.js and Godot | FSR 1 is MIT, from AMD; `meshoptimizer` is MIT | Without an amendment, a port of FSR 1 has no policy entry | Amend ADR 0007 with a rule per source. Decision DL-05 |
-| `CLAUDE.md`, "Current focus": start at the TCC sprint | The presentation date has passed | Sessions keep opening a finished plan | The maintainers repoint the focus when they adopt the new plan. Decision DL-08 |
+| `CLAUDE.md`, "Current focus": start at the TCC sprint | The presentation date has passed | Sessions keep opening a finished plan | Repointed on 2026-11-16. Decision DL-08 |
 
 ## 8. Decisions for the maintainers
 
-A package that depends on an open decision says so in its header. **Do not start such a package until the decision is marked Confirmed here**, by a maintainer, in a commit.
+A package that depends on an open decision says so in its header. **Do not start such a package until the decision is marked Confirmed here**, by a maintainer, in a commit. Confirmed decisions carry their date and the record that holds them.
 
 | ID | Decision | Recommendation | Status | Blocks |
 | --- | --- | --- | --- | --- |
-| DL-01 | Add WebGPU as a second GPU backend, after the shared layer exists | Yes, in the order of the plan's track G | Open | G-01 to G-05 |
-| DL-02 | How custom shaders reach WebGPU | Built-in shaders get hand-written WGSL twins. Custom shaders accept an explicit `wgsl` variant; a GLSL-only shader keeps its game on WebGL2 under `"auto"`. A translator is an optional later plugin | Open | G-04, R-04 |
+| DL-01 | Add WebGPU as a second GPU backend, after the shared layer exists | Yes, in the order of the plan's track G | Confirmed 2026-11-16 (requested in the maintainer's brief); ADR 0001, update of 2026-11-16 | G-01 to G-05 |
+| DL-02 | How custom shaders reach WebGPU | GLSL and WGSL are different languages and stay separate, named variants of a shader; nothing translates one into the other in core. Built-in shaders are written by hand in both. A custom shader may carry a `wgsl` variant; a GLSL-only shader keeps its game on WebGL2 under `"auto"` | Confirmed 2026-11-16; ADR 0001, update of 2026-11-16 | G-04, R-04 |
 | DL-03 | WebGL1 in the cascade | Not planned; say so in ADR 0001 | Open | None |
-| DL-04 | UI in two tiers (canvas widgets and a DOM layer) over one state store; React binding as a separate package `@brio-js/react` | Yes; supersedes plan decision 16 with an ADR | Open | U-03, U-04 |
-| DL-05 | Amend ADR 0007: FSR 1 from the MIT repository may be ported with AMD's notice; FSR 2 only from the Expat-licensed copy bundled in Godot, never from the current SDK; NVIDIA Image Scaling stays concept-only although it is MIT, to keep one rule per vendor; `meshoptimizer` may be a tooling dependency | Yes | Open | Q-02, X-02 |
-| DL-06 | Zero-dependency rule applies to `@brio-js/core`; tooling packages may have dependencies | Yes; record in ADR 0006 | Open | M-01 |
-| DL-07 | Package layout: same repository, core stays at the root, `packages/mcp` is a self-contained package folder (own `package.json`, lockfile and CI job, like `showcase/`) that holds server and bridge; no separate devtools package; no root npm workspaces | Yes | Open | M-01 |
-| DL-08 | Adopt `GAME_LIFECYCLE_PLAN.md` as the current plan and repoint `CLAUDE.md` and `.keystone/identity.md` | Maintainers' call | Open | None |
+| DL-04 | Interface in two tiers (canvas widgets and DOM roots) over one framework-neutral contract in core (state stores, requests, notices); React is the primary way to write a DOM root, as the separate package `@brio-js/react` (section 10) | Yes; supersedes plan decision 16 | Confirmed 2026-11-16; ADR 0008 | U-03, U-04 |
+| DL-05 | Amend ADR 0007: FSR 1 from the MIT repository may be ported with AMD's notice; FSR 2 only from the Expat-licensed copy bundled in Godot, never from the current SDK; NVIDIA Image Scaling stays concept-only although it is MIT, to keep one rule per vendor; `meshoptimizer` may be a tooling dependency | Yes | Confirmed 2026-11-16; ADR 0007, update of 2026-11-16 | Q-02, X-02 |
+| DL-06 | Zero-dependency rule applies to `@brio-js/core`; tooling packages may have dependencies | Yes; record in ADR 0006 | Confirmed 2026-11-16; ADR 0006, update of 2026-11-16 | M-01 |
+| DL-07 | Package layout: same repository, core stays at the root, `packages/mcp` is a self-contained package folder (own `package.json`, lockfile and CI job, like `showcase/`) that holds server and bridge; no separate devtools package; no root npm workspaces | Yes | Confirmed 2026-11-16; ADR 0006, update of 2026-11-16 | M-01 |
+| DL-08 | Adopt `GAME_LIFECYCLE_PLAN.md` as the current plan and repoint `CLAUDE.md` and `.keystone/identity.md`; work follows branch, `develop`, `main`, and the `tcc` branch is frozen after a last merge of `main` | Yes | Confirmed 2026-11-16; `CLAUDE.md` | None |
 | DL-09 | Default ECS capacity and whether dense 3D scenes use one entity per static prop or an instanced static batch | Keep 4096 as default, document the cost per slot, and add static instanced batches that do not consume one slot per prop | Open | R-08 |
 | DL-10 | Scene documents as an optional authoring format (code stays first-class) | Optional; required only by the MCP authoring tools | Open | C-06, M-05 |
 
@@ -255,14 +255,78 @@ Applies ADR 0007. "Port" means adapting code with a file header and a notice in 
 | Commercial games used as targets | Proprietary | None | Capability classes only, see section 3 |
 | Papers and conference talks | Copyright of their authors | Concept | Cite them in the file that implements the technique; no listings copied |
 
-## 10. Sources
+## 10. Interface architecture
 
-Engine documents: [`ENGINE_COMPLETION_STUDY.md`](./ENGINE_COMPLETION_STUDY.md), [`ENGINE_COMPLETION_PLAN.md`](../plans/ENGINE_COMPLETION_PLAN.md), [`TCC_FINAL_SPRINT.md`](../plans/TCC_FINAL_SPRINT.md), [`PERFORMANCE_FOLLOWUPS.md`](../plans/PERFORMANCE_FOLLOWUPS.md), [`MCP_GAME_AUTHORING.md`](./MCP_GAME_AUTHORING.md), ADRs 0001 to 0007.
+The maintainer confirmed the two tiers on 2026-11-16, with emphasis on React for menus and touch layouts, and left one question to this study: should the React support be a separate, interoperable package, or live in core as plain JavaScript hooks and events (listeners and emitters)? The maintainer's stated reservation is how far an event-driven interface can reach across the engine and stay organized. The decision is recorded in [ADR 0008](../adr/0008-two-tier-interface-and-react-package.md); this section holds the reasoning.
+
+### 10.1 What the industry practice shows
+
+- Declarative, web-style interface layers are established in games. Coherent Gameface is middleware in which "game developers and UI artists can use standard modern HTML5, CSS3, and JavaScript to design and implement game UI", rendered to a texture the engine displays ([documentation](https://docs.coherent-labs.com/cpp-gameface/what_is_gfp/overview/)). Unity's UI Toolkit "is inspired by standard web technologies", with a markup language, style sheets "similar to CSS" and a layout engine based on the Flexbox model ([Unity manual](https://docs.unity3d.com/6000.2/Documentation/Manual/ui-systems/introduction-ui-toolkit.html)). Both are proprietary: they are evidence of the practice, not sources of code.
+- React specifically: Microsoft's React Native for Windows showcase lists the Xbox app and the Microsoft Store app on Xbox consoles among its first-party uses ([showcase](https://microsoft.github.io/react-native-windows/resources-showcase)). This study found **no primary source** for React in the system interfaces of Sony or Nintendo consoles, so that part of the premise is not confirmed here. The decision does not depend on it.
+- Those products run React's core over a native renderer. On the web the equivalent is ordinary React rendering to the DOM, which needs nothing from the engine except a place to mount and a way to exchange data.
+
+### 10.2 The two candidate designs
+
+**A. In core: plain JavaScript hooks and events.** Core would expose emitters on the game and its objects, and helper functions shaped like hooks for interfaces to subscribe with.
+
+**B. A framework-neutral contract in core, and a React binding as its own package.** Core exposes three things and nothing else to interfaces: state stores, requests and notices. `@brio-js/react` adapts them to React.
+
+| Criterion | A. Hooks and events in core | B. Contract in core, React in a package |
+| --- | --- | --- |
+| Zero runtime dependencies (ADR 0001) | Holds only if core imitates React instead of using it | Holds: `react` is a peer dependency of the other package |
+| One name per concept (`GLOSSARY.md`) | "Hook" would mean a shader hook and an interface hook | "Hook" keeps its shader meaning in core, and React's meaning inside the React package |
+| Familiar to React developers | A look-alike with its own rules is less familiar than the real thing | Real React hooks; the store contract matches `useSyncExternalStore` |
+| How far interface code reaches into the engine | As far as there are emitters: any object, any moment of the frame | Three declared channels; no engine object is reachable |
+| Determinism, replays, snapshots | A listener can change the world mid-frame; order depends on registration | Requests are queued, handled at one point of the frame, and recorded with input |
+| Lifetime | Listeners must be removed by hand when scenes and components go away | Subscriptions belong to a store or a root, and end with it |
+| Other frameworks and plain JavaScript | Would need the same imitation again | Use the three parts directly |
+| Install | One package | Two packages for React users: `npm install @brio-js/core @brio-js/react` |
+| Bundle of a game without a DOM interface | Carries the reactive helpers | Carries the stores only if used |
+
+### 10.3 Decision: B
+
+The reservation about events is the deciding argument, and it is well founded. An emitter on every object makes each interface component a potential writer into the simulation at an arbitrary time. The failure modes are the usual ones of two-way event systems: a handler that destroys an object while the engine iterates it, behavior that depends on which listener registered first, listeners that keep a finished scene alive, and state changes that a snapshot or a replay cannot explain.
+
+Design B removes the cause instead of managing the symptoms. Data crosses the boundary in one direction per channel and at one fixed moment per frame:
+
+```text
+game loop                        boundary                         interface
+---------                        --------                         ---------
+update() writes stores   --->    state stores (snapshots)   --->  render
+update() notifies        --->    notices (queued)           --->  transient effects
+handlers run at the      <---    requests (queued)          <---  user intent
+start of the next update()
+```
+
+- **State store**: what the interface shows. Published by the game, read as immutable snapshots.
+- **Request**: what the user asked for (`"startGame"`, `"setVolume"`). Declared by the game, sent by the interface, handled at the start of the next `update()`.
+- **Notice**: something that happened and is not state (`"toast"`, `"damageTaken"`). Sent by the game, delivered after `update()`.
+
+Interface controls that are gameplay input, such as a virtual stick, go through `BrioInputMap` actions, which already exist. Requests are for intent that carries data and is not input.
+
+What stays in core is exactly what only the engine can do: decide when messages cross, mount and scale a DOM root, arbitrate input between the root and the canvas, and include stores and requests in saves and replays. What goes in `@brio-js/react` is idiom: `useBrioState`, `useBrioRequest`, `useBrioNotice`, `useBrioGame`, `createBrioRoot` and `BrioCanvas`. The package is expected to be a few hundred lines.
+
+The same contract serves the canvas tier, so a game can move a panel between tiers without touching game logic.
+
+### 10.4 Where each tier fits
+
+| Need | Tier |
+| --- | --- |
+| Menus, settings, inventories, long or localized text, forms, touch layouts | DOM root, in React |
+| Elements inside the world, or that post-processing, render targets and `captureFrame()` must include | Canvas widgets |
+| Games that will run in a worker, or headless | Canvas widgets |
+| Heads-up displays | Either; canvas when it must be captured or shaded, DOM otherwise |
+
+A React renderer that targets canvas widgets, so one component tree could drive either tier, is a later option recorded in ADR 0008. It mirrors what native platforms do with React, and it needs the widget set first.
+
+## 11. Sources
+
+Engine documents: [`ENGINE_COMPLETION_STUDY.md`](./ENGINE_COMPLETION_STUDY.md), [`ENGINE_COMPLETION_PLAN.md`](../plans/ENGINE_COMPLETION_PLAN.md), [`TCC_FINAL_SPRINT.md`](../plans/TCC_FINAL_SPRINT.md), [`PERFORMANCE_FOLLOWUPS.md`](../plans/PERFORMANCE_FOLLOWUPS.md), [`MCP_GAME_AUTHORING.md`](./MCP_GAME_AUTHORING.md), ADRs 0001 to 0008.
 
 Web pages read on 2026-11-15:
 
 - Licenses: [FSR 1 repository](https://github.com/GPUOpen-Effects/FidelityFX-FSR) and its [license](https://raw.githubusercontent.com/GPUOpen-Effects/FidelityFX-FSR/master/license.txt); [FidelityFX SDK license](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/main/docs/license.md); [Godot `COPYRIGHT.txt`](https://raw.githubusercontent.com/godotengine/godot/master/COPYRIGHT.txt); [NVIDIA Image Scaling SDK](https://github.com/NVIDIAGameWorks/NVIDIAImageScaling); [Intel XeSS](https://github.com/intel/xess) and its [license](https://raw.githubusercontent.com/intel/xess/main/LICENSE.txt); [meshoptimizer](https://github.com/zeux/meshoptimizer) and its [JavaScript modules](https://github.com/zeux/meshoptimizer/tree/master/js).
 - Web Audio: [AudioListener](https://developer.mozilla.org/en-US/docs/Web/API/AudioListener), [PannerNode](https://developer.mozilla.org/en-US/docs/Web/API/PannerNode), [spatialization basics](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Web_audio_spatialization_basics).
-- UI: [HTML-in-Canvas origin trial changes](https://developer.chrome.com/blog/html-in-canvas-ot-changes), [`useSyncExternalStore`](https://react.dev/reference/react/useSyncExternalStore), [OffscreenCanvas](https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas).
+- UI: [HTML-in-Canvas origin trial changes](https://developer.chrome.com/blog/html-in-canvas-ot-changes), [`useSyncExternalStore`](https://react.dev/reference/react/useSyncExternalStore), [OffscreenCanvas](https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas). Read on 2026-11-16: [Coherent Gameface overview](https://docs.coherent-labs.com/cpp-gameface/what_is_gfp/overview/), [Unity UI Toolkit introduction](https://docs.unity3d.com/6000.2/Documentation/Manual/ui-systems/introduction-ui-toolkit.html), [React Native for Windows showcase](https://microsoft.github.io/react-native-windows/resources-showcase).
 
 The sources for WebGPU, upscaling and MCP are listed in their own documents.

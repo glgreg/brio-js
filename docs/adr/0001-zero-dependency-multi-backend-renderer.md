@@ -30,3 +30,12 @@ glTF / GLB / OBJ loaders are loaded the same way by `BrioModel.load()`. Factorie
 `registerBackend()` may be asynchronous for the same reason (a WebGPU backend can live in its own chunk), and
 `createBackend()` returns a promise. A factory that fails to load its module counts as a backend that failed to
 initialize, so the cascade continues.
+
+## Update (2026-11-16): WebGPU order and shader languages
+
+Confirmed by the maintainer (decisions DL-01 and DL-02 of [`GAME_LIFECYCLE_STUDY.md`](../architecture/GAME_LIFECYCLE_STUDY.md); evidence in [`RENDER_QUALITY_AND_WEBGPU_STUDY.md`](../architecture/RENDER_QUALITY_AND_WEBGPU_STUDY.md)).
+
+- **WebGPU is built as a second GPU backend, after a shared layer exists.** The order is: render contract v2 with a submitted render list and render targets, then a backend-neutral layer (`src/rendering/gpu/`: render list, sort keys, material feature keys, light packing, shadow math, uniform layout), then the WebGPU device layer. WebGL2 stays a first-class backend, because WebGPU is still missing or behind a flag on part of Linux, Android and older Apple systems.
+- **GLSL and WGSL are separate languages and stay separate, named variants of a shader.** Core does not translate one into the other. Built-in shaders are written by hand in both languages over one uniform layout table and the same hook names. A custom `BrioShader` is GLSL ES 3.00 (plan decision 8) and may carry a WGSL variant. Under `preferredBackend: "auto"`, a game with a custom shader that has no WGSL variant runs on WebGL2 and logs once which shader kept it there; under an explicit `"webgpu"`, that shader uses the material's `fallback` and warns once.
+- The zero-dependency rule of this ADR applies to `@brio-js/core`. Tooling packages such as `@brio-js/mcp` and bindings such as `@brio-js/react` are separate packages with their own dependencies (ADR 0006, ADR 0008).
+- Whether WebGL1 stays in the cascade is still open (decision DL-03). No WebGL1 backend is planned.

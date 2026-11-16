@@ -1,12 +1,12 @@
 # Engine Completion Plan
 
-Status: **Design reference and post-TCC backlog** (created 2026-10-31). Findings and evidence: [`ENGINE_COMPLETION_STUDY.md`](../architecture/ENGINE_COMPLETION_STUDY.md).
+Status: **Design reference** (created 2026-10-31). The current plan is [`GAME_LIFECYCLE_PLAN.md`](./GAME_LIFECYCLE_PLAN.md), which cites the work packages below for their design and tracks their status in its section 3. Findings and evidence: [`ENGINE_COMPLETION_STUDY.md`](../architecture/ENGINE_COMPLETION_STUDY.md).
 
-> **Until the TCC presentation on 2026-11-13, follow [`TCC_FINAL_SPRINT.md`](./TCC_FINAL_SPRINT.md).** It overrides the scope, order and priorities below. Use this file for the design of each work package, and apply only the scope the sprint gives it. Status marks in this file are not maintained during the sprint.
+> **The TCC sprint is closed (2026-11-16).** Follow [`GAME_LIFECYCLE_PLAN.md`](./GAME_LIFECYCLE_PLAN.md) for scope, order and status. Use this file for the design of each work package it cites. Status marks in this file are not maintained.
 
 Goal: a usable BrioJS release in 2D and 3D, on the existing architecture: ECS core, OOP public API, zero runtime dependencies.
 
-After the TCC, this file resumes as the source of truth for the remaining work. `docs/ROADMAP.md` stays the public summary, and `TODO.md` stays as history.
+`GAME_LIFECYCLE_PLAN.md` is the source of truth for the remaining work. `docs/ROADMAP.md` stays the public summary, and `TODO.md` stays as history.
 
 ## 1. How to run a session
 
@@ -86,7 +86,7 @@ Each one has its rationale in the study. Change them here before work starts on 
 | 13 | Saves are versioned slots with migrators. Export uses `showSaveFilePicker` when present, otherwise a Blob download. No encryption, because a key in a web client protects nothing | 4.7 |
 | 14 | PCF cascaded shadows by default; PCSS optional; VSM not adopted | 4.2 |
 | 15 | Text is rasterized through Canvas2D into an atlas. MSDF is post-TCC | 4.10 |
-| 16 | UI is canvas-based, not DOM | 4.11 |
+| 16 | UI is canvas-based, not DOM. **Superseded on 2026-11-16 by [ADR 0008](../adr/0008-two-tier-interface-and-react-package.md)**: canvas widgets and DOM roots over one contract | 4.11 |
 | 17 | Draco, meshopt and KTX2 decoders stay out of core, as optional plugins after the TCC, to respect ADR 0001 | 4.9 |
 
 ## 4. Order of work
