@@ -1,8 +1,8 @@
 # TCC Final Sprint
 
-Status: **Active. This is the current plan.** Created 2026-10-31. Final presentation: **Friday 2026-11-13**.
+Status: **Closed on 2026-11-16.** The TCC was presented on 2026-11-13. The current plan is [`GAME_LIFECYCLE_PLAN.md`](./GAME_LIFECYCLE_PLAN.md), whose section 3 lists which items below were still open and the package that carries each one. This file is kept for its progress log. Created 2026-10-31.
 
-Start every session here. This file overrides [`ENGINE_COMPLETION_PLAN.md`](./ENGINE_COMPLETION_PLAN.md) on order and priority. That plan is the design reference: read the cited work package for its design, and apply the scope written here.
+While it was active, sessions started here. This file overrides [`ENGINE_COMPLETION_PLAN.md`](./ENGINE_COMPLETION_PLAN.md) on order and priority. That plan is the design reference: read the cited work package for its design, and apply the scope written here.
 
 ## 1. Context
 

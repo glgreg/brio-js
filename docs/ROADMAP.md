@@ -1,11 +1,20 @@
 # BrioJS Roadmap and Known Issues
 
 This page tracks what is known to be broken or limited in the current release and what is planned next. The
-current work is [`docs/plans/TCC_FINAL_SPRINT.md`](./plans/TCC_FINAL_SPRINT.md). The design reference and post-TCC
-backlog is [`docs/plans/ENGINE_COMPLETION_PLAN.md`](./plans/ENGINE_COMPLETION_PLAN.md), with its evidence in
-[`ENGINE_COMPLETION_STUDY.md`](./architecture/ENGINE_COMPLETION_STUDY.md). The older
+current plan is [`docs/plans/GAME_LIFECYCLE_PLAN.md`](./plans/GAME_LIFECYCLE_PLAN.md) (adopted 2026-11-16): the work
+needed for complete 2D and 3D games (render core, skeletal animation and rigging, level of detail, WebGPU, upscaling,
+particles, interface in two tiers with a React package, positional audio, physics). Its evidence is in
+[`GAME_LIFECYCLE_STUDY.md`](./architecture/GAME_LIFECYCLE_STUDY.md) and
+[`RENDER_QUALITY_AND_WEBGPU_STUDY.md`](./architecture/RENDER_QUALITY_AND_WEBGPU_STUDY.md), and
+[`MCP_PACKAGE_PLAN.md`](./plans/MCP_PACKAGE_PLAN.md) plans the `@brio-js/mcp` package. The design of the earlier work
+packages it cites is in [`docs/plans/ENGINE_COMPLETION_PLAN.md`](./plans/ENGINE_COMPLETION_PLAN.md), with its evidence in
+[`ENGINE_COMPLETION_STUDY.md`](./architecture/ENGINE_COMPLETION_STUDY.md). The TCC sprint
+([`TCC_FINAL_SPRINT.md`](./plans/TCC_FINAL_SPRINT.md)) is closed. The older
 engineering checklist (in Portuguese) lives in [`TODO.md`](../TODO.md); architecture decisions are in
 [`docs/adr/`](./adr/).
+
+The "Planned for v0.3" and "Later" lists below predate the current plan; the plan's order of work replaces them until
+the maintainers choose the scope of v0.3.
 
 Last updated: 2026-11-04 (v0.2.0).
 

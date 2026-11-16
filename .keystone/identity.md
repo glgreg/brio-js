@@ -28,9 +28,10 @@ targets modern browsers and is designed to run inside Electron and Capacitor she
 Active development, public preview. Version 0.2.0 targets simple 2D and 3D games (text, collision events, tile maps,
 input map, high-DPI, complete checkpoints); the API is usable but may still change between minor versions, so
 refactoring is acceptable when it serves the target architecture, as long as public API changes are recorded in
-`CHANGELOG.md`. Next milestone: the TCC final presentation on 2026-11-13, with code freeze proposed for 2026-11-08
-(`docs/plans/TCC_FINAL_SPRINT.md`); `develop` is the base of that work. After it: v0.3 (WebGPU backend, UI widgets,
-camera controllers, point/spot lights, particles). Before 1.0, the public API surface review listed in
+`CHANGELOG.md`. The TCC was presented on 2026-11-13 and its sprint is closed. Current work follows
+`docs/plans/GAME_LIFECYCLE_PLAN.md`: the capabilities a complete 2D or 3D game needs (render core, skeletal animation,
+GPU 2D, interface in two tiers with a React package, positional audio, physics, WebGPU) and the `@brio-js/mcp`
+package. Which packages make v0.3 is the maintainers' decision. Before 1.0, the public API surface review listed in
 `docs/ROADMAP.md` ("Before 1.0") decides what the package root exports.
 
 ## 5. Project Metadata
@@ -39,11 +40,15 @@ camera controllers, point/spot lights, particles). Before 1.0, the public API su
 - **Documentation**:
   - `README.md`: installation, quick start, core concepts, status.
   - `GLOSSARY.md`: the ubiquitous language (canonical names and names to avoid).
-  - `docs/adr/`: architecture decision records 0001 to 0007.
+  - `docs/adr/`: architecture decision records 0001 to 0008.
   - `docs/architecture/`: target architecture, codebase audit, rendering study, MCP game authoring study.
-  - `docs/plans/TCC_FINAL_SPRINT.md`: **the current plan**, up to the final presentation on 2026-11-13. It overrides older
-    plans.
-  - `docs/plans/ENGINE_COMPLETION_PLAN.md`: design reference and post-TCC backlog; its evidence is
+  - `docs/plans/GAME_LIFECYCLE_PLAN.md`: **the current plan** (adopted 2026-11-16). Work packages by track for a
+    complete 2D and 3D game lifecycle. Evidence in `docs/architecture/GAME_LIFECYCLE_STUDY.md` (state of the engine,
+    target capability classes, engine and developer responsibility, decisions DL-01 to DL-10) and
+    `docs/architecture/RENDER_QUALITY_AND_WEBGPU_STUDY.md` (WebGPU, upscaling, optimization order).
+    `docs/plans/MCP_PACKAGE_PLAN.md` plans the `@brio-js/mcp` package.
+  - `docs/plans/TCC_FINAL_SPRINT.md`: closed on 2026-11-16; kept for its progress log.
+  - `docs/plans/ENGINE_COMPLETION_PLAN.md`: design reference for the work packages WP-00 to WP-54, cited by the current plan; its evidence is
     `docs/architecture/ENGINE_COMPLETION_STUDY.md`, which links the local study base in the gitignored `temp/` folder
     (`temp/research/` notes, `temp/repos/` reference clones). Read that base before working on a package.
   - `docs/tcc/` (local, gitignored): TCC questions, research gaps and the provenance of algorithms and reference code.

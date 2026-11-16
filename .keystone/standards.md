@@ -6,7 +6,8 @@
 
 - `main` holds released code; `develop` integrates finished work; work happens on `feat/*`, `fix/*`, `chore/*`
   branches merged into `develop` through pull requests, and `develop` is merged into `main` for releases.
-- `tcc` is reserved for academic artifacts; `refactor` is the historical rewrite branch.
+- `tcc` holds the academic artifacts of the TCC, presented on 2026-11-13. It is frozen once `main` has been merged into it one last time: it is not a base for
+  work, and it is merged into only when a maintainer asks. `refactor` is the historical rewrite branch.
 
 ### Commit Messages
 

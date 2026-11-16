@@ -34,3 +34,24 @@ Each adapted file starts with a header that names the source path and the pinned
 - Adapting code does not add a runtime dependency, so ADR 0001 holds. Adapted code must follow the engine's conventions: no allocation in the game loop, TSDoc on public symbols, and the existing data layout.
 - Public documentation is the only Unity and Unreal input.
 - The notice exists before the first adapted file, so the first port needs no packaging change.
+
+## Update (2026-11-16): AMD, NVIDIA Image Scaling, Intel and tooling dependencies
+
+Confirmed by the maintainer (decision DL-05 of [`GAME_LIFECYCLE_STUDY.md`](../architecture/GAME_LIFECYCLE_STUDY.md), whose section 9 has the licenses as read on 2026-11-15). The rule of the project is unchanged: public and private domains are both respected. A permissive license allows adaptation with attribution; anything else is a reference for concepts only.
+
+| Source | License seen | Allowed | Conditions |
+| --- | --- | --- | --- |
+| AMD FSR 1, repository `GPUOpen-Effects/FidelityFX-FSR` | MIT, "Copyright (c) 2021 Advanced Micro Devices, Inc." | Direct port and adaptation | AMD's notice is added to `THIRD_PARTY_NOTICES.md` in the pull request of the first port, and each adapted file carries the header below |
+| AMD FSR 2, only the copy bundled in Godot (`thirdparty/amd-fsr2`) | Expat per Godot's `COPYRIGHT.txt`, "2022-2023, Advanced Micro Devices, Inc." | Port from that copy only | Not planned. Its own notice if it is ever ported |
+| AMD FidelityFX SDK, current releases (FSR 2, FSR 3 and later) | `docs/license.md`: binary redistribution only, no reverse engineering | Concepts from public documentation | Own implementation. No code is copied from the current SDK |
+| NVIDIA Image Scaling SDK | MIT | Concepts only, by project rule | The license would allow a port. NVIDIA material stays a reference so that one rule covers the vendor; FSR 1 serves the same need |
+| NVIDIA DLSS, Intel XeSS | Proprietary; XeSS is "provided in binary form only" | Not used | Native SDKs with no web interface |
+| `meshoptimizer` | MIT | Dependency of tooling packages | Never a dependency of `@brio-js/core`. A port into core would need its own notice |
+| MCP TypeScript SDK | Apache-2.0 | Dependency of `@brio-js/mcp` | Not vendored |
+| Commercial games used as capability targets | Proprietary | Nothing | No assets, extracted data, decompiled code, names or level layouts. Only capability classes are studied |
+
+```ts
+// Adapted from AMD FidelityFX-FSR <path> @ <commit> (MIT). See THIRD_PARTY_NOTICES.md.
+```
+
+A license can change between releases of the same project, as it did for AMD's SDK. The header therefore names the repository and the commit, and a port always starts by reading the license file at that commit.
