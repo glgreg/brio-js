@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <title>Lumen Vigil · BrioJS</title>
+        <script type="importmap">
+            { "imports": { "@brio-js/core": "/engine/brio.js" } }
+        </script>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+        <link rel="stylesheet" href="./style.css" />
+    </head>
+    <body>
+        <div id="game"></div>
+        <div id="vignette"></div>
+
+        <div id="hud" hidden>
+            <div class="hud-top">
+                <div class="hp">
+                    <span id="level" class="level">LV 1</span>
+                    <div class="bar hp-bar"><i id="hp-fill"></i><span id="hp-text"></span></div>
+                </div>
+                <div class="clock"><span class="moon"></span><b id="clock">4:00</b><small data-t="dawnIn"></small></div>
+                <div class="kills"><span class="skull"></span><b id="kills">0</b></div>
+            </div>
+            <ul id="spells" class="spells"></ul>
+            <div class="bar xp-bar"><i id="xp-fill"></i></div>
+        </div>
+        <div id="banner" class="banner"></div>
+
+        <div id="screens" data-screen="title">
+            <section class="screen title-screen">
+                <p class="kicker">BrioJS · WebGL2</p>
+                <h1 data-t="title">Lumen Vigil</h1>
+                <p data-t="subtitle"></p>
+                <p class="blink" data-t="start"></p>
+                <p class="small" data-t="controls"></p>
+                <p class="small warn" id="missing" hidden>Spell effect sheets are not available in this copy; simple glows are used instead.</p>
+                <p class="small warn" id="nowebgl" hidden>WebGL2 is not available: this game needs it.</p>
+            </section>
+            <section class="screen choose-screen">
+                <h2 data-t="choose"></h2>
+                <div id="cards" class="cards"></div>
+                <p class="small" data-t="chooseHint"></p>
+            </section>
+            <section class="screen pause-screen">
+                <h2 data-t="paused"></h2>
+                <p data-t="resume"></p>
+            </section>
+            <section class="screen end-screen">
+                <h2 id="end-title"></h2>
+                <p id="end-text"></p>
+                <dl class="stats">
+                    <div><dt data-t="kills"></dt><dd id="stat-kills"></dd></div>
+                    <div><dt data-t="reached"></dt><dd id="stat-level"></dd></div>
+                    <div><dt data-t="survived"></dt><dd id="stat-time"></dd></div>
+                </dl>
+                <p class="blink" data-t="again"></p>
+            </section>
+        </div>
+
+        <div id="stick" class="stick" hidden><i id="stick-nub"></i></div>
+        <script type="module" src="./main.js"></script>
+    </body>
+</html>

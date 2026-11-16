@@ -1,0 +1,80 @@
+name: Bug report
+description: Report incorrect behavior, a crash or a rendering problem in BrioJS.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. A minimal reproduction is the fastest way to a fix.
+        Please search the existing issues first.
+  - type: input
+    id: version
+    attributes:
+      label: BrioJS version
+      description: The `@brio-js/core` version from your `package.json` or CDN URL.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and operating system
+      description: Include the versions, and the runtime if it is not a plain browser (Electron, Capacitor).
+      placeholder: "Chrome 142 on Windows 11"
+    validations:
+      required: true
+  - type: dropdown
+    id: preset
+    attributes:
+      label: Preset
+      description: The dimension preset passed to `BrioGame`.
+      options:
+        - "2d"
+        - "3d"
+        - "hybrid"
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Render backend
+      description: The value of `game.renderBackend?.backendType` once the game is running.
+      options:
+        - "webgl2"
+        - "canvas2d"
+        - "none (2D only, undefined)"
+        - "Not sure"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the bug, including what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: |
+        The smallest code that shows the problem, or a link to a repository or online sandbox.
+        Use procedural assets (shapes, generated textures) when possible.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the page
+        2. Press the arrow keys
+        3. ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output
+      description: Errors or warnings from the browser console, if any.
+      render: text

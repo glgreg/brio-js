@@ -1,0 +1,124 @@
+name: Release
+
+# Every push to main releases the version in package.json, once:
+#   1. bump "version" in package.json and move [Unreleased] to a "## [x.y.z]" section of CHANGELOG.md (on develop);
+#   2. merge develop into main.
+# The workflow then runs the checks, publishes @brio-js/core@x.y.z to npm and creates the tag vx.y.z with its GitHub
+# release (notes taken from CHANGELOG.md). Pushes that keep a version already released do nothing, so re-runs and
+# merges without a version bump are safe. Publishing uses the NPM_TOKEN repository secret.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # create the tag and the GitHub release
+  id-token: write # npm provenance
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish the package.json version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags, to tell whether this version was already released
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Decide what to release
+        id: version
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          name=$(node -p 'require("./package.json").name')
+          tag="v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "$name@$version is already on npm."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "github_release=false" >> "$GITHUB_OUTPUT"
+            echo "GitHub release $tag already exists."
+          else
+            echo "github_release=true" >> "$GITHUB_OUTPUT"
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null && [ "$(git rev-list -n 1 "$tag")" != "$GITHUB_SHA" ]; then
+            echo "::warning::Tag $tag already points to $(git rev-list -n 1 "$tag"), not to this commit; bump the version in package.json to release this commit."
+          fi
+
+          # Prerelease versions (0.3.0-beta.1) go to the "next" dist-tag and a GitHub prerelease
+          if [[ "$version" == *-* ]]; then
+            echo "dist_tag=next" >> "$GITHUB_OUTPUT"
+            echo "prerelease=--prerelease" >> "$GITHUB_OUTPUT"
+          else
+            echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+            echo "prerelease=" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Extract the release notes from CHANGELOG.md
+        if: steps.version.outputs.publish == 'true' || steps.version.outputs.github_release == 'true'
+        run: |
+          node -e '
+            const fs = require("fs");
+            const [version, tag] = process.argv.slice(1);
+            const lines = fs.readFileSync("CHANGELOG.md", "utf8").split("\n");
+            const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const heading = new RegExp(`^## \\[${escaped}\\]`);
+            const start = lines.findIndex((line) => heading.test(line));
+            if (start === -1) {
+              console.error(`CHANGELOG.md has no "## [${version}]" section: add it before releasing ${version}.`);
+              process.exit(1);
+            }
+            let end = lines.findIndex((line, i) => i > start && (/^## /.test(line) || /^\[[^\]]+\]: /.test(line)));
+            if (end === -1) end = lines.length;
+            // Relative links in the changelog would break on the release page: point them at the tag
+            const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/blob/${tag}/`;
+            const notes = lines.slice(start + 1, end).join("\n").trim().replace(/\]\(\.\//g, "](" + base);
+            if (!notes) {
+              console.error(`The "## [${version}]" section of CHANGELOG.md is empty.`);
+              process.exit(1);
+            }
+            fs.writeFileSync(process.env.RUNNER_TEMP + "/release-notes.md", notes + "\n");
+            console.log(notes);
+          ' "${{ steps.version.outputs.version }}" "${{ steps.version.outputs.tag }}"
+
+      - name: Install and check
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          npm ci
+          npm run check
+
+      - name: Publish to npm
+        if: steps.version.outputs.publish == 'true'
+        run: npm publish --provenance --access public --tag "${{ steps.version.outputs.dist_tag }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Creates the tag on this commit together with the release
+      - name: Create the tag and the GitHub release
+        if: steps.version.outputs.github_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          gh release create "$tag" \
+            --target "$GITHUB_SHA" \
+            --title "$tag" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            ${{ steps.version.outputs.prerelease }}

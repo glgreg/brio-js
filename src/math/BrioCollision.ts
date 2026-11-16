@@ -1,138 +1,440 @@
-import { BrioObject } from "../objects/BrioObject";
-import { CollisionColliderType, CollisionShapeType } from "../objects/BrioObject";
+import { BrioObject2D, CollisionColliderType } from "../objects/BrioObject2D";
+import { BrioObject3D } from "../objects/BrioObject3D";
 import { Vec2 } from "./index";
 
-type RectangleCollisionType = {
-    object: BrioObject;
+/**
+ * Configuration object for attaching a rectangular AABB collider to a `BrioObject2D`.
+ */
+export type RectangleCollisionType = {
+    /** Target `BrioObject2D` that will receive the collider. */
+    object: BrioObject2D;
+    /** Physical interaction mode (`"solid"` or `"trigger"`). */
     colliderType: CollisionColliderType;
+    /** Local offset `{ x, y }` relative to `object.transform.position`. */
     pos: Vec2;
+    /** Width (`x`) and height (`y`) of the rectangle in pixels. */
     size: Vec2;
 };
-type SquareCollisionType = {
-    object: BrioObject;
+
+/**
+ * Configuration object for attaching a square AABB collider to a `BrioObject2D`.
+ */
+export type SquareCollisionType = {
+    /** Target `BrioObject2D` that will receive the collider. */
+    object: BrioObject2D;
+    /** Physical interaction mode (`"solid"` or `"trigger"`). */
     colliderType: CollisionColliderType;
+    /** Local offset `{ x, y }` relative to `object.transform.position`. */
     pos: Vec2;
-    size: number;
-};
-type CircleCollisionType = {
-    object: BrioObject;
-    colliderType: CollisionColliderType;
-    pos: Vec2;
+    /** Side length of the square collider in pixels. */
     size: number;
 };
 
+/**
+ * Configuration object for attaching a circular collider to a `BrioObject2D`.
+ */
+export type CircleCollisionType = {
+    /** Target `BrioObject2D` that will receive the collider. */
+    object: BrioObject2D;
+    /** Physical interaction mode (`"solid"` or `"trigger"`). */
+    colliderType: CollisionColliderType;
+    /** Local offset `{ x, y }` of the circle's top-left bounding box relative to `object.transform.position`. */
+    pos: Vec2;
+    /** Diameter of the circle collider in pixels (`radius = size / 2`). */
+    size: number;
+};
+
+/**
+ * Provides 2D and 3D collision mask attachment, narrow-phase intersection testing
+ * (Rectangle/Square, Circle, Box3D, Sphere3D), and Minimum Translation Vector (MTV) physical resolution.
+ *
+ * @example
+ * ```ts
+ * BrioCollision.addRectangle({
+ *     object: player,
+ *     colliderType: "solid",
+ *     pos: { x: 8, y: 4 },
+ *     size: { x: 48, y: 56 },
+ * });
+ *
+ * if (BrioCollision.isColliding(player, wall)) {
+ *     BrioCollision.resolveCollision(player, wall);
+ * }
+ * ```
+ */
+/** Scratch world positions of the two objects of a 2D test (tests never allocate). */
+const POSITION_A = { x: 0, y: 0 };
+const POSITION_B = { x: 0, y: 0 };
+
+/**
+ * World-space position of a 2D object: its own `transform.position` for a root, or the position computed through its
+ * ancestors (written into `out`) for a child, so a collider attached to a child sits where the child is drawn.
+ */
+function positionOf(object: BrioObject2D, out: { x: number; y: number }): { x: number; y: number } {
+    const transform = object.transform;
+    return transform.parent ? transform.getWorldPosition(out) : transform.position;
+}
+
 export class BrioCollision {
-    public static isColliding(one: BrioObject, two: BrioObject): boolean {
+    /**
+     * Tests whether two `BrioObject2D` instances with active (`enabled: true`) collision masks are intersecting.
+     * Supports Rectangle/Square vs Rectangle/Square, Circle vs Circle, and symmetric Circle vs Rectangle/Square.
+     *
+     * @param one First game object
+     * @param two Second game object
+     * @returns `true` if the two colliders overlap, otherwise `false`
+     * @example
+     * ```ts
+     * if (BrioCollision.isColliding(enemy, projectile)) {
+     *     game.destroy(projectile);
+     * }
+     * ```
+     */
+    public static isColliding(one: BrioObject2D, two: BrioObject2D): boolean {
         if (!one.collision || !two.collision) return false;
+        if (!one.collision.enabled || !two.collision.enabled) return false;
+        const pa = positionOf(one, POSITION_A);
+        const pb = positionOf(two, POSITION_B);
 
         const oneShape = one.collision.shape;
         const twoShape = two.collision.shape;
 
         if (oneShape === "circle" || twoShape === "circle") {
             if (oneShape !== "circle" || twoShape !== "circle") {
-                // Posição do círculo (dinâmica) e raio
-                const cx = two.transform.position.x + two.collision.pos.x;
-                const cy = two.transform.position.y + two.collision.pos.y;
-                const radius = Math.min(two.collision.size.x, two.collision.size.y) / 2;
+                const circleObj = oneShape === "circle" ? one : two;
+                const rectObj = oneShape === "circle" ? two : one;
 
-                // Limites do quadrado
-                const minX = one.transform.position.x + one.collision.pos.x;
-                const maxX = minX + one.collision.size.x;
-                const minY = one.transform.position.y + one.collision.pos.y;
-                const maxY = minY + one.collision.size.y;
+                const radius =
+                    Math.min(circleObj.collision!.size.x, circleObj.collision!.size.y) / 2;
+                const cx = (circleObj === one ? pa : pb).x + circleObj.collision!.pos.x + radius;
+                const cy = (circleObj === one ? pa : pb).y + circleObj.collision!.pos.y + radius;
 
-                // Verificação AABB inicial
-                const aabbCircleMinX = cx - radius;
-                const aabbCircleMaxX = cx + radius;
-                const aabbCircleMinY = cy - radius;
-                const aabbCircleMaxY = cy + radius;
+                const minX = (rectObj === one ? pa : pb).x + rectObj.collision!.pos.x;
+                const maxX = minX + rectObj.collision!.size.x;
+                const minY = (rectObj === one ? pa : pb).y + rectObj.collision!.pos.y;
+                const maxY = minY + rectObj.collision!.size.y;
 
+                // Broadphase AABB check
                 if (
-                    aabbCircleMaxX < minX ||
-                    aabbCircleMinX > maxX ||
-                    aabbCircleMaxY < minY ||
-                    aabbCircleMinY > maxY
+                    cx + radius < minX ||
+                    cx - radius > maxX ||
+                    cy + radius < minY ||
+                    cy - radius > maxY
                 ) {
                     return false;
                 }
 
-                // Encontrar o ponto mais próximo no quadrado
+                // Closest point on the AABB to the circle center
                 const closestX = Math.max(minX, Math.min(cx, maxX));
                 const closestY = Math.max(minY, Math.min(cy, maxY));
 
-                // Calcular a distância entre o centro do círculo e o ponto mais próximo
                 const dx = cx - closestX;
                 const dy = cy - closestY;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                // Colisão ocorre se a distância for menor que o raio
-                return distance < radius;
+                return dx * dx + dy * dy <= radius * radius;
             }
-
-            const oneCenterX = one.transform.position.x + one.collision.pos.x;
-            const oneCenterY = one.transform.position.y + one.collision.pos.y;
-            const twoCenterX = two.transform.position.x + two.collision.pos.x;
-            const twoCenterY = two.transform.position.y + two.collision.pos.y;
 
             const oneRadius = Math.min(one.collision.size.x, one.collision.size.y) / 2;
             const twoRadius = Math.min(two.collision.size.x, two.collision.size.y) / 2;
 
-            const oneAabbMinX = oneCenterX - oneRadius;
-            const oneAabbMaxX = oneCenterX + oneRadius;
-            const oneAabbMinY = oneCenterY - oneRadius;
-            const oneAabbMaxY = oneCenterY + oneRadius;
+            const oneCenterX = pa.x + one.collision.pos.x + oneRadius;
+            const oneCenterY = pa.y + one.collision.pos.y + oneRadius;
+            const twoCenterX = pb.x + two.collision.pos.x + twoRadius;
+            const twoCenterY = pb.y + two.collision.pos.y + twoRadius;
 
-            const twoAabbMinX = twoCenterX - twoRadius;
-            const twoAabbMaxX = twoCenterX + twoRadius;
-            const twoAabbMinY = twoCenterY - twoRadius;
-            const twoAabbMaxY = twoCenterY + twoRadius;
+            const radiusSum = oneRadius + twoRadius;
+            const dx = oneCenterX - twoCenterX;
+            const dy = oneCenterY - twoCenterY;
 
-            if (
-                oneAabbMaxX < twoAabbMinX ||
-                twoAabbMaxX < oneAabbMinX ||
-                oneAabbMaxY < twoAabbMinY ||
-                twoAabbMaxY < oneAabbMinY
-            ) {
+            if (Math.abs(dx) > radiusSum || Math.abs(dy) > radiusSum) {
                 return false;
             }
 
-            const dx = oneCenterX - twoCenterX;
-            const dy = oneCenterY - twoCenterY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            return distance < oneRadius + twoRadius;
+            return dx * dx + dy * dy <= radiusSum * radiusSum;
         } else {
-            const rect1 = {
-                x: one.transform.position.x + one.collision.pos.x,
-                y: one.transform.position.y + one.collision.pos.y,
-                w: one.collision.size.x,
-                h: one.collision.size.y,
-            };
-
-            const rect2 = {
-                x: two.transform.position.x + two.collision.pos.x,
-                y: two.transform.position.y + two.collision.pos.y,
-                w: two.collision.size.x,
-                h: two.collision.size.y,
-            };
+            // Scalars instead of rectangle literals: this runs for every candidate pair, every frame
+            const ax = pa.x + one.collision.pos.x;
+            const ay = pa.y + one.collision.pos.y;
+            const bx = pb.x + two.collision.pos.x;
+            const by = pb.y + two.collision.pos.y;
 
             return !(
-                rect1.x + rect1.w <= rect2.x ||
-                rect2.x + rect2.w <= rect1.x ||
-                rect1.y + rect1.h <= rect2.y ||
-                rect2.y + rect2.h <= rect1.y
+                ax + one.collision.size.x <= bx ||
+                bx + two.collision.size.x <= ax ||
+                ay + one.collision.size.y <= by ||
+                by + two.collision.size.y <= ay
             );
         }
     }
 
-    public static addSquare(configurationObject: SquareCollisionType) {
+    /**
+     * Computes the Minimum Translation Vector (MTV) needed to push `one` out of penetration with `two`.
+     * Returns `null` if the two objects are not colliding.
+     *
+     * Circle vs circle pushes along the line between centers; circle vs rectangle/square pushes
+     * along the normal from the closest point of the rectangle to the circle center (or through
+     * the nearest face when the center is inside the rectangle); rectangle vs rectangle pushes
+     * along the axis of least overlap. Touching shapes yield a zero-length MTV.
+     *
+     * @param one Moving or primary `BrioObject2D`
+     * @param two Obstacle or secondary `BrioObject2D`
+     * @returns Translation vector `{ x, y }` to apply to `one`, or `null` if not overlapping
+     * @example
+     * ```ts
+     * const mtv = BrioCollision.computeMTV(player, wall);
+     * if (mtv) {
+     *     player.transform.position.x += mtv.x;
+     *     player.transform.position.y += mtv.y;
+     * }
+     * ```
+     */
+    public static computeMTV(one: BrioObject2D, two: BrioObject2D): Vec2 | null {
+        const pa = positionOf(one, POSITION_A);
+        const pb = positionOf(two, POSITION_B);
+        if (!this.isColliding(one, two)) return null;
+
+        const c1 = one.collision!;
+        const c2 = two.collision!;
+
+        if (c1.shape === "circle" && c2.shape === "circle") {
+            const r1 = Math.min(c1.size.x, c1.size.y) / 2;
+            const r2 = Math.min(c2.size.x, c2.size.y) / 2;
+            const c1x = pa.x + c1.pos.x + r1;
+            const c1y = pa.y + c1.pos.y + r1;
+            const c2x = pb.x + c2.pos.x + r2;
+            const c2y = pb.y + c2.pos.y + r2;
+
+            const dx = c1x - c2x;
+            const dy = c1y - c2y;
+            const dist = Math.hypot(dx, dy);
+            const overlap = r1 + r2 - dist;
+            if (dist === 0) {
+                return { x: overlap, y: 0 };
+            }
+            return {
+                x: (dx / dist) * overlap,
+                y: (dy / dist) * overlap,
+            };
+        }
+
+        if (c1.shape === "circle" || c2.shape === "circle") {
+            const circleIsOne = c1.shape === "circle";
+            const circleObj = circleIsOne ? one : two;
+            const rectObj = circleIsOne ? two : one;
+            const cc = circleObj.collision!;
+            const rc = rectObj.collision!;
+
+            const r = Math.min(cc.size.x, cc.size.y) / 2;
+            const cx = (circleObj === one ? pa : pb).x + cc.pos.x + r;
+            const cy = (circleObj === one ? pa : pb).y + cc.pos.y + r;
+            const minX = (rectObj === one ? pa : pb).x + rc.pos.x;
+            const minY = (rectObj === one ? pa : pb).y + rc.pos.y;
+            const maxX = minX + rc.size.x;
+            const maxY = minY + rc.size.y;
+
+            // Direction (nx, ny) pushes the circle out of the rectangle by `depth`.
+            let nx: number;
+            let ny: number;
+            let depth: number;
+
+            const dx = cx - Math.max(minX, Math.min(cx, maxX));
+            const dy = cy - Math.max(minY, Math.min(cy, maxY));
+            const dist = Math.hypot(dx, dy);
+
+            if (dist > 0) {
+                // Center outside the rectangle: push along the closest-point normal.
+                nx = dx / dist;
+                ny = dy / dist;
+                depth = r - dist;
+            } else {
+                // Center inside the rectangle: exit through the nearest face.
+                const toLeft = cx - minX;
+                const toRight = maxX - cx;
+                const toTop = cy - minY;
+                const toBottom = maxY - cy;
+                const nearest = Math.min(toLeft, toRight, toTop, toBottom);
+                nx = 0;
+                ny = 0;
+                if (nearest === toLeft) nx = -1;
+                else if (nearest === toRight) nx = 1;
+                else if (nearest === toTop) ny = -1;
+                else ny = 1;
+                depth = nearest + r;
+            }
+
+            // The MTV moves `one`: away from the rectangle when `one` is the circle, toward it
+            // otherwise. `+ 0` turns `-0` into `0` for zero components.
+            const push = circleIsOne ? depth : -depth;
+            return { x: nx * push + 0, y: ny * push + 0 };
+        }
+
+        const x1 = pa.x + c1.pos.x;
+        const y1 = pa.y + c1.pos.y;
+        const w1 = c1.size.x;
+        const h1 = c1.size.y;
+
+        const x2 = pb.x + c2.pos.x;
+        const y2 = pb.y + c2.pos.y;
+        const w2 = c2.size.x;
+        const h2 = c2.size.y;
+
+        const overlapLeft = x1 + w1 - x2;
+        const overlapRight = x2 + w2 - x1;
+        const overlapTop = y1 + h1 - y2;
+        const overlapBottom = y2 + h2 - y1;
+
+        const minX = overlapLeft < overlapRight ? -overlapLeft : overlapRight;
+        const minY = overlapTop < overlapBottom ? -overlapTop : overlapBottom;
+
+        if (Math.abs(minX) < Math.abs(minY)) {
+            return { x: minX, y: 0 };
+        } else {
+            return { x: 0, y: minY };
+        }
+    }
+
+    /**
+     * Resolves physical penetration between `mover` and `obstacle` when both colliders are `"solid"`.
+     * If either collider has `colliderType === "trigger"`, no displacement is applied and `null` is returned.
+     * Only positions change; pass the returned MTV to `BrioRigidBody.applyCollisionResponse` to update
+     * the mover's velocity with its restitution.
+     *
+     * @param mover Dynamic `BrioObject2D` whose position will be adjusted
+     * @param obstacle Solid obstacle `BrioObject2D`
+     * @returns Applied MTV displacement `{ x, y }`, or `null` if no solid collision occurred
+     * @example
+     * ```ts
+     * BrioCollision.resolveCollision(player, platform);
+     * ```
+     */
+    public static resolveCollision(mover: BrioObject2D, obstacle: BrioObject2D): Vec2 | null {
+        if (!mover.collision || !obstacle.collision) return null;
+        if (
+            mover.collision.colliderType !== "solid" ||
+            obstacle.collision.colliderType !== "solid"
+        ) {
+            return null;
+        }
+
+        const mtv = this.computeMTV(mover, obstacle);
+        if (!mtv) return null;
+
+        mover.transform.position.x += mtv.x;
+        mover.transform.position.y += mtv.y;
+        return mtv;
+    }
+
+    /**
+     * Tests whether two 3D `BrioObject3D` instances with active 3D colliders (`"box"` or `"sphere"`) are intersecting.
+     * Supports Box vs Box, Sphere vs Sphere, and symmetric Sphere vs Box.
+     *
+     * @param one First 3D object
+     * @param two Second 3D object
+     * @returns `true` if the two 3D colliders intersect
+     * @example
+     * ```ts
+     * if (BrioCollision.isColliding3D(ship, asteroid)) {
+     *     console.log("3D collision detected!");
+     * }
+     * ```
+     */
+    public static isColliding3D(one: BrioObject3D, two: BrioObject3D): boolean {
+        if (!one.collision || !two.collision) return false;
+        if (!one.collision.enabled || !two.collision.enabled) return false;
+
+        const s1 = one.collision.shape;
+        const s2 = two.collision.shape;
+
+        if (s1 === "sphere" && s2 === "sphere") {
+            const r1 = one.collision.size.x * 0.5;
+            const r2 = two.collision.size.x * 0.5;
+            const c1x = one.transform.position.x + one.collision.pos.x + r1;
+            const c1y = one.transform.position.y + one.collision.pos.y + r1;
+            const c1z = one.transform.position.z + one.collision.pos.z + r1;
+
+            const c2x = two.transform.position.x + two.collision.pos.x + r2;
+            const c2y = two.transform.position.y + two.collision.pos.y + r2;
+            const c2z = two.transform.position.z + two.collision.pos.z + r2;
+
+            const dx = c1x - c2x;
+            const dy = c1y - c2y;
+            const dz = c1z - c2z;
+            const rSum = r1 + r2;
+            return dx * dx + dy * dy + dz * dz <= rSum * rSum;
+        }
+
+        if (s1 === "sphere" || s2 === "sphere") {
+            const sphereObj = s1 === "sphere" ? one : two;
+            const boxObj = s1 === "sphere" ? two : one;
+
+            const r = sphereObj.collision!.size.x * 0.5;
+            const cx = sphereObj.transform.position.x + sphereObj.collision!.pos.x + r;
+            const cy = sphereObj.transform.position.y + sphereObj.collision!.pos.y + r;
+            const cz = sphereObj.transform.position.z + sphereObj.collision!.pos.z + r;
+
+            const minX = boxObj.transform.position.x + boxObj.collision!.pos.x;
+            const maxX = minX + boxObj.collision!.size.x;
+            const minY = boxObj.transform.position.y + boxObj.collision!.pos.y;
+            const maxY = minY + boxObj.collision!.size.y;
+            const minZ = boxObj.transform.position.z + boxObj.collision!.pos.z;
+            const maxZ = minZ + boxObj.collision!.size.z;
+
+            const closestX = Math.max(minX, Math.min(cx, maxX));
+            const closestY = Math.max(minY, Math.min(cy, maxY));
+            const closestZ = Math.max(minZ, Math.min(cz, maxZ));
+
+            const dx = cx - closestX;
+            const dy = cy - closestY;
+            const dz = cz - closestZ;
+            return dx * dx + dy * dy + dz * dz <= r * r;
+        }
+
+        // Box vs Box AABB 3D
+        const aMinX = one.transform.position.x + one.collision.pos.x;
+        const aMaxX = aMinX + one.collision.size.x;
+        const aMinY = one.transform.position.y + one.collision.pos.y;
+        const aMaxY = aMinY + one.collision.size.y;
+        const aMinZ = one.transform.position.z + one.collision.pos.z;
+        const aMaxZ = aMinZ + one.collision.size.z;
+
+        const bMinX = two.transform.position.x + two.collision.pos.x;
+        const bMaxX = bMinX + two.collision.size.x;
+        const bMinY = two.transform.position.y + two.collision.pos.y;
+        const bMaxY = bMinY + two.collision.size.y;
+        const bMinZ = two.transform.position.z + two.collision.pos.z;
+        const bMaxZ = bMinZ + two.collision.size.z;
+
+        return !(
+            aMaxX <= bMinX ||
+            bMaxX <= aMinX ||
+            aMaxY <= bMinY ||
+            bMaxY <= aMinY ||
+            aMaxZ <= bMinZ ||
+            bMaxZ <= aMinZ
+        );
+    }
+
+    /**
+     * Attaches an enabled square AABB collider (`width === height === size`) to `configurationObject.object`.
+     *
+     * @param configurationObject Square collider configuration
+     * @example
+     * ```ts
+     * BrioCollision.addSquare({
+     *     object: crate,
+     *     colliderType: "solid",
+     *     pos: { x: 0, y: 0 },
+     *     size: 32,
+     * });
+     * ```
+     */
+    public static addSquare(configurationObject: SquareCollisionType): void {
         const config = configurationObject;
 
         config.object.collision = {
             enabled: true,
             shape: "square",
             colliderType: config.colliderType,
-            pos: config.pos,
+            pos: { x: config.pos.x, y: config.pos.y },
             size: {
                 x: config.size,
                 y: config.size,
@@ -140,26 +442,54 @@ export class BrioCollision {
         };
     }
 
-    public static addRectangle(configurationObject: RectangleCollisionType) {
+    /**
+     * Attaches an enabled rectangular AABB collider to `configurationObject.object`.
+     *
+     * @param configurationObject Rectangle collider configuration
+     * @example
+     * ```ts
+     * BrioCollision.addRectangle({
+     *     object: enemy,
+     *     colliderType: "solid",
+     *     pos: { x: 6, y: 0 },
+     *     size: { x: 50, y: 64 },
+     * });
+     * ```
+     */
+    public static addRectangle(configurationObject: RectangleCollisionType): void {
         const config = configurationObject;
 
         config.object.collision = {
             enabled: true,
             shape: "rectangle",
             colliderType: config.colliderType,
-            pos: config.pos,
-            size: config.size,
+            pos: { x: config.pos.x, y: config.pos.y },
+            size: { x: config.size.x, y: config.size.y },
         };
     }
 
-    public static addCircle(configurationObject: CircleCollisionType) {
+    /**
+     * Attaches an enabled circular collider (`diameter = size`, `radius = size / 2`) to `configurationObject.object`.
+     *
+     * @param configurationObject Circle collider configuration
+     * @example
+     * ```ts
+     * BrioCollision.addCircle({
+     *     object: coin,
+     *     colliderType: "trigger",
+     *     pos: { x: 0, y: 0 },
+     *     size: 24,
+     * });
+     * ```
+     */
+    public static addCircle(configurationObject: CircleCollisionType): void {
         const config = configurationObject;
 
         config.object.collision = {
             enabled: true,
             shape: "circle",
             colliderType: config.colliderType,
-            pos: config.pos,
+            pos: { x: config.pos.x, y: config.pos.y },
             size: {
                 x: config.size,
                 y: config.size,

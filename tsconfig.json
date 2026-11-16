@@ -12,7 +12,7 @@
 		"esModuleInterop": true,
 		"declaration": true,
 		"declarationDir": "./dist",
-		"declarationMap": true,
+		"declarationMap": false,
 		"emitDeclarationOnly": false
 	},
 	"include": ["src/**/*.js", "src/**/*.ts"],
